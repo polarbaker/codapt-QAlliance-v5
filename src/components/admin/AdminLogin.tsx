@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { trpc } from "~/trpc/react";
+import { useMutation } from "@tanstack/react-query";
+import { useTRPC } from "~/trpc/react";
 import { useUserStore } from "~/stores/userStore";
 import { adminLoginSchema, type AdminLoginFormData } from "~/constants/validation";
 import { toast } from "react-hot-toast";
@@ -10,7 +11,8 @@ import { Lock, Shield } from "lucide-react";
 export function AdminLogin() {
   const [isLoading, setIsLoading] = useState(false);
   const { setAdminAuth } = useUserStore();
-  const loginMutation = trpc.adminLogin.useMutation();
+  const trpc = useTRPC();
+  const loginMutation = useMutation(trpc.adminLogin.mutationOptions());
 
   const {
     register,

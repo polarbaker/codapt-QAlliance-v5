@@ -67,66 +67,67 @@ export function useTRPCClient() {
   return client;
 }
 
-// Create a helper function to determine if a procedure is a query or mutation
-function getProcedureType(procedureName: string): 'query' | 'mutation' {
-  // Mutations typically include these keywords
-  const mutationKeywords = ['submit', 'create', 'update', 'delete', 'post', 'like', 'subscribe', 'unsubscribe', 'reorder'];
-  
-  return mutationKeywords.some(keyword => procedureName.toLowerCase().includes(keyword)) 
-    ? 'mutation' 
-    : 'query';
-}
-
 // Create the trpc object that provides the expected interface
 export const trpc = new Proxy({} as any, {
   get(target, procedureName) {
     if (typeof procedureName === 'string') {
-      const procedureType = getProcedureType(procedureName);
-      
-      if (procedureType === 'query') {
-        return {
-          queryOptions: (input?: any, options?: any) => ({
-            queryKey: [procedureName, input],
-            queryFn: async () => {
-              // We'll create a client on-demand for the query function
-              // This approach avoids hook violations since queryFn is called by useQuery
-              const client = createTRPCClient<AppRouter>({
-                links: [
-                  httpBatchLink({
-                    transformer: SuperJSON,
-                    url: getBaseUrl() + "/trpc",
-                  }),
-                ],
-              });
-              return (client as any)[procedureName].query(input);
-            },
-            ...options,
-          }),
-          
-          queryKey: (input?: any) => [procedureName, input],
-        };
-      } else {
-        return {
-          mutationOptions: (options?: any) => ({
-            mutationFn: async (input: any) => {
-              // We'll create a client on-demand for the mutation function
-              // This approach avoids hook violations since mutationFn is called by useMutation
-              const client = createTRPCClient<AppRouter>({
-                links: [
-                  httpBatchLink({
-                    transformer: SuperJSON,
-                    url: getBaseUrl() + "/trpc",
-                  }),
-                ],
-              });
-              return (client as any)[procedureName].mutate(input);
-            },
-            ...options,
-          }),
-          
-          mutationKey: () => [procedureName],
-        };
-      }
+      return {
+        queryOptions: (input?: any, options?: any) => ({
+          queryKey: [procedureName, input],
+          queryFn: async () => {
+            const client = createTRPCClient<AppRouter>({
+              links: [
+                loggerLink({
+                  enabled: (op) =>
+                    process.env.NODE_ENV === "development" ||
+                    (op.direction === "down" && op.result instanceof Error),
+                }),
+                httpBatchLink({
+                  transformer: SuperJSON,
+                  url: getBaseUrl() + "/trpc",
+                }),
+              ],
+            });
+            
+            const procedure = (client as any)[procedureName];
+            if (!procedure || typeof procedure.query !== 'function') {
+              throw new Error(`tRPC procedure '${procedureName}' not found or is not a query`);
+            }
+            
+            return procedure.query(input);
+          },
+          ...options,
+        }),
+        
+        mutationOptions: (options?: any) => ({
+          mutationFn: async (input: any) => {
+            const client = createTRPCClient<AppRouter>({
+              links: [
+                loggerLink({
+                  enabled: (op) =>
+                    process.env.NODE_ENV === "development" ||
+                    (op.direction === "down" && op.result instanceof Error),
+                }),
+                httpBatchLink({
+                  transformer: SuperJSON,
+                  url: getBaseUrl() + "/trpc",
+                }),
+              ],
+            });
+            
+            const procedure = (client as any)[procedureName];
+            if (!procedure || typeof procedure.mutate !== 'function') {
+              throw new Error(`tRPC procedure '${procedureName}' not found or is not a mutation`);
+            }
+            
+            return procedure.mutate(input);
+          },
+          ...options,
+        }),
+        
+        queryKey: (input?: any) => [procedureName, input],
+        mutationKey: () => [procedureName],
+      };
     }
     return target[procedureName];
   },

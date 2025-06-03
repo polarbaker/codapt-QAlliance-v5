@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useUserStore } from "~/stores/userStore";
-import { trpc } from "~/trpc/react";
+import { useTRPC } from "~/trpc/react";
 import { AdminLogin } from "~/components/admin/AdminLogin";
 import { AdminDashboard } from "~/components/admin/AdminDashboard";
 
@@ -12,13 +13,16 @@ export const Route = createFileRoute("/admin/")({
 function AdminPage() {
   const { isAdminLoggedIn, adminToken, clearAdminAuth } = useUserStore();
   const [isVerifying, setIsVerifying] = useState(true);
+  const trpc = useTRPC();
   
-  const verifyToken = trpc.verifyAdminToken.useQuery(
-    { token: adminToken || "" },
-    { 
-      enabled: !!adminToken && isAdminLoggedIn,
-      retry: false,
-    }
+  const verifyToken = useQuery(
+    trpc.verifyAdminToken.queryOptions(
+      { token: adminToken || "" },
+      { 
+        enabled: !!adminToken && isAdminLoggedIn,
+        retry: false,
+      }
+    )
   );
 
   useEffect(() => {
