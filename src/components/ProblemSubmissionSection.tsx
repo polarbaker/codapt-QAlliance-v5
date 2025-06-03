@@ -4,29 +4,30 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import toast from "react-hot-toast";
-import { api } from "~/trpc/react";
+import { useTRPC } from "~/trpc/react";
+import { useMutation } from "@tanstack/react-query";
 
 // Define the form validation schema with zod
 const problemSchema = z.object({
-  // Step 1: Challenge Overview
+  // Step 1: Challenge Details
   title: z.string().min(5, "Title must be at least 5 characters"),
+  description: z.string().min(20, "Description must be at least 20 characters"),
   category: z.string().min(1, "Category is required"),
-  briefDescription: z.string().min(20, "Brief description must be at least 20 characters"),
   
   // Step 2: Requirements
-  problemContext: z.string().min(20, "Problem context must be at least 20 characters"),
-  stakeholders: z.string().min(5, "Stakeholders must be at least 5 characters"),
-  geographiesAffected: z.string().min(2, "Geographies affected must be specified"),
+  technicalRequirements: z.string().min(20, "Technical requirements must be at least 20 characters"),
+  constraints: z.string().min(5, "Constraints must be at least 5 characters"),
   
   // Step 3: Success Criteria
-  successDefinition: z.string().min(20, "Success definition must be at least 20 characters"),
+  successCriteria: z.string().min(20, "Success criteria must be at least 20 characters"),
   timeline: z.string().min(1, "Timeline is required"),
+  budget: z.string().min(1, "Budget is required"),
   
-  // Step 4: Submitter Info
+  // Step 4: Contact Information
   name: z.string().min(2, "Name must be at least 2 characters"),
   organization: z.string().min(2, "Organization must be at least 2 characters"),
-  role: z.string().min(2, "Role must be at least 2 characters"),
   email: z.string().email("Invalid email address"),
+  phone: z.string().min(5, "Phone number must be at least 5 characters"),
   consentToContact: z.boolean().refine(val => val === true, {
     message: "You must agree to be contacted for follow-up"
   }),
@@ -112,6 +113,7 @@ export default function ProblemSubmissionSection({ id }: ProblemSubmissionSectio
   const [currentStep, setCurrentStep] = useState(1);
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
   const [submissionComplete, setSubmissionComplete] = useState(false);
+  const trpc = useTRPC();
 
   // Use react-hook-form with zod validation
   const {
@@ -125,38 +127,40 @@ export default function ProblemSubmissionSection({ id }: ProblemSubmissionSectio
   });
 
   // Use the tRPC mutation for submitting the problem
-  const submitProblemMutation = api.submitProblem.useMutation({
-    onSuccess: () => {
-      toast.success("Your challenge has been submitted successfully!");
-      setSubmissionComplete(true);
-    },
-    onError: (error) => {
-      toast.error(`Submission failed: ${error.message}`);
-    },
-  });
+  const submitProblemMutation = useMutation(
+    trpc.submitProblem.mutationOptions({
+      onSuccess: () => {
+        toast.success("Your challenge has been submitted successfully!");
+        setSubmissionComplete(true);
+      },
+      onError: (error) => {
+        toast.error(`Submission failed: ${error.message}`);
+      },
+    })
+  );
 
   const totalSteps = 4;
   
   const steps = [
     { 
       number: 1, 
-      title: "Challenge Overview", 
-      fields: ["title", "category", "briefDescription"] 
+      title: "Challenge Details", 
+      fields: ["title", "description", "category"] 
     },
     { 
       number: 2, 
       title: "Requirements", 
-      fields: ["problemContext", "stakeholders", "geographiesAffected"] 
+      fields: ["technicalRequirements", "constraints"] 
     },
     { 
       number: 3, 
       title: "Success Criteria", 
-      fields: ["successDefinition", "timeline"] 
+      fields: ["successCriteria", "timeline", "budget"] 
     },
     { 
       number: 4, 
-      title: "Submitter Info", 
-      fields: ["name", "organization", "role", "email", "consentToContact"] 
+      title: "Contact Information", 
+      fields: ["name", "organization", "email", "phone", "consentToContact"] 
     },
   ];
 
@@ -293,7 +297,7 @@ export default function ProblemSubmissionSection({ id }: ProblemSubmissionSectio
               <form className="space-y-8">
                 {currentStep === 1 && (
                   <div className="space-y-8">
-                    <h2 className="text-2xl font-bold text-text-dark dark:text-text-light mb-6">Challenge Overview</h2>
+                    <h2 className="text-2xl font-bold text-text-dark dark:text-text-light mb-6">Challenge Details</h2>
                     <div>
                       <FormLabel htmlFor="title">
                         Challenge Title
@@ -345,22 +349,22 @@ export default function ProblemSubmissionSection({ id }: ProblemSubmissionSectio
                     </div>
                     
                     <div>
-                      <FormLabel htmlFor="briefDescription">
-                        Brief Description
+                      <FormLabel htmlFor="description">
+                        Challenge Description
                       </FormLabel>
                       <textarea
-                        id="briefDescription"
-                        rows={3}
-                        {...register("briefDescription")}
+                        id="description"
+                        rows={5}
+                        {...register("description")}
                         className="w-full rounded-md border-0 bg-neutral-light/20 dark:bg-neutral-dark/20 px-4 py-3 text-text-dark dark:text-text-light placeholder-text-dark/40 dark:placeholder-text-light/40 focus:ring-2 focus:ring-secondary"
-                        placeholder="Provide a brief 1-2 sentence description of the challenge"
+                        placeholder="Provide a detailed description of the challenge, including background and why it matters"
                       ></textarea>
                       <HelperText>
-                        A short overview of the challenge (1-2 sentences)
+                        A comprehensive description of the challenge, its background, and why it's important to solve
                       </HelperText>
-                      {errors.briefDescription && (
+                      {errors.description && (
                         <p className="mt-2 text-sm text-secondary flex items-center">
-                          <span className="mr-1">⚠️</span> {errors.briefDescription.message}
+                          <span className="mr-1">⚠️</span> {errors.description.message}
                         </p>
                       )}
                     </div>
@@ -371,64 +375,43 @@ export default function ProblemSubmissionSection({ id }: ProblemSubmissionSectio
                   <div className="space-y-8">
                     <h2 className="text-2xl font-bold text-text-dark dark:text-text-light mb-6">Requirements</h2>
                     <div>
-                      <FormLabel htmlFor="problemContext">
-                        Problem Context
+                      <FormLabel htmlFor="technicalRequirements">
+                        Technical Requirements
                       </FormLabel>
                       <textarea
-                        id="problemContext"
+                        id="technicalRequirements"
                         rows={5}
-                        {...register("problemContext")}
+                        {...register("technicalRequirements")}
                         className="w-full rounded-md border-0 bg-neutral-light/20 dark:bg-neutral-dark/20 px-4 py-3 text-text-dark dark:text-text-light placeholder-text-dark/40 dark:placeholder-text-light/40 focus:ring-2 focus:ring-secondary"
-                        placeholder="Describe the problem in detail, including background and why it matters"
+                        placeholder="Describe the technical requirements, specifications, or capabilities needed for the solution"
                       ></textarea>
                       <HelperText>
-                        Provide a detailed description of the challenge, its background, and why it's important to solve
+                        Detail the technical specifications, platforms, integrations, or capabilities required
                       </HelperText>
-                      {errors.problemContext && (
+                      {errors.technicalRequirements && (
                         <p className="mt-2 text-sm text-secondary flex items-center">
-                          <span className="mr-1">⚠️</span> {errors.problemContext.message}
+                          <span className="mr-1">⚠️</span> {errors.technicalRequirements.message}
                         </p>
                       )}
                     </div>
                     
                     <div>
-                      <FormLabel htmlFor="stakeholders">
-                        Stakeholders Involved
+                      <FormLabel htmlFor="constraints">
+                        Constraints & Limitations
                       </FormLabel>
                       <textarea
-                        id="stakeholders"
-                        rows={3}
-                        {...register("stakeholders")}
+                        id="constraints"
+                        rows={4}
+                        {...register("constraints")}
                         className="w-full rounded-md border-0 bg-neutral-light/20 dark:bg-neutral-dark/20 px-4 py-3 text-text-dark dark:text-text-light placeholder-text-dark/40 dark:placeholder-text-light/40 focus:ring-2 focus:ring-secondary"
-                        placeholder="List the key stakeholders affected by or involved in this challenge"
+                        placeholder="List any constraints, limitations, or requirements that solutions must consider"
                       ></textarea>
                       <HelperText>
-                        Who are the key people, organizations, or groups affected by this challenge?
+                        Include regulatory, budget, time, technical, or other constraints that solutions must work within
                       </HelperText>
-                      {errors.stakeholders && (
+                      {errors.constraints && (
                         <p className="mt-2 text-sm text-secondary flex items-center">
-                          <span className="mr-1">⚠️</span> {errors.stakeholders.message}
-                        </p>
-                      )}
-                    </div>
-                    
-                    <div>
-                      <FormLabel htmlFor="geographiesAffected">
-                        Geographies Affected
-                      </FormLabel>
-                      <textarea
-                        id="geographiesAffected"
-                        rows={3}
-                        {...register("geographiesAffected")}
-                        className="w-full rounded-md border-0 bg-neutral-light/20 dark:bg-neutral-dark/20 px-4 py-3 text-text-dark dark:text-text-light placeholder-text-dark/40 dark:placeholder-text-light/40 focus:ring-2 focus:ring-secondary"
-                        placeholder="Specify the regions, countries, or localities affected by this challenge"
-                      ></textarea>
-                      <HelperText>
-                        Which geographic areas are most affected by this challenge?
-                      </HelperText>
-                      {errors.geographiesAffected && (
-                        <p className="mt-2 text-sm text-secondary flex items-center">
-                          <span className="mr-1">⚠️</span> {errors.geographiesAffected.message}
+                          <span className="mr-1">⚠️</span> {errors.constraints.message}
                         </p>
                       )}
                     </div>
@@ -439,29 +422,29 @@ export default function ProblemSubmissionSection({ id }: ProblemSubmissionSectio
                   <div className="space-y-8">
                     <h2 className="text-2xl font-bold text-text-dark dark:text-text-light mb-6">Success Criteria</h2>
                     <div>
-                      <FormLabel htmlFor="successDefinition">
-                        What Does Success Look Like?
+                      <FormLabel htmlFor="successCriteria">
+                        Success Criteria
                       </FormLabel>
                       <textarea
-                        id="successDefinition"
+                        id="successCriteria"
                         rows={5}
-                        {...register("successDefinition")}
+                        {...register("successCriteria")}
                         className="w-full rounded-md border-0 bg-neutral-light/20 dark:bg-neutral-dark/20 px-4 py-3 text-text-dark dark:text-text-light placeholder-text-dark/40 dark:placeholder-text-light/40 focus:ring-2 focus:ring-secondary"
                         placeholder="Describe how you would measure success for this challenge"
                       ></textarea>
                       <HelperText>
-                        Define the outcomes, metrics, or impacts that would indicate a successful solution
+                        Define the outcomes, metrics, KPIs, or impacts that would indicate a successful solution
                       </HelperText>
-                      {errors.successDefinition && (
+                      {errors.successCriteria && (
                         <p className="mt-2 text-sm text-secondary flex items-center">
-                          <span className="mr-1">⚠️</span> {errors.successDefinition.message}
+                          <span className="mr-1">⚠️</span> {errors.successCriteria.message}
                         </p>
                       )}
                     </div>
                     
                     <div>
                       <FormLabel htmlFor="timeline">
-                        Desired Timeline for Impact
+                        Desired Timeline
                       </FormLabel>
                       <select
                         id="timeline"
@@ -484,12 +467,40 @@ export default function ProblemSubmissionSection({ id }: ProblemSubmissionSectio
                         </p>
                       )}
                     </div>
+                    
+                    <div>
+                      <FormLabel htmlFor="budget">
+                        Budget Range
+                      </FormLabel>
+                      <select
+                        id="budget"
+                        {...register("budget")}
+                        className="w-full rounded-md border-0 bg-neutral-light/20 dark:bg-neutral-dark/20 px-4 py-3 text-text-dark dark:text-text-light focus:ring-2 focus:ring-secondary"
+                      >
+                        <option value="">Select budget range</option>
+                        <option value="Under $10,000">Under $10,000</option>
+                        <option value="$10,000 - $50,000">$10,000 - $50,000</option>
+                        <option value="$50,000 - $100,000">$50,000 - $100,000</option>
+                        <option value="$100,000 - $500,000">$100,000 - $500,000</option>
+                        <option value="$500,000 - $1,000,000">$500,000 - $1,000,000</option>
+                        <option value="Over $1,000,000">Over $1,000,000</option>
+                        <option value="To be determined">To be determined</option>
+                      </select>
+                      <HelperText>
+                        What budget range are you considering for this challenge?
+                      </HelperText>
+                      {errors.budget && (
+                        <p className="mt-2 text-sm text-secondary flex items-center">
+                          <span className="mr-1">⚠️</span> {errors.budget.message}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 )}
 
                 {currentStep === 4 && (
                   <div className="space-y-8">
-                    <h2 className="text-2xl font-bold text-text-dark dark:text-text-light mb-6">Submitter Information</h2>
+                    <h2 className="text-2xl font-bold text-text-dark dark:text-text-light mb-6">Contact Information</h2>
                     <div className="grid grid-cols-1 gap-8 sm:grid-cols-2">
                       <div>
                         <FormLabel htmlFor="name">
@@ -536,27 +547,6 @@ export default function ProblemSubmissionSection({ id }: ProblemSubmissionSectio
                     
                     <div className="grid grid-cols-1 gap-8 sm:grid-cols-2">
                       <div>
-                        <FormLabel htmlFor="role">
-                          Role
-                        </FormLabel>
-                        <input
-                          type="text"
-                          id="role"
-                          {...register("role")}
-                          className="w-full rounded-md border-0 bg-neutral-light/20 dark:bg-neutral-dark/20 px-4 py-3 text-text-dark dark:text-text-light placeholder-text-dark/40 dark:placeholder-text-light/40 focus:ring-2 focus:ring-secondary"
-                          placeholder="Enter your role or title"
-                        />
-                        <HelperText>
-                          Your position or role within the organization
-                        </HelperText>
-                        {errors.role && (
-                          <p className="mt-2 text-sm text-secondary flex items-center">
-                            <span className="mr-1">⚠️</span> {errors.role.message}
-                          </p>
-                        )}
-                      </div>
-                      
-                      <div>
                         <FormLabel htmlFor="email">
                           Contact Email
                         </FormLabel>
@@ -573,6 +563,27 @@ export default function ProblemSubmissionSection({ id }: ProblemSubmissionSectio
                         {errors.email && (
                           <p className="mt-2 text-sm text-secondary flex items-center">
                             <span className="mr-1">⚠️</span> {errors.email.message}
+                          </p>
+                        )}
+                      </div>
+                      
+                      <div>
+                        <FormLabel htmlFor="phone">
+                          Phone Number
+                        </FormLabel>
+                        <input
+                          type="tel"
+                          id="phone"
+                          {...register("phone")}
+                          className="w-full rounded-md border-0 bg-neutral-light/20 dark:bg-neutral-dark/20 px-4 py-3 text-text-dark dark:text-text-light placeholder-text-dark/40 dark:placeholder-text-light/40 focus:ring-2 focus:ring-secondary"
+                          placeholder="Enter your phone number"
+                        />
+                        <HelperText>
+                          Your phone number for direct contact if needed
+                        </HelperText>
+                        {errors.phone && (
+                          <p className="mt-2 text-sm text-secondary flex items-center">
+                            <span className="mr-1">⚠️</span> {errors.phone.message}
                           </p>
                         )}
                       </div>

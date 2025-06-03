@@ -7,11 +7,11 @@ const t = initTRPC.create({
   sse: {
     enabled: true,
     client: {
-      reconnectAfterInactivityMs: 5000,
+      reconnectAfterInactivityMs: 30000, // Increased from 5000 to 30000ms for better stability
     },
     ping: {
       enabled: true,
-      intervalMs: 2500,
+      intervalMs: 15000, // Increased from 2500 to 15000ms to reduce server load
     },
   },
   errorFormatter({ shape, error }) {

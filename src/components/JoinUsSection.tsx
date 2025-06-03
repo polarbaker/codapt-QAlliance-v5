@@ -3,7 +3,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import toast from "react-hot-toast";
-import { api } from "~/trpc/react";
+import { useTRPC } from "~/trpc/react";
+import { useMutation } from "@tanstack/react-query";
 import { Mail, Send, ArrowRight, MessageSquare, Users, Globe } from "lucide-react";
 
 // Define the newsletter form validation schema
@@ -24,6 +25,8 @@ type NewsletterFormData = z.infer<typeof newsletterSchema>;
 type ContactFormData = z.infer<typeof contactSchema>;
 
 function NewsletterSubscriptionForm() {
+  const trpc = useTRPC();
+  
   const {
     register: registerNewsletter,
     handleSubmit: handleNewsletterSubmit,
@@ -33,15 +36,17 @@ function NewsletterSubscriptionForm() {
     resolver: zodResolver(newsletterSchema),
   });
 
-  const subscribeNewsletterMutation = api.subscribeNewsletter.useMutation({
-    onSuccess: (data) => {
-      toast.success(data.message);
-      resetNewsletter();
-    },
-    onError: (error) => {
-      toast.error(`Subscription failed: ${error.message}`);
-    },
-  });
+  const subscribeNewsletterMutation = useMutation(
+    trpc.subscribeNewsletter.mutationOptions({
+      onSuccess: (data) => {
+        toast.success(data.message);
+        resetNewsletter();
+      },
+      onError: (error) => {
+        toast.error(`Subscription failed: ${error.message}`);
+      },
+    })
+  );
 
   const onSubmitNewsletter = (data: NewsletterFormData) => {
     subscribeNewsletterMutation.mutate(data);
@@ -106,6 +111,8 @@ function NewsletterSubscriptionForm() {
 }
 
 function ContactForm() {
+  const trpc = useTRPC();
+  
   const {
     register: registerContact,
     handleSubmit: handleContactSubmit,
@@ -115,15 +122,17 @@ function ContactForm() {
     resolver: zodResolver(contactSchema),
   });
 
-  const submitContactMutation = api.submitContactMessage.useMutation({
-    onSuccess: () => {
-      toast.success("Your message has been sent successfully! We'll get back to you soon.");
-      resetContact();
-    },
-    onError: (error) => {
-      toast.error(`Message submission failed: ${error.message}`);
-    },
-  });
+  const submitContactMutation = useMutation(
+    trpc.submitContactMessage.mutationOptions({
+      onSuccess: () => {
+        toast.success("Your message has been sent successfully! We'll get back to you soon.");
+        resetContact();
+      },
+      onError: (error) => {
+        toast.error(`Message submission failed: ${error.message}`);
+      },
+    })
+  );
 
   const onSubmitContact = (data: ContactFormData) => {
     submitContactMutation.mutate(data);

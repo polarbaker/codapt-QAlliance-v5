@@ -18,7 +18,17 @@ const { TRPCProvider, useTRPC, useTRPCClient } = createTRPCContext<AppRouter>();
 export { useTRPC, useTRPCClient };
 
 function getBaseUrl() {
-  if (typeof window !== "undefined") return window.location.origin;
+  if (typeof window !== "undefined") {
+    // Browser: use current origin
+    return window.location.origin;
+  }
+  
+  // Server: check for BASE_URL environment variable first, fallback to localhost:3000 for internal calls
+  if (process.env.BASE_URL) {
+    return process.env.BASE_URL;
+  }
+  
+  // Fallback for server-side internal calls (within Docker network)
   return `http://localhost:3000`;
 }
 

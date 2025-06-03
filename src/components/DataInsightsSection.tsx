@@ -1,5 +1,6 @@
 import { Download } from "lucide-react";
-import { api } from "~/trpc/react";
+import { useTRPC } from "~/trpc/react";
+import { useQuery } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 
 // Types for metric data
@@ -236,21 +237,33 @@ const ChartErrorState = ({ message }: { message: string }) => (
 );
 
 export default function DataInsightsSection() {
+  const trpc = useTRPC();
+  
   // Fetch funds raised data
-  const fundsRaisedQuery = api.getImpactMetrics.useQuery({
-    metricType: 'fundsRaised'
-  }, {
-    refetchOnWindowFocus: false,
-    staleTime: 1000 * 60 * 5, // 5 minutes
-  });
+  const fundsRaisedQuery = useQuery(
+    trpc.getImpactMetrics.queryOptions(
+      {
+        metricType: 'fundsRaised'
+      },
+      {
+        refetchOnWindowFocus: false,
+        staleTime: 1000 * 60 * 5, // 5 minutes
+      }
+    )
+  );
   
   // Fetch region percentage data
-  const regionPercentageQuery = api.getImpactMetrics.useQuery({
-    metricType: 'regionPercentage'
-  }, {
-    refetchOnWindowFocus: false,
-    staleTime: 1000 * 60 * 5, // 5 minutes
-  });
+  const regionPercentageQuery = useQuery(
+    trpc.getImpactMetrics.queryOptions(
+      {
+        metricType: 'regionPercentage'
+      },
+      {
+        refetchOnWindowFocus: false,
+        staleTime: 1000 * 60 * 5, // 5 minutes
+      }
+    )
+  );
 
   return (
     <section

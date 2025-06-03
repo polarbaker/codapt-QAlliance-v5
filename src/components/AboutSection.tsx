@@ -1,12 +1,17 @@
 import { useState } from "react";
 import toast from "react-hot-toast";
 import { Building } from "lucide-react";
-import { api } from "~/trpc/react";
+import { useTRPC } from "~/trpc/react";
+import { useQuery } from "@tanstack/react-query";
 import { getCacheBustedImageUrl } from "~/utils";
 
 export default function AboutSection() {
+  const trpc = useTRPC();
+  
   // Fetch partners data
-  const { data: partnersData, isLoading: isLoadingPartners, error: partnersError } = api.getPartners.useQuery();
+  const { data: partnersData, isLoading: isLoadingPartners, error: partnersError } = useQuery(
+    trpc.getPartners.queryOptions()
+  );
 
   const [imageErrors, setImageErrors] = useState<Set<number>>(new Set());
   const [imageLoading, setImageLoading] = useState<Set<number>>(new Set());

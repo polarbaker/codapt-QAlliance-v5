@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { MessageSquare, Heart, Share2, RefreshCw, User } from "lucide-react";
-import { api } from "~/trpc/react";
+import { useTRPC } from "~/trpc/react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { useUserStore } from "~/stores/userStore";
 import { useForm } from "react-hook-form";
@@ -189,6 +190,7 @@ function UserProfile() {
 export default function CommunityEngagementSection() {
   const [refreshKey, setRefreshKey] = useState(0); // For manual refresh
   const { name, avatar, likedComments, likeComment, hasLikedComment } = useUserStore();
+  const trpc = useTRPC();
   
   // Form for posting comments
   const {
@@ -201,39 +203,48 @@ export default function CommunityEngagementSection() {
   });
   
   // Fetch comments using tRPC
-  const commentsQuery = api.getComments.useQuery({
-    limit: 5
-  }, {
-    refetchOnWindowFocus: false,
-    refetchOnMount: true,
-    refetchOnReconnect: true,
-    staleTime: 1000 * 60, // 1 minute
-    key: `comments-${refreshKey}` // Add refreshKey to force refetch
-  });
+  const commentsQuery = useQuery(
+    trpc.getComments.queryOptions(
+      {
+        limit: 5
+      },
+      {
+        refetchOnWindowFocus: false,
+        refetchOnMount: true,
+        refetchOnReconnect: true,
+        staleTime: 1000 * 60, // 1 minute
+        queryKey: [`comments-${refreshKey}`] // Add refreshKey to force refetch
+      }
+    )
+  );
   
   // Post comment mutation
-  const postCommentMutation = api.postComment.useMutation({
-    onSuccess: () => {
-      toast.success("Comment posted successfully!");
-      reset(); // Reset the form
-      setRefreshKey(prev => prev + 1); // Trigger a refresh
-    },
-    onError: (error) => {
-      toast.error(`Failed to post comment: ${error.message}`);
-    }
-  });
+  const postCommentMutation = useMutation(
+    trpc.postComment.mutationOptions({
+      onSuccess: () => {
+        toast.success("Comment posted successfully!");
+        reset(); // Reset the form
+        setRefreshKey(prev => prev + 1); // Trigger a refresh
+      },
+      onError: (error) => {
+        toast.error(`Failed to post comment: ${error.message}`);
+      }
+    })
+  );
   
   // Like comment mutation
-  const likeCommentMutation = api.likeComment.useMutation({
-    onSuccess: (data, variables) => {
-      // Update local state to mark this comment as liked by the user
-      likeComment(variables.commentId);
-      // No need to refetch as we update the UI optimistically
-    },
-    onError: (error) => {
-      toast.error(`Failed to like comment: ${error.message}`);
-    }
-  });
+  const likeCommentMutation = useMutation(
+    trpc.likeComment.mutationOptions({
+      onSuccess: (data, variables) => {
+        // Update local state to mark this comment as liked by the user
+        likeComment(variables.commentId);
+        // No need to refetch as we update the UI optimistically
+      },
+      onError: (error) => {
+        toast.error(`Failed to like comment: ${error.message}`);
+      }
+    })
+  );
   
   // Handle posting a new comment
   const onSubmitComment = (data: CommentFormData) => {

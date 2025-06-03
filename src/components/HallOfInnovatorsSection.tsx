@@ -1,6 +1,7 @@
 import { useState, Fragment } from "react";
 import { Play, X, Award, User } from "lucide-react";
-import { api } from "~/trpc/react";
+import { useTRPC } from "~/trpc/react";
+import { useQuery } from "@tanstack/react-query";
 import { Dialog, Transition } from "@headlessui/react";
 
 // Type for innovator data from API
@@ -191,15 +192,21 @@ function InnovatorModal({ innovator, isOpen, onClose }: InnovatorModalProps) {
 export default function HallOfInnovatorsSection() {
   const [selectedInnovator, setSelectedInnovator] = useState<InnovatorData | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const trpc = useTRPC();
   
   // Fetch innovators using tRPC
-  const innovatorsQuery = api.getInnovators.useQuery({
-    featuredOnly: true,
-    limit: 4
-  }, {
-    refetchOnWindowFocus: false,
-    staleTime: 1000 * 60 * 5, // 5 minutes
-  });
+  const innovatorsQuery = useQuery(
+    trpc.getInnovators.queryOptions(
+      {
+        featuredOnly: true,
+        limit: 4
+      },
+      {
+        refetchOnWindowFocus: false,
+        staleTime: 1000 * 60 * 5, // 5 minutes
+      }
+    )
+  );
   
   // Handle innovator click
   const handleInnovatorClick = (innovator: InnovatorData) => {

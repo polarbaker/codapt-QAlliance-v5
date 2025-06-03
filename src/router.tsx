@@ -1,6 +1,5 @@
 import { createRouter as createTanStackRouter } from "@tanstack/react-router";
-import { routeTree } from "./generated/tanstack-router/routeTree.gen";
-import { TRPCReactProvider } from "./trpc/react";
+import { routeTree } from "~/generated/tanstack-router/routeTree.gen";
 
 export function createRouter() {
   const router = createTanStackRouter({
@@ -8,9 +7,6 @@ export function createRouter() {
     scrollRestoration: true,
     defaultPreload: "intent",
     defaultPendingComponent: () => <div>Loading...</div>,
-    Wrap: function WrapComponent({ children }: { children: React.ReactNode }) {
-      return <TRPCReactProvider>{children}</TRPCReactProvider>;
-    },
   });
 
   return router;
