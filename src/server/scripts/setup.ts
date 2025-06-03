@@ -51,12 +51,16 @@ async function setup() {
 
     // Seed Innovators
     console.log("Seeding innovators...");
+    // Note: Using Unsplash URLs for demo purposes. In production, these should be:
+    // 1. Hosted internally via Minio object storage
+    // 2. Have proper fallback handling in the frontend components
+    // 3. Use more reliable image sources with proper licensing
     const innovatorsData = [
       {
         name: "Dr. Sarah Chen",
         role: "Climate Technology Pioneer",
         impact: "Developed breakthrough carbon capture technology deployed in 15 countries",
-        avatar: "https://images.unsplash.com/photo-1494790108755-2616b612b786?w=400&h=400&fit=crop&crop=face",
+        avatar: "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=400&h=400&fit=crop&crop=face",
         hasVideo: true,
         videoUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ",
         bio: "Dr. Sarah Chen is a leading climate technology researcher with over 15 years of experience in sustainable engineering. Her work on carbon capture has revolutionized how we approach climate change mitigation.",

@@ -36,6 +36,7 @@ export const appRouter = createTRPCRouter({
   
   // Admin procedures - Innovators
   adminGetInnovators: adminInnovatorsProcs.adminGetInnovators,
+  adminGetInnovatorById: adminInnovatorsProcs.adminGetInnovatorById,
   adminCreateInnovator: adminInnovatorsProcs.adminCreateInnovator,
   adminUpdateInnovator: adminInnovatorsProcs.adminUpdateInnovator,
   adminDeleteInnovator: adminInnovatorsProcs.adminDeleteInnovator,

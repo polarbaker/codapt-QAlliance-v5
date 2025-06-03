@@ -59,20 +59,40 @@ export const adminGetInnovators = baseProcedure
     };
   });
 
+export const adminGetInnovatorById = baseProcedure
+  .input(z.object({
+    adminToken: z.string(),
+    id: z.number().int().positive(),
+  }))
+  .query(async ({ input }) => {
+    await requireAdminAuth(input.adminToken);
+    
+    const { id } = input;
+    
+    const innovator = await db.innovator.findUnique({
+      where: { id },
+    });
+    
+    if (!innovator) {
+      throw new Error('Innovator not found');
+    }
+    
+    return innovator;
+  });
+
 export const adminCreateInnovator = baseProcedure
   .input(z.object({
     adminToken: z.string(),
     data: z.object({
       name: z.string().min(1).max(100),
-      role: z.string().min(1).max(150),
-      impact: z.string().min(1),
-      avatar: z.string().url(),
-      bio: z.string().optional(),
+      title: z.string().min(1).max(150), // Frontend sends 'title', maps to 'role'
+      bio: z.string().min(1),
+      image: z.string().url(), // Frontend sends 'image', maps to 'avatar'
       achievements: z.array(z.string()).min(1),
-      hasVideo: z.boolean().default(false),
-      videoUrl: z.string().url().optional(),
+      linkedinUrl: z.string().url().optional().or(z.literal("")),
+      twitterUrl: z.string().url().optional().or(z.literal("")),
+      websiteUrl: z.string().url().optional().or(z.literal("")),
       featured: z.boolean().default(false),
-      order: z.number().int().default(0),
     }),
   }))
   .mutation(async ({ input }) => {
@@ -82,8 +102,16 @@ export const adminCreateInnovator = baseProcedure
     
     const innovator = await db.innovator.create({
       data: {
-        ...data,
+        name: data.name,
+        role: data.title, // Map title to role
+        impact: data.bio, // Map bio to impact for now, but we should also store bio
+        avatar: data.image, // Map image to avatar
+        bio: data.bio, // Store the full bio
         achievements: JSON.stringify(data.achievements),
+        hasVideo: false, // Default for now
+        videoUrl: null,
+        featured: data.featured,
+        order: 0, // Default order
       },
     });
     
@@ -100,14 +128,16 @@ export const adminUpdateInnovator = baseProcedure
     id: z.number().int().positive(),
     data: z.object({
       name: z.string().min(1).max(100).optional(),
-      role: z.string().min(1).max(150).optional(),
-      impact: z.string().min(1).optional(),
-      avatar: z.string().url().optional(),
-      bio: z.string().optional(),
+      title: z.string().min(1).max(150).optional(), // Frontend sends 'title', maps to 'role'
+      bio: z.string().min(1).optional(),
+      image: z.string().url().optional(), // Frontend sends 'image', maps to 'avatar'
       achievements: z.array(z.string()).optional(),
-      hasVideo: z.boolean().optional(),
-      videoUrl: z.string().url().optional(),
+      linkedinUrl: z.string().url().optional().or(z.literal("")),
+      twitterUrl: z.string().url().optional().or(z.literal("")),
+      websiteUrl: z.string().url().optional().or(z.literal("")),
       featured: z.boolean().optional(),
+      hasVideo: z.boolean().optional(),
+      videoUrl: z.string().url().optional().or(z.literal("")),
       order: z.number().int().optional(),
     }),
   }))
@@ -116,10 +146,20 @@ export const adminUpdateInnovator = baseProcedure
     
     const { id, data } = input;
     
-    const updateData: any = { ...data };
-    if (data.achievements) {
-      updateData.achievements = JSON.stringify(data.achievements);
+    const updateData: any = {};
+    
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.title !== undefined) updateData.role = data.title; // Map title to role
+    if (data.bio !== undefined) {
+      updateData.impact = data.bio; // Map bio to impact
+      updateData.bio = data.bio; // Also store as bio
     }
+    if (data.image !== undefined) updateData.avatar = data.image; // Map image to avatar
+    if (data.achievements !== undefined) updateData.achievements = JSON.stringify(data.achievements);
+    if (data.featured !== undefined) updateData.featured = data.featured;
+    if (data.hasVideo !== undefined) updateData.hasVideo = data.hasVideo;
+    if (data.videoUrl !== undefined) updateData.videoUrl = data.videoUrl || null;
+    if (data.order !== undefined) updateData.order = data.order;
     
     const innovator = await db.innovator.update({
       where: { id },

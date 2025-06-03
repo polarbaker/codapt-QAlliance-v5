@@ -2,7 +2,7 @@ import { baseProcedure } from "~/server/trpc/main";
 import { env } from "~/server/env";
 import { adminLoginSchema } from "~/constants/validation";
 import * as z from "zod";
-import * as jwt from "jsonwebtoken";
+import jwt from "jsonwebtoken";
 
 export const adminLogin = baseProcedure
   .input(adminLoginSchema)

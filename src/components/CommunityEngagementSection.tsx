@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { MessageSquare, Heart, Share2, RefreshCw, User } from "lucide-react";
+import { MessageSquare, Heart, Share2, RefreshCw, User, Image as ImageIcon } from "lucide-react";
 import { useTRPC } from "~/trpc/react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import toast from "react-hot-toast";
@@ -189,6 +189,8 @@ function UserProfile() {
 
 export default function CommunityEngagementSection() {
   const [refreshKey, setRefreshKey] = useState(0); // For manual refresh
+  const [imageError, setImageError] = useState(false);
+  const [imageLoading, setImageLoading] = useState(true);
   const { name, avatar, likedComments, likeComment, hasLikedComment } = useUserStore();
   const trpc = useTRPC();
   
@@ -245,6 +247,22 @@ export default function CommunityEngagementSection() {
       }
     })
   );
+  
+  // Handle image loading events
+  const handleImageError = () => {
+    setImageError(true);
+    setImageLoading(false);
+  };
+
+  const handleImageLoad = () => {
+    setImageError(false);
+    setImageLoading(false);
+  };
+
+  const handleImageLoadStart = () => {
+    setImageLoading(true);
+    setImageError(false);
+  };
   
   // Handle posting a new comment
   const onSubmitComment = (data: CommentFormData) => {
@@ -305,8 +323,34 @@ export default function CommunityEngagementSection() {
               From Prototype to Global Impact: The Water Access Initiative
             </h3>
             
-            <div className="mb-8 aspect-video overflow-hidden rounded-lg">
-              <div className="h-full w-full bg-[url('https://images.unsplash.com/photo-1635001087799-539b4a31e478?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=2070&q=80')] bg-cover bg-center"></div>
+            <div className="mb-8 aspect-video overflow-hidden rounded-lg bg-neutral-light/10 dark:bg-neutral-dark/10">
+              {imageError ? (
+                <div className="h-full w-full flex items-center justify-center bg-neutral-light/20 dark:bg-neutral-dark/20">
+                  <div className="text-center">
+                    <ImageIcon className="h-16 w-16 mx-auto mb-4 text-text-dark/40 dark:text-text-light/40" />
+                    <p className="text-sm text-text-dark/60 dark:text-text-light/60">Image unavailable</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="relative h-full w-full">
+                  {imageLoading && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-neutral-light/20 dark:bg-neutral-dark/20">
+                      <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-t-2 border-secondary"></div>
+                    </div>
+                  )}
+                  <img
+                    src="https://images.unsplash.com/photo-1635001087799-539b4a31e478?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=2070&q=80"
+                    alt="Water Access Initiative - Clean water infrastructure project"
+                    className={`h-full w-full object-cover transition-opacity duration-300 ${
+                      imageLoading ? 'opacity-0' : 'opacity-100'
+                    }`}
+                    onError={handleImageError}
+                    onLoad={handleImageLoad}
+                    onLoadStart={handleImageLoadStart}
+                    loading="lazy"
+                  />
+                </div>
+              )}
             </div>
             
             <p className="mb-8 text-lg text-text-dark/80 dark:text-text-light/80">

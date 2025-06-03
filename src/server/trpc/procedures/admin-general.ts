@@ -577,14 +577,14 @@ export const adminUpdateContactMessageStatus = baseProcedure
     
     const { id, status } = input;
     
-    const message = await db.contactMessage.update({
+    const contactMessage = await db.contactMessage.update({
       where: { id },
       data: { status },
     });
     
     return {
       success: true,
-      message,
-      message: 'Message status updated successfully',
+      message: contactMessage,
+      statusMessage: 'Message status updated successfully',
     };
   });

@@ -2,6 +2,7 @@ import {
   Outlet,
   createRootRoute,
   useRouterState,
+  useLocation,
 } from "@tanstack/react-router";
 import { TRPCReactProvider } from "~/trpc/react";
 import { Toaster } from "react-hot-toast";
@@ -14,6 +15,10 @@ export const Route = createRootRoute({
 
 function RootComponent() {
   const isFetching = useRouterState({ select: (s) => s.isLoading });
+  const location = useLocation();
+  
+  // Don't show main navigation on admin routes
+  const isAdminRoute = location.pathname.startsWith('/admin');
 
   if (isFetching) {
     return (
@@ -30,8 +35,8 @@ function RootComponent() {
     <ErrorBoundary>
       <TRPCReactProvider>
         <div className="min-h-screen bg-background-light dark:bg-background-black">
-          <Navigation />
-          <main>
+          {!isAdminRoute && <Navigation />}
+          <main className={isAdminRoute ? "" : "pt-20"}>
             <Outlet />
           </main>
           <Toaster

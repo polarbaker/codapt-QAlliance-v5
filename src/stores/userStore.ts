@@ -80,13 +80,25 @@ export const useUserStore = create<UserStore>()(
       // Comment interactions
       likeComment: (commentId) => {
         const { likedComments } = get();
-        const newLikedComments = new Set(likedComments);
+        // Defensive programming: ensure likedComments is a Set
+        let currentLikedComments = likedComments;
+        if (!currentLikedComments || typeof currentLikedComments.has !== 'function') {
+          console.warn('likedComments is not a Set, reinitializing...');
+          currentLikedComments = new Set();
+        }
+        const newLikedComments = new Set(currentLikedComments);
         newLikedComments.add(commentId);
         set({ likedComments: newLikedComments });
       },
       
       hasLikedComment: (commentId) => {
         const { likedComments } = get();
+        // Defensive programming: ensure likedComments is a Set
+        if (!likedComments || typeof likedComments.has !== 'function') {
+          console.warn('likedComments is not a Set, reinitializing...');
+          set({ likedComments: new Set() });
+          return false;
+        }
         return likedComments.has(commentId);
       },
       
@@ -128,14 +140,24 @@ export const useUserStore = create<UserStore>()(
         });
       },
       deserialize: (str) => {
-        const parsed = JSON.parse(str);
-        return {
-          state: {
-            ...parsed,
-            likedComments: new Set(parsed.likedComments || []),
-          },
-          version: parsed.version,
-        };
+        try {
+          const parsed = JSON.parse(str);
+          return {
+            state: {
+              ...parsed,
+              // Ensure likedComments is always a Set, even if it's undefined, null, or not an array
+              likedComments: new Set(Array.isArray(parsed.likedComments) ? parsed.likedComments : []),
+            },
+            version: parsed.version,
+          };
+        } catch (error) {
+          console.warn('Failed to deserialize user store, using default state:', error);
+          // Return default state if deserialization fails
+          return {
+            state: defaultState,
+            version: 0,
+          };
+        }
       },
     }
   )

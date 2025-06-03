@@ -67,6 +67,27 @@ export const innovatorSchema = z.object({
   linkedinUrl: urlSchema.optional(),
   twitterUrl: urlSchema.optional(),
   websiteUrl: urlSchema.optional(),
+  featured: z.boolean().default(false),
+  hasVideo: z.boolean().default(false),
+  videoUrl: urlSchema.optional(),
+  order: z.number().int().min(0).optional(),
+});
+
+// Enhanced innovator form schema for admin forms
+export const innovatorFormSchema = z.object({
+  name: z.string().min(1, "Name is required").max(100, "Name must be less than 100 characters"),
+  title: z.string().min(1, "Title is required").max(150, "Title must be less than 150 characters"),
+  bio: z.string().min(1, "Bio is required"),
+  image: z.string().min(1, "Image URL is required").url("Please enter a valid image URL"),
+  achievements: z.array(z.object({
+    value: z.string().min(1, "Achievement cannot be empty")
+  })).min(1, "At least one achievement is required"),
+  linkedinUrl: z.string().url("Please enter a valid LinkedIn URL").optional().or(z.literal("")),
+  twitterUrl: z.string().url("Please enter a valid Twitter URL").optional().or(z.literal("")),
+  websiteUrl: z.string().url("Please enter a valid website URL").optional().or(z.literal("")),
+  featured: z.boolean().default(false),
+  hasVideo: z.boolean().default(false),
+  videoUrl: z.string().url("Please enter a valid video URL").optional().or(z.literal("")),
 });
 
 // Partner validation schema
@@ -102,6 +123,7 @@ export type CaseStudyFormData = z.infer<typeof caseStudySchema>;
 export type ChallengeFormData = z.infer<typeof challengeSchema>;
 export type NewsFormData = z.infer<typeof newsSchema>;
 export type InnovatorFormData = z.infer<typeof innovatorSchema>;
+export type InnovatorFormSchemaData = z.infer<typeof innovatorFormSchema>;
 export type PartnerFormData = z.infer<typeof partnerSchema>;
 export type AdminLoginFormData = z.infer<typeof adminLoginSchema>;
 export type FileUploadFormData = z.infer<typeof fileUploadSchema>;

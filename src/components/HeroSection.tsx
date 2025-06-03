@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from "react";
 export default function HeroSection() {
   const [isVisible, setIsVisible] = useState(true);
   const [scrollY, setScrollY] = useState(0);
+  const [backgroundImageError, setBackgroundImageError] = useState(false);
   const heroRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -35,7 +36,17 @@ export default function HeroSection() {
           transform: `translateY(${scrollY * 0.15}px)` 
         }}
       >
-        <div className="h-full w-full bg-[url('https://images.unsplash.com/photo-1451187580459-43490279c0fa?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=2072&q=80')] bg-cover bg-center bg-no-repeat"></div>
+        {backgroundImageError ? (
+          <div className="h-full w-full bg-gradient-to-br from-background-black via-neutral-dark to-background-black"></div>
+        ) : (
+          <img
+            src="https://images.unsplash.com/photo-1451187580459-43490279c0fa?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=2072&q=80"
+            alt="Technology and innovation background"
+            className="h-full w-full object-cover"
+            onError={() => setBackgroundImageError(true)}
+            loading="eager"
+          />
+        )}
         <div className="absolute inset-0 bg-gradient-to-t from-background-black via-background-black/60 to-transparent"></div>
       </div>
 
