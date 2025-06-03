@@ -85,21 +85,19 @@ export const trpc = new Proxy({} as any, {
       
       if (procedureType === 'query') {
         return {
-          useQuery: (input?: any, options?: any) => {
-            const client = useTRPCClient();
-            return useQuery({
-              queryKey: [procedureName, input],
-              queryFn: async () => {
-                return (client as any)[procedureName].query(input);
-              },
-              ...options,
-            });
-          },
-          
           queryOptions: (input?: any, options?: any) => ({
             queryKey: [procedureName, input],
             queryFn: async () => {
-              const client = useTRPCClient();
+              // We'll create a client on-demand for the query function
+              // This approach avoids hook violations since queryFn is called by useQuery
+              const client = createTRPCClient<AppRouter>({
+                links: [
+                  httpBatchLink({
+                    transformer: SuperJSON,
+                    url: getBaseUrl() + "/trpc",
+                  }),
+                ],
+              });
               return (client as any)[procedureName].query(input);
             },
             ...options,
@@ -109,19 +107,18 @@ export const trpc = new Proxy({} as any, {
         };
       } else {
         return {
-          useMutation: (options?: any) => {
-            const client = useTRPCClient();
-            return useMutation({
-              mutationFn: async (input: any) => {
-                return (client as any)[procedureName].mutate(input);
-              },
-              ...options,
-            });
-          },
-          
           mutationOptions: (options?: any) => ({
             mutationFn: async (input: any) => {
-              const client = useTRPCClient();
+              // We'll create a client on-demand for the mutation function
+              // This approach avoids hook violations since mutationFn is called by useMutation
+              const client = createTRPCClient<AppRouter>({
+                links: [
+                  httpBatchLink({
+                    transformer: SuperJSON,
+                    url: getBaseUrl() + "/trpc",
+                  }),
+                ],
+              });
               return (client as any)[procedureName].mutate(input);
             },
             ...options,

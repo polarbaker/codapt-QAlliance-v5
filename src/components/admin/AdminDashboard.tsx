@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useUserStore } from "~/stores/userStore";
-import { trpc } from "~/trpc/react";
+import { useTRPC } from "~/trpc/react";
+import { useQuery } from "@tanstack/react-query";
 import { AdminCard } from "~/components/AdminCard";
 import { StatCard } from "~/components/ui/StatCard";
 import { toast } from "react-hot-toast";
@@ -23,9 +24,10 @@ import {
 
 export function AdminDashboard() {
   const { clearAdminAuth } = useUserStore();
+  const trpc = useTRPC();
   
-  // Fetch summary statistics
-  const summaryStats = trpc.getSummaryStats.useQuery();
+  // Fetch summary statistics using the correct pattern
+  const summaryStats = useQuery(trpc.getSummaryStats.queryOptions());
 
   const handleLogout = () => {
     clearAdminAuth();

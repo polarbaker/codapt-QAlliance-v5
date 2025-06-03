@@ -29,28 +29,28 @@ function AdminInnovatorsPage() {
   
   const trpc = useTRPC();
   
-  // Create query options first
-  const innovatorsQueryOptions = trpc.adminGetInnovators.queryOptions({
-    adminToken: adminToken || "",
-    search: searchQuery || undefined,
-    featured: featuredFilter === "all" ? undefined : featuredFilter === "featured",
-    limit: 20,
-  });
+  // Use the correct pattern for queries
+  const innovatorsQuery = useQuery(
+    trpc.adminGetInnovators.queryOptions({
+      adminToken: adminToken || "",
+      search: searchQuery || undefined,
+      featured: featuredFilter === "all" ? undefined : featuredFilter === "featured",
+      limit: 20,
+    })
+  );
   
-  const innovatorsQuery = useQuery(innovatorsQueryOptions);
-  
-  // Create mutation options
-  const deleteMutationOptions = trpc.adminDeleteInnovator.mutationOptions({
-    onSuccess: () => {
-      innovatorsQuery.refetch();
-      toast.success("Innovator deleted successfully");
-    },
-    onError: (error) => {
-      toast.error(error.message);
-    },
-  });
-  
-  const deleteMutation = useMutation(deleteMutationOptions);
+  // Use the correct pattern for mutations
+  const deleteMutation = useMutation(
+    trpc.adminDeleteInnovator.mutationOptions({
+      onSuccess: () => {
+        innovatorsQuery.refetch();
+        toast.success("Innovator deleted successfully");
+      },
+      onError: (error) => {
+        toast.error(error.message);
+      },
+    })
+  );
 
   const handleDelete = (id: number, name: string) => {
     if (confirm(`Are you sure you want to delete "${name}"?`)) {
