@@ -103,25 +103,74 @@ export const getImpactMetrics = baseProcedure
 export const getSummaryStats = baseProcedure
   .query(async () => {
     try {
-      // Get latest year's data or aggregate all data
-      const latestMetrics = await db.impactMetric.findMany({
-        orderBy: {
-          year: 'desc',
-        },
-        take: 10, // Get recent data
-      });
+      // Get comprehensive statistics for admin dashboard
+      const [
+        totalProblems,
+        pendingProblems,
+        totalChallenges,
+        activeChallenges,
+        totalInnovators,
+        featuredInnovators,
+        totalCaseStudies,
+        totalNews,
+        totalPartners,
+        newsletterSubscribers,
+        totalComments,
+        unreadContactMessages,
+        latestMetrics
+      ] = await Promise.all([
+        db.problemSubmission.count(),
+        db.problemSubmission.count({ where: { status: 'pending' } }),
+        db.challenge.count(),
+        db.challenge.count({ where: { status: 'Active' } }),
+        db.innovator.count(),
+        db.innovator.count({ where: { featured: true } }),
+        db.caseStudy.count(),
+        db.news.count(),
+        db.partner.count({ where: { visible: true } }),
+        db.newsletterSubscriber.count(),
+        db.comment.count(),
+        db.contactMessage.count({ where: { status: 'unread' } }),
+        db.impactMetric.findMany({
+          orderBy: { year: 'desc' },
+          take: 5,
+        }),
+      ]);
 
-      // Calculate summary statistics
+      // Calculate impact metrics summary
       const totalFundsRaised = latestMetrics.reduce((sum, metric) => sum + metric.fundsRaised, 0);
       const totalStartupsScaled = latestMetrics.reduce((sum, metric) => sum + metric.startupsScaled, 0);
       const uniqueRegions = new Set(latestMetrics.map(metric => metric.regionName)).size;
       const latestYear = latestMetrics.length > 0 ? Math.max(...latestMetrics.map(m => m.year)) : new Date().getFullYear();
 
       return {
+        // Problem submissions
+        totalProblems,
+        pendingProblems,
+        
+        // Challenges
+        totalChallenges,
+        activeChallenges,
+        
+        // Content
+        totalInnovators,
+        featuredInnovators,
+        totalCaseStudies,
+        totalNews,
+        totalPartners,
+        
+        // Community
+        newsletterSubscribers,
+        totalComments,
+        unreadContactMessages,
+        
+        // Impact metrics
         totalFundsRaised: Math.round(totalFundsRaised * 100) / 100,
         totalStartupsScaled,
         regionsActive: uniqueRegions,
         latestYear,
+        
+        // Meta
         lastUpdated: new Date(),
       };
     } catch (error) {

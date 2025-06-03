@@ -110,9 +110,11 @@ interface ProblemSubmissionSectionProps {
 }
 
 export default function ProblemSubmissionSection({ id }: ProblemSubmissionSectionProps) {
+  // All hooks must be called at the top level
   const [currentStep, setCurrentStep] = useState(1);
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
   const [submissionComplete, setSubmissionComplete] = useState(false);
+  
   const trpc = useTRPC();
 
   // Use react-hook-form with zod validation
@@ -195,7 +197,7 @@ export default function ProblemSubmissionSection({ id }: ProblemSubmissionSectio
 
   // Button labels for different steps
   const getNextButtonLabel = () => {
-    if (isSubmitting || submitProblemMutation.isLoading) {
+    if (isSubmitting || submitProblemMutation.isPending) {
       return "Processing...";
     }
     if (currentStep < totalSteps) {
@@ -647,7 +649,7 @@ export default function ProblemSubmissionSection({ id }: ProblemSubmissionSectio
                   <button
                     type="button"
                     onClick={handleNextStep}
-                    disabled={isSubmitting || submitProblemMutation.isLoading}
+                    disabled={isSubmitting || submitProblemMutation.isPending}
                     className="inline-flex items-center rounded-full bg-secondary px-8 py-4 text-lg font-medium text-white transition-all hover:bg-secondary-light hover:scale-105 disabled:opacity-70"
                     aria-label={currentStep < totalSteps ? "Proceed to next step" : "Submit your challenge"}
                   >

@@ -9,18 +9,29 @@ interface DebouncedSearchInputProps {
   debounceMs?: number;
   className?: string;
   ariaLabel?: string;
+  value?: string;
+  onChange?: (value: string) => void;
 }
 
-export default function DebouncedSearchInput({
+function DebouncedSearchInputComponent({
   onSearch,
   placeholder = "Search...",
   initialValue = "",
   debounceMs = 300,
   className = "",
-  ariaLabel = "Search"
+  ariaLabel = "Search",
+  value,
+  onChange
 }: DebouncedSearchInputProps) {
-  const [inputValue, setInputValue] = useState(initialValue);
+  const [inputValue, setInputValue] = useState(value ?? initialValue);
   const [isDebouncing, setIsDebouncing] = useState(false);
+  
+  // Update internal state when external value changes
+  useEffect(() => {
+    if (value !== undefined && value !== inputValue) {
+      setInputValue(value);
+    }
+  }, [value, inputValue]);
   
   // Create a debounced version of onSearch
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -39,7 +50,13 @@ export default function DebouncedSearchInput({
   
   // Handle input changes
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
-    setInputValue(e.target.value);
+    const newValue = e.target.value;
+    setInputValue(newValue);
+    
+    // Call external onChange if provided
+    if (onChange) {
+      onChange(newValue);
+    }
   };
   
   // Clear the input
@@ -47,6 +64,11 @@ export default function DebouncedSearchInput({
     setInputValue("");
     onSearch("");
     setIsDebouncing(false);
+    
+    // Call external onChange if provided
+    if (onChange) {
+      onChange("");
+    }
   };
   
   return (
@@ -80,3 +102,7 @@ export default function DebouncedSearchInput({
     </div>
   );
 }
+
+// Export both as default and named export
+export default DebouncedSearchInputComponent;
+export { DebouncedSearchInputComponent as DebouncedSearchInput };

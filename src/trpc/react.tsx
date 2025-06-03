@@ -1,21 +1,10 @@
-import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
-import {
-  loggerLink,
-  splitLink,
-  httpBatchStreamLink,
-  httpSubscriptionLink,
-  createTRPCClient,
-} from "@trpc/client";
-import { createTRPCContext } from "@trpc/tanstack-react-query";
-import { useState } from "react";
+import { QueryClientProvider, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { createTRPCClient, httpBatchLink, loggerLink, splitLink, httpSubscriptionLink } from "@trpc/client";
 import SuperJSON from "superjson";
+import { createContext, useContext, useState } from "react";
 
 import { AppRouter } from "~/server/trpc/root";
 import { getQueryClient } from "./query-client";
-
-const { TRPCProvider, useTRPC, useTRPCClient } = createTRPCContext<AppRouter>();
-
-export { useTRPC, useTRPCClient };
 
 function getBaseUrl() {
   if (typeof window !== "undefined") {
@@ -32,6 +21,9 @@ function getBaseUrl() {
   return `http://localhost:3000`;
 }
 
+// Create tRPC client context
+const TRPCClientContext = createContext<ReturnType<typeof createTRPCClient<AppRouter>> | null>(null);
+
 export function TRPCReactProvider(props: { children: React.ReactNode }) {
   const queryClient = getQueryClient();
 
@@ -45,7 +37,7 @@ export function TRPCReactProvider(props: { children: React.ReactNode }) {
         }),
         splitLink({
           condition: (op) => op.type === "subscription",
-          false: httpBatchStreamLink({
+          false: httpBatchLink({
             transformer: SuperJSON,
             url: getBaseUrl() + "/trpc",
           }),
@@ -59,10 +51,92 @@ export function TRPCReactProvider(props: { children: React.ReactNode }) {
   );
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <TRPCProvider trpcClient={trpcClient} queryClient={queryClient}>
+    <TRPCClientContext.Provider value={trpcClient}>
+      <QueryClientProvider client={queryClient}>
         {props.children}
-      </TRPCProvider>
-    </QueryClientProvider>
+      </QueryClientProvider>
+    </TRPCClientContext.Provider>
   );
+}
+
+export function useTRPCClient() {
+  const client = useContext(TRPCClientContext);
+  if (!client) {
+    throw new Error("useTRPCClient must be used within TRPCReactProvider");
+  }
+  return client;
+}
+
+// Create a helper function to determine if a procedure is a query or mutation
+function getProcedureType(procedureName: string): 'query' | 'mutation' {
+  // Mutations typically include these keywords
+  const mutationKeywords = ['submit', 'create', 'update', 'delete', 'post', 'like', 'subscribe', 'unsubscribe', 'reorder'];
+  
+  return mutationKeywords.some(keyword => procedureName.toLowerCase().includes(keyword)) 
+    ? 'mutation' 
+    : 'query';
+}
+
+// Create the trpc object that provides the expected interface
+export const trpc = new Proxy({} as any, {
+  get(target, procedureName) {
+    if (typeof procedureName === 'string') {
+      const procedureType = getProcedureType(procedureName);
+      
+      if (procedureType === 'query') {
+        return {
+          useQuery: (input?: any, options?: any) => {
+            const client = useTRPCClient();
+            return useQuery({
+              queryKey: [procedureName, input],
+              queryFn: async () => {
+                return (client as any)[procedureName].query(input);
+              },
+              ...options,
+            });
+          },
+          
+          queryOptions: (input?: any, options?: any) => ({
+            queryKey: [procedureName, input],
+            queryFn: async () => {
+              const client = useTRPCClient();
+              return (client as any)[procedureName].query(input);
+            },
+            ...options,
+          }),
+          
+          queryKey: (input?: any) => [procedureName, input],
+        };
+      } else {
+        return {
+          useMutation: (options?: any) => {
+            const client = useTRPCClient();
+            return useMutation({
+              mutationFn: async (input: any) => {
+                return (client as any)[procedureName].mutate(input);
+              },
+              ...options,
+            });
+          },
+          
+          mutationOptions: (options?: any) => ({
+            mutationFn: async (input: any) => {
+              const client = useTRPCClient();
+              return (client as any)[procedureName].mutate(input);
+            },
+            ...options,
+          }),
+          
+          mutationKey: () => [procedureName],
+        };
+      }
+    }
+    return target[procedureName];
+  },
+});
+
+// Keep useTRPC for compatibility
+export function useTRPC() {
+  // Return an object that has all the procedure names as properties
+  return trpc;
 }

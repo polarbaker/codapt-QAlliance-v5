@@ -126,14 +126,14 @@ export default function Navigation() {
       <header
         className={`fixed top-0 z-50 w-full transition-all duration-500 ${
           isScrolled
-            ? "bg-background-black/90 backdrop-blur-md py-3 shadow-lg"
-            : "bg-transparent py-6"
+            ? "bg-background-black/95 backdrop-blur-md py-4 shadow-lg border-b border-neutral-dark/20"
+            : "bg-background-black/80 backdrop-blur-sm py-6 border-b border-neutral-dark/10"
         }`}
       >
         <div className="container-padding mx-auto flex max-w-7xl items-center justify-between">
           <a 
             href="/" 
-            className="z-10 text-2xl font-bold text-text-light transition-all duration-300 hover:text-secondary"
+            className="z-10 text-2xl font-bold text-text-light transition-all duration-300 hover:text-secondary hover:scale-105 active:scale-95"
             onClick={(e) => handleNavLinkClick(e, "/")}
           >
             Quantum Alliance
@@ -141,22 +141,25 @@ export default function Navigation() {
 
           {/* Desktop Navigation - hidden on mobile */}
           <nav className="hidden md:block" aria-label="Main navigation">
-            <ul className="flex space-x-6">
+            <ul className="flex space-x-8">
               {navLinks.map((link) => (
                 <li key={link.name}>
                   <a
                     href={link.href}
-                    className={`relative px-2 py-1 text-sm font-medium transition-all duration-300 hover:text-secondary ${
+                    className={`group relative px-3 py-2 text-sm font-medium transition-all duration-300 rounded-lg ${
                       isActive(link.href) 
-                        ? "text-secondary font-bold" 
-                        : "text-text-light/90"
+                        ? "text-secondary bg-secondary/10 font-semibold" 
+                        : "text-text-light/90 hover:text-secondary hover:bg-white/5"
                     }`}
                     onClick={(e) => handleNavLinkClick(e, link.href)}
                     aria-current={isActive(link.href) ? "page" : undefined}
                   >
                     {link.name}
                     {isActive(link.href) && (
-                      <span className="absolute -bottom-1 left-0 h-0.5 w-full bg-secondary rounded-full"></span>
+                      <span className="absolute -bottom-1 left-1/2 h-0.5 w-8 -translate-x-1/2 bg-secondary rounded-full"></span>
+                    )}
+                    {!isActive(link.href) && (
+                      <span className="absolute -bottom-1 left-1/2 h-0.5 w-0 -translate-x-1/2 bg-secondary rounded-full transition-all duration-300 group-hover:w-8"></span>
                     )}
                   </a>
                 </li>
@@ -167,10 +170,10 @@ export default function Navigation() {
           {/* Menu button */}
           <button
             onClick={() => setIsMenuOpen(!isMenuOpen)}
-            className={`z-10 flex h-12 w-12 items-center justify-center rounded-full transition-all duration-300 ${
+            className={`z-10 flex h-12 w-12 items-center justify-center rounded-full transition-all duration-300 shadow-lg ${
               isMenuOpen 
-                ? "bg-neutral-dark text-text-light rotate-90"
-                : "bg-secondary text-text-light hover:bg-secondary-light"
+                ? "bg-secondary text-white rotate-90 scale-110"
+                : "bg-secondary/90 text-white hover:bg-secondary hover:scale-105 active:scale-95"
             }`}
             aria-label={isMenuOpen ? "Close menu" : "Open menu"}
             aria-expanded={isMenuOpen}
@@ -187,36 +190,38 @@ export default function Navigation() {
 
       {/* Full-screen menu overlay */}
       <div
-        className={`fixed inset-0 z-40 flex items-center justify-center bg-black/95 backdrop-blur-lg transition-all duration-500 overflow-y-auto ${
+        className={`fixed inset-0 z-40 flex items-center justify-center bg-gradient-to-br from-background-black via-background-black to-neutral-dark backdrop-blur-xl transition-all duration-500 overflow-y-auto ${
           isMenuOpen ? "opacity-100" : "pointer-events-none opacity-0"
         }`}
         style={{ maxHeight: '100vh' }}
       >
         <nav id="fullscreen-nav" className="container-padding mx-auto max-w-4xl w-full">
-          <ul className="flex flex-col items-center justify-center space-y-6 py-8">
-            {navLinks.map((link) => (
+          <ul className="flex flex-col items-center justify-center space-y-8 py-12">
+            {navLinks.map((link, index) => (
               <li key={link.name} className="w-full text-center py-2">
                 <a
                   href={link.href}
-                  className={`block text-3xl font-medium transition-all duration-300 hover:text-secondary hover:scale-105 md:text-5xl ${
+                  className={`block text-3xl font-medium transition-all duration-500 hover:text-secondary hover:scale-110 md:text-5xl ${
                     isActive(link.href) 
-                      ? "text-secondary font-bold" 
+                      ? "text-secondary font-bold scale-105" 
                       : "text-text-light/90"
-                  }`}
+                  } ${isMenuOpen ? 'animate-fade-in' : ''}`}
+                  style={{ animationDelay: `${index * 100}ms` }}
                   onClick={(e) => handleNavLinkClick(e, link.href)}
                   aria-current={isActive(link.href) ? "page" : undefined}
                 >
                   {link.name}
                   {isActive(link.href) && (
-                    <span className="block mx-auto mt-2 h-1 w-24 bg-secondary rounded-full"></span>
+                    <span className="block mx-auto mt-3 h-1 w-24 bg-secondary rounded-full animate-pulse"></span>
                   )}
                 </a>
               </li>
             ))}
-            <li className="pt-10 w-full text-center">
+            <li className="pt-12 w-full text-center">
               <a
                 href="/submit-a-challenge"
-                className="inline-block rounded-full bg-secondary px-8 py-4 text-xl font-medium text-white transition-all hover:bg-secondary-light hover:shadow-lg hover:scale-105"
+                className={`inline-block rounded-full bg-gradient-to-r from-secondary to-accent px-10 py-5 text-xl font-semibold text-white transition-all hover:scale-110 hover:shadow-2xl active:scale-95 ${isMenuOpen ? 'animate-fade-in' : ''}`}
+                style={{ animationDelay: `${navLinks.length * 100}ms` }}
                 onClick={(e) => handleNavLinkClick(e, "/submit-a-challenge")}
               >
                 Get Involved

@@ -21,6 +21,12 @@ interface UserStore {
   isSubscribedToNewsletter: boolean;
   setNewsletterSubscription: (subscribed: boolean) => void;
   
+  // Admin authentication
+  isAdminLoggedIn: boolean;
+  adminToken: string | null;
+  setAdminAuth: (token: string) => void;
+  clearAdminAuth: () => void;
+  
   // User preferences
   preferences: {
     showAnimations: boolean;
@@ -40,6 +46,8 @@ const defaultState = {
   avatar: 'bg-secondary',
   likedComments: new Set<number>(),
   isSubscribedToNewsletter: false,
+  isAdminLoggedIn: false,
+  adminToken: null,
   preferences: {
     showAnimations: true,
     emailNotifications: true,
@@ -84,6 +92,17 @@ export const useUserStore = create<UserStore>()(
       
       // Newsletter subscription
       setNewsletterSubscription: (subscribed) => set({ isSubscribedToNewsletter: subscribed }),
+      
+      // Admin authentication
+      setAdminAuth: (token) => set({ 
+        isAdminLoggedIn: true, 
+        adminToken: token 
+      }),
+      
+      clearAdminAuth: () => set({ 
+        isAdminLoggedIn: false, 
+        adminToken: null 
+      }),
       
       // Preferences management
       updatePreferences: (newPreferences) => {

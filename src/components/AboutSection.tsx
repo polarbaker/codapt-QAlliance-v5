@@ -8,9 +8,12 @@ import { getCacheBustedImageUrl } from "~/utils";
 export default function AboutSection() {
   const trpc = useTRPC();
   
-  // Fetch partners data
+  // Create query options first, then pass to useQuery
+  const partnersQueryOptions = trpc.getPartners.queryOptions();
+  
+  // Fetch partners data using the correct pattern
   const { data: partnersData, isLoading: isLoadingPartners, error: partnersError } = useQuery(
-    trpc.getPartners.queryOptions()
+    partnersQueryOptions
   );
 
   const [imageErrors, setImageErrors] = useState<Set<number>>(new Set());
