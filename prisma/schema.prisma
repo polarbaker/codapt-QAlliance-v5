@@ -1,0 +1,199 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = "postgresql://postgres:postgres@postgres/app" // hardcoded because it's an internal docker connection
+}
+
+// Problem submission model
+model ProblemSubmission {
+  id                Int      @id @default(autoincrement())
+  createdAt         DateTime @default(now())
+  
+  // Step 1: Challenge Details
+  title             String
+  description       String
+  category          String
+  
+  // Step 2: Requirements
+  technicalRequirements String
+  constraints       String
+  
+  // Step 3: Success Criteria
+  successCriteria   String
+  timeline          String
+  budget            String
+  
+  // Step 4: Contact Information
+  name              String
+  organization      String
+  email             String
+  phone             String
+  consentToContact  Boolean  @default(false)
+  
+  // Status
+  status            String   @default("pending") // pending, approved, rejected
+  
+  // Relations
+  comments          Comment[]
+}
+
+// Comment model for community engagement
+model Comment {
+  id                Int      @id @default(autoincrement())
+  createdAt         DateTime @default(now())
+  content           String
+  author            String
+  avatar            String   // CSS class for avatar color
+  likes             Int      @default(0)
+  
+  // Relations
+  problemId         Int?
+  problem           ProblemSubmission? @relation(fields: [problemId], references: [id])
+  
+  // For general discussion comments not related to a specific problem
+  isGeneralDiscussion Boolean @default(false)
+}
+
+// Innovator model for Hall of Innovators
+model Innovator {
+  id                Int      @id @default(autoincrement())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @default(now()) @updatedAt
+  
+  name              String
+  role              String
+  impact            String
+  avatar            String   // URL or path to image file
+  hasVideo          Boolean  @default(false)
+  videoUrl          String?  // URL to video if hasVideo is true
+  bio               String?  // Longer biography text
+  achievements      String?  // List of achievements as JSON string
+  featured          Boolean  @default(false)
+  order             Int      @default(0)  // For custom ordering
+}
+
+// Impact metrics for data insights
+model ImpactMetric {
+  id                Int      @id @default(autoincrement())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @default(now()) @updatedAt
+  
+  year              Int
+  fundsRaised       Float    // In millions
+  startupsScaled    Int
+  regionName        String
+  regionPercentage  Float    // For pie chart
+}
+
+// Newsletter subscriber model
+model NewsletterSubscriber {
+  id                Int      @id @default(autoincrement())
+  createdAt         DateTime @default(now())
+  email             String   @unique
+}
+
+// Contact message model
+model ContactMessage {
+  id                Int      @id @default(autoincrement())
+  createdAt         DateTime @default(now())
+  name              String
+  email             String
+  subject           String
+  message           String
+  status            String   @default("unread") // unread, read, replied
+}
+
+// Challenge model for innovation challenges
+model Challenge {
+  id                Int      @id @default(autoincrement())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @default(now()) @updatedAt
+  
+  title             String
+  tagline           String
+  category          String   // Climate, Digital, Health, etc.
+  region            String   // Africa, Asia, Global, etc.
+  status            String   // Active, Submissions Open, Coming Soon
+  
+  image             String   // URL to image
+  description       String   @db.Text
+  prize             String
+  
+  // Timeline
+  openDate          DateTime?
+  closeDate         DateTime?
+  pilotStartDate    DateTime?
+  
+  // Additional details
+  partners          String?  @db.Text // JSON string of partners
+  eligibility       String?  @db.Text
+  featured          Boolean  @default(false)
+  order             Int      @default(0)  // For custom ordering
+}
+
+// CaseStudy model for success stories
+model CaseStudy {
+  id                Int      @id @default(autoincrement())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @default(now()) @updatedAt
+  
+  // Basic info
+  title             String
+  summary           String
+  content           String   @db.Text
+  image             String   // URL to image
+  
+  // Optional fields
+  video             String?  // URL to video
+  pdfUrl            String?  // URL to PDF
+  tags              String   // JSON string of tags
+  
+  // Impact metrics
+  impactMetrics     String?  @db.Text // JSON string of metrics
+  
+  // Admin controls
+  featured          Boolean  @default(false)
+  order             Int      @default(0)  // For custom ordering
+}
+
+// Partner model for "Our Partners" section
+model Partner {
+  id                Int      @id @default(autoincrement())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @default(now()) @updatedAt
+  
+  // Basic info
+  name              String
+  logoUrl           String
+  websiteUrl        String?
+  order             Int      @default(0)
+  visible           Boolean  @default(true)
+  altText           String
+}
+
+// News model for news articles
+model News {
+  id                Int      @id @default(autoincrement())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @default(now()) @updatedAt
+  
+  // Basic info
+  title             String
+  excerpt           String
+  content           String   @db.Text
+  category          String
+  imageUrl          String?
+  author            String?
+  tags              String   // JSON string of tags
+  
+  // Publishing info
+  featured          Boolean  @default(false)
+  publishedAt       DateTime
+  order             Int      @default(0)  // For custom ordering
+}

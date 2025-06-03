@@ -1,0 +1,1 @@
+You can save objects to Minio, which is running in Docker Compose. Do not pass Minio URLs directly to the user as they won't be able to access it since it's inside Docker. Just read/write to it from server code.
