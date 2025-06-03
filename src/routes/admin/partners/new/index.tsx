@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useState } from "react";
 import { useUserStore } from "~/stores/userStore";
 import { useTRPC } from "~/trpc/react";
 import { useMutation } from "@tanstack/react-query";
@@ -29,6 +30,9 @@ function NewPartnerPage() {
   const navigate = useNavigate();
   
   const trpc = useTRPC();
+  
+  const [previewImageLoading, setPreviewImageLoading] = useState(false);
+  const [previewImageError, setPreviewImageError] = useState(false);
   
   const {
     register,
@@ -237,19 +241,40 @@ function NewPartnerPage() {
                 </h3>
                 <div className="w-full h-32 bg-gray-50 dark:bg-gray-700 rounded-lg flex items-center justify-center p-4 border-2 border-dashed border-gray-300 dark:border-gray-600">
                   {logoUrl ? (
-                    <img
-                      src={getImageUrl(logoUrl)}
-                      alt="Partner logo preview"
-                      className="max-w-full max-h-full object-contain"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.style.display = 'none';
-                        const parent = target.parentElement;
-                        if (parent) {
-                          parent.innerHTML = '<div class="text-red-500 text-sm text-center">Invalid image</div>';
-                        }
-                      }}
-                    />
+                    <>
+                      {previewImageLoading && (
+                        <div className="flex flex-col items-center space-y-2">
+                          <div className="h-8 w-8 animate-spin rounded-full border-4 border-secondary border-t-transparent"></div>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">Loading preview...</p>
+                        </div>
+                      )}
+                      {previewImageError ? (
+                        <div className="flex flex-col items-center space-y-2 text-amber-600">
+                          <Handshake className="h-8 w-8" />
+                          <p className="text-sm text-center">Preview not available</p>
+                          <p className="text-xs text-center opacity-75">Logo will be processed when form is submitted</p>
+                        </div>
+                      ) : (
+                        <img
+                          src={getImageUrl(logoUrl)}
+                          alt="Partner logo preview"
+                          className={`max-w-full max-h-full object-contain transition-opacity ${previewImageLoading ? 'opacity-0' : 'opacity-100'}`}
+                          onLoad={() => {
+                            setPreviewImageLoading(false);
+                            setPreviewImageError(false);
+                          }}
+                          onLoadStart={() => {
+                            setPreviewImageLoading(true);
+                            setPreviewImageError(false);
+                          }}
+                          onError={() => {
+                            setPreviewImageLoading(false);
+                            setPreviewImageError(true);
+                          }}
+                          style={{ display: previewImageLoading ? 'none' : 'block' }}
+                        />
+                      )}
+                    </>
                   ) : (
                     <div className="text-center text-gray-500 dark:text-gray-400">
                       <Handshake className="h-8 w-8 mx-auto mb-2" />

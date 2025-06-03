@@ -197,3 +197,147 @@ model News {
   publishedAt       DateTime
   order             Int      @default(0)  // For custom ordering
 }
+
+// Enhanced Image model for comprehensive image management
+model Image {
+  id                Int      @id @default(autoincrement())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @default(now()) @updatedAt
+  
+  // Basic file information
+  fileName          String   // Original filename
+  filePath          String   @unique // Unique storage path
+  fileSize          Int      // File size in bytes
+  mimeType          String   // MIME type (image/jpeg, image/png, etc.)
+  
+  // Image dimensions and metadata
+  width             Int?     // Image width in pixels
+  height            Int?     // Image height in pixels
+  aspectRatio       Float?   // Calculated aspect ratio
+  colorSpace        String?  // Color space (sRGB, Adobe RGB, etc.)
+  hasAlpha          Boolean  @default(false) // Has transparency
+  
+  // Processing information
+  originalSize      Int?     // Original file size before processing
+  compressionRatio  Float?   // Compression ratio achieved
+  format            String?  // Output format (webp, jpeg, png)
+  quality           Int?     // Compression quality used
+  
+  // Organization and metadata
+  title             String?  // User-friendly title
+  description       String?  // Image description
+  altText           String?  // Alt text for accessibility
+  tags              String   @default("[]") // JSON array of tags
+  category          String?  // Image category
+  
+  // Usage tracking
+  uploadedBy        String?  // Admin who uploaded
+  usageCount        Int      @default(0) // How many times referenced
+  lastUsed          DateTime? // Last time image was accessed
+  
+  // Variants and thumbnails
+  variants          ImageVariant[]
+  
+  // Admin flags
+  featured          Boolean  @default(false)
+  archived          Boolean  @default(false)
+  
+  @@index([category])
+  @@index([tags])
+  @@index([createdAt])
+}
+
+// Image variants for different sizes and formats
+model ImageVariant {
+  id                Int      @id @default(autoincrement())
+  createdAt         DateTime @default(now())
+  
+  // Relationship to parent image
+  imageId           Int
+  image             Image    @relation(fields: [imageId], references: [id], onDelete: Cascade)
+  
+  // Variant information
+  variantType       String   // thumbnail, small, medium, large, original
+  filePath          String   @unique // Storage path for this variant
+  width             Int
+  height            Int
+  fileSize          Int
+  format            String   // webp, jpeg, png
+  quality           Int?     // Compression quality
+  
+  @@index([imageId, variantType])
+}
+
+// Image collections for organizing related images
+model ImageCollection {
+  id                Int      @id @default(autoincrement())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @default(now()) @updatedAt
+  
+  name              String   @unique
+  description       String?
+  slug              String   @unique // URL-friendly identifier
+  
+  // Collection metadata
+  coverImageId      Int?     // Featured image for the collection
+  imageCount        Int      @default(0) // Cached count
+  totalSize         Int      @default(0) // Total size in bytes
+  
+  // Organization
+  isPublic          Boolean  @default(false)
+  order             Int      @default(0)
+  
+  // Relations
+  items             ImageCollectionItem[]
+  
+  @@index([slug])
+  @@index([isPublic])
+}
+
+// Junction table for images in collections
+model ImageCollectionItem {
+  id                Int      @id @default(autoincrement())
+  createdAt         DateTime @default(now())
+  
+  collectionId      Int
+  collection        ImageCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  
+  imageId           Int
+  // Note: We'll reference the Image model once it's created
+  
+  order             Int      @default(0)
+  
+  @@unique([collectionId, imageId])
+  @@index([collectionId, order])
+}
+
+// Image processing jobs for async operations
+model ImageProcessingJob {
+  id                Int      @id @default(autoincrement())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @default(now()) @updatedAt
+  
+  // Job information
+  jobType           String   // resize, convert, optimize, generate_variants
+  status            String   @default("pending") // pending, processing, completed, failed
+  priority          Int      @default(0) // Higher number = higher priority
+  
+  // Input data
+  sourceImageId     Int?     // Source image if applicable
+  inputData         String   // JSON with job parameters
+  
+  // Progress tracking
+  progress          Int      @default(0) // 0-100
+  statusMessage     String?  // Current status or error message
+  
+  // Results
+  outputData        String?  // JSON with results
+  errorMessage      String?  // Error details if failed
+  
+  // Timing
+  startedAt         DateTime?
+  completedAt       DateTime?
+  
+  @@index([status, priority])
+  @@index([createdAt])
+}

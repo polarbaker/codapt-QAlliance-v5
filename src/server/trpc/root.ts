@@ -73,11 +73,15 @@ export const appRouter = createTRPCRouter({
   adminGetContactMessages: adminGeneralProcs.adminGetContactMessages,
   adminUpdateContactMessageStatus: adminGeneralProcs.adminUpdateContactMessageStatus,
   
-  // Image upload procedures
+  // Enhanced image upload procedures
   adminUploadImage: imageUploadProcs.adminUploadImage,
+  adminBulkUploadImages: imageUploadProcs.adminBulkUploadImages,
   getImage: imageUploadProcs.getImage,
+  getImageVariant: imageUploadProcs.getImageVariant,
   adminDeleteImage: imageUploadProcs.adminDeleteImage,
   adminListImages: imageUploadProcs.adminListImages,
+  adminCreateImageCollection: imageUploadProcs.adminCreateImageCollection,
+  adminListImageCollections: imageUploadProcs.adminListImageCollections,
   
   // Partners procedures
   getPartners: partnersProcs.getPartners,

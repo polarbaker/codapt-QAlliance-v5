@@ -9,37 +9,91 @@ import {
   ArrowLeft,
   Upload,
   Trash2,
-  Copy,
   Search,
+  Filter,
   Grid3X3,
   List,
+  Columns3,
   Image as ImageIcon,
+  FolderPlus,
   Download,
-  Eye,
+  Settings,
+  BarChart3,
+  Tag,
   Calendar,
   HardDrive,
+  Eye,
+  Plus,
+  X,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { ImageUpload } from "~/components/ui/ImageUpload";
+import { ImageGallery } from "~/components/ui/ImageGallery";
 
 export const Route = createFileRoute("/admin/images/")({
   component: AdminImagesPage,
 });
 
+interface ImageData {
+  id: number;
+  fileName: string;
+  filePath: string;
+  fileSize: number;
+  width?: number;
+  height?: number;
+  title?: string;
+  description?: string;
+  altText?: string;
+  tags: string[];
+  category?: string;
+  createdAt: string;
+  usageCount?: number;
+  variants?: Array<{
+    variantType: string;
+    width: number;
+    height: number;
+    fileSize: number;
+    format: string;
+  }>;
+}
+
 function AdminImagesPage() {
   const { adminToken } = useUserStore();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [selectedImages, setSelectedImages] = useState<string[]>([]);
+  
+  // State management
+  const [viewMode, setViewMode] = useState<"grid" | "list" | "masonry">("grid");
+  const [selectedImages, setSelectedImages] = useState<number[]>([]);
   const [showUpload, setShowUpload] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const [showCollectionCreator, setShowCollectionCreator] = useState(false);
+  
+  // Filter state
+  const [filters, setFilters] = useState({
+    search: "",
+    category: "",
+    tags: [] as string[],
+    sortBy: "createdAt" as "createdAt" | "fileName" | "fileSize" | "usageCount",
+    sortOrder: "desc" as "asc" | "desc",
+    page: 1,
+    pageSize: 20,
+  });
   
   const trpc = useTRPC();
   
-  // Fetch images
+  // Fetch images with enhanced filtering
   const imagesQuery = useQuery(
     trpc.adminListImages.queryOptions({
       adminToken: adminToken || "",
-      prefix: searchQuery || undefined,
+      ...filters,
+      includeVariants: true,
+    })
+  );
+  
+  // Fetch collections
+  const collectionsQuery = useQuery(
+    trpc.adminListImageCollections.queryOptions({
+      adminToken: adminToken || "",
+      includeImages: false,
     })
   );
   
@@ -49,6 +103,7 @@ function AdminImagesPage() {
       onSuccess: () => {
         imagesQuery.refetch();
         toast.success("Image deleted successfully");
+        setSelectedImages(prev => prev.filter(id => !selectedImages.includes(id)));
       },
       onError: (error) => {
         toast.error(error.message || "Failed to delete image");
@@ -56,44 +111,32 @@ function AdminImagesPage() {
     })
   );
   
-  // Filter images based on search
-  const filteredImages = imagesQuery.data?.images.filter(image =>
-    image.name.toLowerCase().includes(searchQuery.toLowerCase())
-  ) || [];
+  // Create collection mutation
+  const createCollectionMutation = useMutation(
+    trpc.adminCreateImageCollection.mutationOptions({
+      onSuccess: () => {
+        collectionsQuery.refetch();
+        toast.success("Collection created successfully");
+        setShowCollectionCreator(false);
+        setSelectedImages([]);
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to create collection");
+      },
+    })
+  );
   
-  const handleDeleteImage = (imageName: string) => {
-    if (confirm(`Are you sure you want to delete "${imageName}"?`)) {
+  const images: ImageData[] = imagesQuery.data?.images.map(img => ({
+    ...img,
+    tags: Array.isArray(img.tags) ? img.tags : JSON.parse(img.tags || '[]'),
+  })) || [];
+  
+  const handleDeleteImage = (image: ImageData) => {
+    if (confirm(`Are you sure you want to delete "${image.fileName}"?`)) {
       deleteMutation.mutate({
         adminToken: adminToken || "",
-        filePath: imageName,
+        filePath: image.filePath,
       });
-    }
-  };
-  
-  const handleCopyPath = (imageName: string) => {
-    navigator.clipboard.writeText(imageName);
-    toast.success("Image path copied to clipboard");
-  };
-  
-  const handleCopyUrl = (imageName: string) => {
-    const url = getImageUrl(imageName);
-    navigator.clipboard.writeText(url);
-    toast.success("Image URL copied to clipboard");
-  };
-  
-  const handleSelectImage = (imageName: string) => {
-    setSelectedImages(prev =>
-      prev.includes(imageName)
-        ? prev.filter(name => name !== imageName)
-        : [...prev, imageName]
-    );
-  };
-  
-  const handleSelectAll = () => {
-    if (selectedImages.length === filteredImages.length) {
-      setSelectedImages([]);
-    } else {
-      setSelectedImages(filteredImages.map(img => img.name));
     }
   };
   
@@ -101,15 +144,34 @@ function AdminImagesPage() {
     if (selectedImages.length === 0) return;
     
     if (confirm(`Are you sure you want to delete ${selectedImages.length} image(s)?`)) {
-      selectedImages.forEach(imageName => {
-        deleteMutation.mutate({
-          adminToken: adminToken || "",
-          filePath: imageName,
-        });
+      selectedImages.forEach(imageId => {
+        const image = images.find(img => img.id === imageId);
+        if (image) {
+          deleteMutation.mutate({
+            adminToken: adminToken || "",
+            filePath: image.filePath,
+          });
+        }
       });
-      setSelectedImages([]);
     }
   };
+  
+  const handleCreateCollection = (name: string, description: string) => {
+    createCollectionMutation.mutate({
+      adminToken: adminToken || "",
+      name,
+      description,
+      isPublic: false,
+      imageIds: selectedImages,
+    });
+  };
+  
+  const updateFilters = (newFilters: Partial<typeof filters>) => {
+    setFilters(prev => ({ ...prev, ...newFilters, page: 1 }));
+  };
+  
+  const totalSize = images.reduce((sum, img) => sum + img.fileSize, 0);
+  const totalVariants = images.reduce((sum, img) => sum + (img.variants?.length || 0), 0);
   
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes';
@@ -118,8 +180,6 @@ function AdminImagesPage() {
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
-  
-  const totalSize = filteredImages.reduce((sum, img) => sum + img.size, 0);
 
   return (
     <div className="min-h-screen bg-background-light dark:bg-background-black">
@@ -135,13 +195,26 @@ function AdminImagesPage() {
               <span>Back to Dashboard</span>
             </Link>
           </div>
-          <button
-            onClick={() => setShowUpload(!showUpload)}
-            className="flex items-center space-x-2 px-4 py-2 bg-secondary text-white rounded-lg hover:bg-secondary/90 transition-colors"
-          >
-            <Upload className="h-4 w-4" />
-            <span>Upload Images</span>
-          </button>
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+                showFilters 
+                  ? 'bg-secondary text-white' 
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+              }`}
+            >
+              <Filter className="h-4 w-4" />
+              <span>Filters</span>
+            </button>
+            <button
+              onClick={() => setShowUpload(!showUpload)}
+              className="flex items-center space-x-2 px-4 py-2 bg-secondary text-white rounded-lg hover:bg-secondary/90 transition-colors"
+            >
+              <Upload className="h-4 w-4" />
+              <span>Upload Images</span>
+            </button>
+          </div>
         </div>
 
         <div className="py-8">
@@ -154,7 +227,65 @@ function AdminImagesPage() {
                 Image Management
               </h1>
               <p className="text-text-muted dark:text-text-light/70">
-                Manage all images used across the site
+                Manage all images with variants, collections, and metadata
+              </p>
+            </div>
+          </div>
+
+          {/* Enhanced Stats */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4 mb-8">
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center space-x-2">
+                <ImageIcon className="h-5 w-5 text-blue-600" />
+                <span className="text-sm font-medium text-text-muted dark:text-text-light/70">Total Images</span>
+              </div>
+              <p className="text-2xl font-bold text-text-dark dark:text-text-light">
+                {imagesQuery.data?.pagination.totalCount || 0}
+              </p>
+            </div>
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center space-x-2">
+                <HardDrive className="h-5 w-5 text-green-600" />
+                <span className="text-sm font-medium text-text-muted dark:text-text-light/70">Total Size</span>
+              </div>
+              <p className="text-2xl font-bold text-text-dark dark:text-text-light">
+                {formatFileSize(totalSize)}
+              </p>
+            </div>
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center space-x-2">
+                <Eye className="h-5 w-5 text-purple-600" />
+                <span className="text-sm font-medium text-text-muted dark:text-text-light/70">Variants</span>
+              </div>
+              <p className="text-2xl font-bold text-text-dark dark:text-text-light">
+                {totalVariants}
+              </p>
+            </div>
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center space-x-2">
+                <FolderPlus className="h-5 w-5 text-orange-600" />
+                <span className="text-sm font-medium text-text-muted dark:text-text-light/70">Collections</span>
+              </div>
+              <p className="text-2xl font-bold text-text-dark dark:text-text-light">
+                {collectionsQuery.data?.collections.length || 0}
+              </p>
+            </div>
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center space-x-2">
+                <Search className="h-5 w-5 text-cyan-600" />
+                <span className="text-sm font-medium text-text-muted dark:text-text-light/70">Filtered</span>
+              </div>
+              <p className="text-2xl font-bold text-text-dark dark:text-text-light">
+                {images.length}
+              </p>
+            </div>
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center space-x-2">
+                <Calendar className="h-5 w-5 text-pink-600" />
+                <span className="text-sm font-medium text-text-muted dark:text-text-light/70">Selected</span>
+              </div>
+              <p className="text-2xl font-bold text-text-dark dark:text-text-light">
+                {selectedImages.length}
               </p>
             </div>
           </div>
@@ -170,69 +301,92 @@ function AdminImagesPage() {
                 onChange={(filePath) => {
                   if (filePath) {
                     imagesQuery.refetch();
-                    toast.success("Image uploaded successfully");
+                    setShowUpload(false);
                   }
                 }}
-                placeholder="Upload images for use across the site"
+                placeholder="Upload single or multiple images"
                 previewClassName="h-48"
+                multiple={true}
+                maxImages={10}
+                showMetadataEditor={true}
+                generateVariants={true}
+                showCollectionCreator={true}
               />
             </div>
           )}
 
-          {/* Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-            <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-              <div className="flex items-center space-x-2">
-                <ImageIcon className="h-5 w-5 text-blue-600" />
-                <span className="text-sm font-medium text-text-muted dark:text-text-light/70">Total Images</span>
+          {/* Filters Section */}
+          {showFilters && (
+            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 mb-8">
+              <h2 className="text-lg font-semibold text-text-dark dark:text-text-light mb-4">
+                Filter Images
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-text-dark dark:text-text-light mb-2">
+                    Search
+                  </label>
+                  <input
+                    type="text"
+                    value={filters.search}
+                    onChange={(e) => updateFilters({ search: e.target.value })}
+                    placeholder="Search images..."
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-text-dark dark:text-text-light focus:ring-2 focus:ring-secondary focus:border-secondary"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-text-dark dark:text-text-light mb-2">
+                    Category
+                  </label>
+                  <select
+                    value={filters.category}
+                    onChange={(e) => updateFilters({ category: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-text-dark dark:text-text-light focus:ring-2 focus:ring-secondary focus:border-secondary"
+                  >
+                    <option value="">All Categories</option>
+                    <option value="hero">Hero Images</option>
+                    <option value="gallery">Gallery</option>
+                    <option value="profile">Profile Pictures</option>
+                    <option value="logo">Logos</option>
+                    <option value="content">Content Images</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-text-dark dark:text-text-light mb-2">
+                    Sort By
+                  </label>
+                  <select
+                    value={filters.sortBy}
+                    onChange={(e) => updateFilters({ sortBy: e.target.value as any })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-text-dark dark:text-text-light focus:ring-2 focus:ring-secondary focus:border-secondary"
+                  >
+                    <option value="createdAt">Date Created</option>
+                    <option value="fileName">File Name</option>
+                    <option value="fileSize">File Size</option>
+                    <option value="usageCount">Usage Count</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-text-dark dark:text-text-light mb-2">
+                    Order
+                  </label>
+                  <select
+                    value={filters.sortOrder}
+                    onChange={(e) => updateFilters({ sortOrder: e.target.value as any })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-text-dark dark:text-text-light focus:ring-2 focus:ring-secondary focus:border-secondary"
+                  >
+                    <option value="desc">Descending</option>
+                    <option value="asc">Ascending</option>
+                  </select>
+                </div>
               </div>
-              <p className="text-2xl font-bold text-text-dark dark:text-text-light">
-                {imagesQuery.data?.images.length || 0}
-              </p>
             </div>
-            <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-              <div className="flex items-center space-x-2">
-                <HardDrive className="h-5 w-5 text-green-600" />
-                <span className="text-sm font-medium text-text-muted dark:text-text-light/70">Total Size</span>
-              </div>
-              <p className="text-2xl font-bold text-text-dark dark:text-text-light">
-                {formatFileSize(totalSize)}
-              </p>
-            </div>
-            <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-              <div className="flex items-center space-x-2">
-                <Search className="h-5 w-5 text-purple-600" />
-                <span className="text-sm font-medium text-text-muted dark:text-text-light/70">Filtered</span>
-              </div>
-              <p className="text-2xl font-bold text-text-dark dark:text-text-light">
-                {filteredImages.length}
-              </p>
-            </div>
-            <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-              <div className="flex items-center space-x-2">
-                <Calendar className="h-5 w-5 text-orange-600" />
-                <span className="text-sm font-medium text-text-muted dark:text-text-light/70">Selected</span>
-              </div>
-              <p className="text-2xl font-bold text-text-dark dark:text-text-light">
-                {selectedImages.length}
-              </p>
-            </div>
-          </div>
+          )}
 
           {/* Controls */}
           <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 mb-8">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
               <div className="flex items-center space-x-4">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Search images..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-text-dark dark:text-text-light focus:ring-2 focus:ring-secondary focus:border-secondary"
-                  />
-                </div>
                 <div className="flex items-center space-x-2">
                   <button
                     onClick={() => setViewMode("grid")}
@@ -254,205 +408,159 @@ function AdminImagesPage() {
                   >
                     <List className="h-4 w-4" />
                   </button>
+                  <button
+                    onClick={() => setViewMode("masonry")}
+                    className={`p-2 rounded-lg transition-colors ${
+                      viewMode === "masonry"
+                        ? "bg-secondary text-white"
+                        : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600"
+                    }`}
+                    disabled
+                    title="Masonry view coming soon"
+                  >
+                    <Columns3 className="h-4 w-4" />
+                  </button>
                 </div>
               </div>
               <div className="flex items-center space-x-2">
+                {selectedImages.length > 0 && (
+                  <>
+                    <button
+                      onClick={() => setShowCollectionCreator(true)}
+                      className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                    >
+                      Create Collection ({selectedImages.length})
+                    </button>
+                    <button
+                      onClick={handleBulkDelete}
+                      className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                    >
+                      Delete Selected ({selectedImages.length})
+                    </button>
+                  </>
+                )}
                 <button
-                  onClick={handleSelectAll}
+                  onClick={() => {
+                    if (selectedImages.length === images.length) {
+                      setSelectedImages([]);
+                    } else {
+                      setSelectedImages(images.map(img => img.id));
+                    }
+                  }}
                   className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                 >
-                  {selectedImages.length === filteredImages.length ? "Deselect All" : "Select All"}
+                  {selectedImages.length === images.length ? "Deselect All" : "Select All"}
                 </button>
-                {selectedImages.length > 0 && (
-                  <button
-                    onClick={handleBulkDelete}
-                    className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                  >
-                    Delete Selected ({selectedImages.length})
-                  </button>
-                )}
               </div>
             </div>
           </div>
 
-          {/* Images */}
-          {imagesQuery.isLoading ? (
-            <div className="text-center py-12">
-              <div className="h-8 w-8 animate-spin rounded-full border-4 border-secondary border-t-transparent mx-auto mb-4"></div>
-              <p className="text-text-muted dark:text-text-light/70">Loading images...</p>
-            </div>
-          ) : imagesQuery.error ? (
-            <div className="text-center py-12">
-              <ImageIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-text-muted dark:text-text-light/70 mb-4">Error loading images</p>
-              <p className="text-sm text-red-600">{imagesQuery.error.message}</p>
-            </div>
-          ) : filteredImages.length === 0 ? (
-            <div className="text-center py-12">
-              <ImageIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-text-muted dark:text-text-light/70 mb-4">
-                {searchQuery ? "No images found matching your search" : "No images uploaded yet"}
-              </p>
+          {/* Images Gallery */}
+          <ImageGallery
+            images={images}
+            viewMode={viewMode}
+            selectable={true}
+            selectedImages={selectedImages}
+            onSelectionChange={setSelectedImages}
+            onImageDelete={handleDeleteImage}
+            showMetadata={true}
+            showVariants={true}
+            loading={imagesQuery.isLoading}
+            emptyMessage={
+              filters.search || filters.category 
+                ? "No images found matching your filters" 
+                : "No images uploaded yet"
+            }
+          />
+
+          {/* Pagination */}
+          {imagesQuery.data?.pagination && imagesQuery.data.pagination.totalPages > 1 && (
+            <div className="flex items-center justify-center space-x-4 mt-8">
               <button
-                onClick={() => setShowUpload(true)}
-                className="px-4 py-2 bg-secondary text-white rounded-lg hover:bg-secondary/90 transition-colors"
+                onClick={() => updateFilters({ page: filters.page - 1 })}
+                disabled={!imagesQuery.data.pagination.hasPreviousPage}
+                className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Upload Your First Image
+                Previous
               </button>
-            </div>
-          ) : viewMode === "grid" ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-              {filteredImages.map((image) => (
-                <div
-                  key={image.name}
-                  className={`bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-lg transition-shadow ${
-                    selectedImages.includes(image.name) ? "ring-2 ring-secondary" : ""
-                  }`}
-                >
-                  <div className="aspect-square bg-gray-50 dark:bg-gray-700 relative">
-                    <img
-                      src={getImageUrl(image.name)}
-                      alt={image.name}
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                    />
-                    <div className="absolute top-2 left-2">
-                      <input
-                        type="checkbox"
-                        checked={selectedImages.includes(image.name)}
-                        onChange={() => handleSelectImage(image.name)}
-                        className="rounded border-gray-300 text-secondary focus:ring-secondary"
-                      />
-                    </div>
-                  </div>
-                  <div className="p-4">
-                    <h3 className="text-sm font-medium text-text-dark dark:text-text-light mb-2 truncate">
-                      {image.name}
-                    </h3>
-                    <p className="text-xs text-text-muted dark:text-text-light/70 mb-2">
-                      {formatFileSize(image.size)}
-                    </p>
-                    <p className="text-xs text-text-muted dark:text-text-light/70 mb-4">
-                      {new Date(image.lastModified).toLocaleDateString()}
-                    </p>
-                    <div className="flex items-center space-x-2">
-                      <button
-                        onClick={() => handleCopyPath(image.name)}
-                        className="flex-1 px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 transition-colors"
-                        title="Copy file path"
-                      >
-                        <Copy className="h-3 w-3 mx-auto" />
-                      </button>
-                      <button
-                        onClick={() => handleCopyUrl(image.name)}
-                        className="flex-1 px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 transition-colors"
-                        title="Copy URL"
-                      >
-                        <Eye className="h-3 w-3 mx-auto" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteImage(image.name)}
-                        className="flex-1 px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700 transition-colors"
-                        title="Delete image"
-                      >
-                        <Trash2 className="h-3 w-3 mx-auto" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50 dark:bg-gray-700">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        <input
-                          type="checkbox"
-                          checked={selectedImages.length === filteredImages.length && filteredImages.length > 0}
-                          onChange={handleSelectAll}
-                          className="rounded border-gray-300 text-secondary focus:ring-secondary"
-                        />
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        Preview
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        Name
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        Size
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        Modified
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                    {filteredImages.map((image) => (
-                      <tr key={image.name} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <input
-                            type="checkbox"
-                            checked={selectedImages.includes(image.name)}
-                            onChange={() => handleSelectImage(image.name)}
-                            className="rounded border-gray-300 text-secondary focus:ring-secondary"
-                          />
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <img
-                            src={getImageUrl(image.name)}
-                            alt={image.name}
-                            className="h-12 w-12 object-cover rounded"
-                            loading="lazy"
-                          />
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-text-dark dark:text-text-light">
-                          {image.name}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-text-muted dark:text-text-light/70">
-                          {formatFileSize(image.size)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-text-muted dark:text-text-light/70">
-                          {new Date(image.lastModified).toLocaleDateString()}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
-                          <button
-                            onClick={() => handleCopyPath(image.name)}
-                            className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 transition-colors"
-                            title="Copy file path"
-                          >
-                            Copy Path
-                          </button>
-                          <button
-                            onClick={() => handleCopyUrl(image.name)}
-                            className="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 transition-colors"
-                            title="Copy URL"
-                          >
-                            Copy URL
-                          </button>
-                          <button
-                            onClick={() => handleDeleteImage(image.name)}
-                            className="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700 transition-colors"
-                            title="Delete image"
-                          >
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <span className="text-text-muted dark:text-text-light/70">
+                Page {imagesQuery.data.pagination.page} of {imagesQuery.data.pagination.totalPages}
+              </span>
+              <button
+                onClick={() => updateFilters({ page: filters.page + 1 })}
+                disabled={!imagesQuery.data.pagination.hasNextPage}
+                className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Next
+              </button>
             </div>
           )}
         </div>
       </div>
+
+      {/* Collection Creator Modal */}
+      {showCollectionCreator && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-text-dark dark:text-text-light mb-4">
+              Create Image Collection
+            </h3>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const formData = new FormData(e.currentTarget);
+                const name = formData.get('name') as string;
+                const description = formData.get('description') as string;
+                handleCreateCollection(name, description);
+              }}
+            >
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-text-dark dark:text-text-light mb-2">
+                    Collection Name
+                  </label>
+                  <input
+                    type="text"
+                    name="name"
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-text-dark dark:text-text-light focus:ring-2 focus:ring-secondary focus:border-secondary"
+                    placeholder="Enter collection name"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-text-dark dark:text-text-light mb-2">
+                    Description
+                  </label>
+                  <textarea
+                    name="description"
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-text-dark dark:text-text-light focus:ring-2 focus:ring-secondary focus:border-secondary"
+                    placeholder="Enter collection description"
+                  />
+                </div>
+                <p className="text-sm text-text-muted dark:text-text-light/70">
+                  {selectedImages.length} images will be added to this collection.
+                </p>
+              </div>
+              <div className="flex justify-end space-x-3 mt-6">
+                <button
+                  type="button"
+                  onClick={() => setShowCollectionCreator(false)}
+                  className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-secondary text-white rounded-lg hover:bg-secondary/90 transition-colors"
+                >
+                  Create Collection
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

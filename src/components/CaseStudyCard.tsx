@@ -1,6 +1,8 @@
 import { Badge } from "./ui/Badge";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Image as ImageIcon } from "lucide-react";
 import { REGION_TAGS, YEAR_TAG_PATTERN } from "~/constants";
+import { getImageUrl } from "~/utils";
+import { useState } from "react";
 
 export interface CaseStudyData {
   id: number;
@@ -28,6 +30,9 @@ interface CaseStudyCardProps {
 }
 
 export default function CaseStudyCard({ caseStudy, onClick }: CaseStudyCardProps) {
+  const [imageLoading, setImageLoading] = useState(true);
+  const [imageError, setImageError] = useState(false);
+  
   // Get year tag if it exists
   const yearTag = caseStudy.parsedTags.find(tag => YEAR_TAG_PATTERN.test(tag));
   
@@ -45,12 +50,33 @@ export default function CaseStudyCard({ caseStudy, onClick }: CaseStudyCardProps
       onClick={() => onClick(caseStudy)}
     >
       {/* Image with gradient overlay */}
-      <div className="relative aspect-video overflow-hidden">
-        <div 
-          className="h-full w-full bg-cover bg-center transition-transform duration-500 group-hover:scale-110" 
-          style={{ backgroundImage: `url(${caseStudy.image})` }}
-        ></div>
-        <div className="absolute inset-0 bg-gradient-to-t from-background-black via-background-black/40 to-transparent opacity-80 group-hover:opacity-70 transition-opacity duration-300"></div>
+      <div className="relative aspect-video overflow-hidden bg-gray-100 dark:bg-gray-800">
+        {imageError ? (
+          <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700">
+            <div className="text-center text-gray-400">
+              <ImageIcon className="h-12 w-12 mx-auto mb-2" />
+              <p className="text-sm">Image unavailable</p>
+            </div>
+          </div>
+        ) : (
+          <>
+            {imageLoading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-gray-800">
+                <div className="h-8 w-8 animate-spin rounded-full border-4 border-secondary border-t-transparent"></div>
+              </div>
+            )}
+            <div 
+              className={`h-full w-full bg-cover bg-center transition-transform duration-500 group-hover:scale-110 ${imageLoading ? 'opacity-0' : 'opacity-100'}`}
+              style={{ backgroundImage: `url(${getImageUrl(caseStudy.image)})` }}
+              onLoad={() => setImageLoading(false)}
+              onError={() => {
+                setImageLoading(false);
+                setImageError(true);
+              }}
+            ></div>
+            <div className="absolute inset-0 bg-gradient-to-t from-background-black via-background-black/40 to-transparent opacity-80 group-hover:opacity-70 transition-opacity duration-300"></div>
+          </>
+        )}
         
         {/* Year Badge (if exists) */}
         {yearTag && (

@@ -1,5 +1,7 @@
 import { Badge } from "./ui/Badge";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Image as ImageIcon } from "lucide-react";
+import { getImageUrl } from "~/utils";
+import { useState } from "react";
 
 export interface ChallengeData {
   id: number;
@@ -29,6 +31,9 @@ interface ChallengeCardProps {
 }
 
 export default function ChallengeCard({ challenge, onClick }: ChallengeCardProps) {
+  const [imageLoading, setImageLoading] = useState(true);
+  const [imageError, setImageError] = useState(false);
+
   // Generate status badge color based on status
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
@@ -49,12 +54,33 @@ export default function ChallengeCard({ challenge, onClick }: ChallengeCardProps
       onClick={() => onClick(challenge)}
     >
       {/* Image with gradient overlay */}
-      <div className="relative aspect-video overflow-hidden">
-        <div 
-          className="h-full w-full bg-cover bg-center transition-transform duration-500 group-hover:scale-110" 
-          style={{ backgroundImage: `url(${challenge.image})` }}
-        ></div>
-        <div className="absolute inset-0 bg-gradient-to-t from-background-black via-background-black/40 to-transparent opacity-80 group-hover:opacity-70 transition-opacity duration-300"></div>
+      <div className="relative aspect-video overflow-hidden bg-gray-100 dark:bg-gray-800">
+        {imageError ? (
+          <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700">
+            <div className="text-center text-gray-400">
+              <ImageIcon className="h-12 w-12 mx-auto mb-2" />
+              <p className="text-sm">Image unavailable</p>
+            </div>
+          </div>
+        ) : (
+          <>
+            {imageLoading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-gray-800">
+                <div className="h-8 w-8 animate-spin rounded-full border-4 border-secondary border-t-transparent"></div>
+              </div>
+            )}
+            <div 
+              className={`h-full w-full bg-cover bg-center transition-transform duration-500 group-hover:scale-110 ${imageLoading ? 'opacity-0' : 'opacity-100'}`}
+              style={{ backgroundImage: `url(${getImageUrl(challenge.image)})` }}
+              onLoad={() => setImageLoading(false)}
+              onError={() => {
+                setImageLoading(false);
+                setImageError(true);
+              }}
+            ></div>
+            <div className="absolute inset-0 bg-gradient-to-t from-background-black via-background-black/40 to-transparent opacity-80 group-hover:opacity-70 transition-opacity duration-300"></div>
+          </>
+        )}
         
         {/* Status Badge */}
         <div className="absolute top-4 right-4">

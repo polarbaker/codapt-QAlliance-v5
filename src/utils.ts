@@ -14,8 +14,8 @@ export function debounce<T extends (...args: any[]) => any>(
   };
 }
 
-// Generate URLs for images stored in our system
-export function getImageUrl(filePath: string): string {
+// Generate URLs for images stored in our system with variant support
+export function getImageUrl(filePath: string, variantType?: string): string {
   if (!filePath) return '';
   
   // If it's already a full URL (for backwards compatibility), return as-is
@@ -23,15 +23,20 @@ export function getImageUrl(filePath: string): string {
     return filePath;
   }
   
-  // Generate URL for our image serving endpoint
+  // Generate URL for our image serving endpoint with optional variant
   const params = new URLSearchParams({ 
-    input: JSON.stringify({ filePath }) 
+    input: JSON.stringify({ 
+      filePath,
+      ...(variantType && { variantType })
+    }) 
   });
-  return `/api/trpc/getImage?${params.toString()}`;
+  
+  const endpoint = variantType ? 'getImageVariant' : 'getImage';
+  return `/api/trpc/${endpoint}?${params.toString()}`;
 }
 
-// Generate cache-busted image URLs for our stored images
-export function getCacheBustedImageUrl(filePath: string, updatedAt?: Date | string): string {
+// Generate cache-busted image URLs with variant support
+export function getCacheBustedImageUrl(filePath: string, updatedAt?: Date | string, variantType?: string): string {
   if (!filePath) return '';
   
   // If it's already a full URL (for backwards compatibility), use original function
@@ -46,7 +51,10 @@ export function getCacheBustedImageUrl(filePath: string, updatedAt?: Date | stri
   
   // For our stored images, add cache buster to the tRPC endpoint
   const params = new URLSearchParams({ 
-    input: JSON.stringify({ filePath }) 
+    input: JSON.stringify({ 
+      filePath,
+      ...(variantType && { variantType })
+    }) 
   });
   
   if (updatedAt) {
@@ -55,7 +63,60 @@ export function getCacheBustedImageUrl(filePath: string, updatedAt?: Date | stri
     params.append('v', cacheBuster.toString());
   }
   
-  return `/api/trpc/getImage?${params.toString()}`;
+  const endpoint = variantType ? 'getImageVariant' : 'getImage';
+  return `/api/trpc/${endpoint}?${params.toString()}`;
+}
+
+// Get responsive image URLs for different screen sizes
+export function getResponsiveImageUrls(filePath: string): {
+  thumbnail: string;
+  small: string;
+  medium: string;
+  large: string;
+  original: string;
+} {
+  return {
+    thumbnail: getImageUrl(filePath, 'thumbnail'),
+    small: getImageUrl(filePath, 'small'),
+    medium: getImageUrl(filePath, 'medium'),
+    large: getImageUrl(filePath, 'large'),
+    original: getImageUrl(filePath),
+  };
+}
+
+// Generate srcset for responsive images
+export function generateImageSrcSet(filePath: string): string {
+  if (!filePath || filePath.startsWith('http')) {
+    return filePath; // Fallback for external URLs
+  }
+  
+  const variants = [
+    { type: 'small', width: 400 },
+    { type: 'medium', width: 800 },
+    { type: 'large', width: 1600 },
+  ];
+  
+  return variants
+    .map(variant => `${getImageUrl(filePath, variant.type)} ${variant.width}w`)
+    .join(', ');
+}
+
+// Get optimal image URL based on container size
+export function getOptimalImageUrl(filePath: string, containerWidth: number): string {
+  if (!filePath) return '';
+  
+  // If it's an external URL, return as-is
+  if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+    return filePath;
+  }
+  
+  // Choose optimal variant based on container width
+  if (containerWidth <= 150) return getImageUrl(filePath, 'thumbnail');
+  if (containerWidth <= 400) return getImageUrl(filePath, 'small');
+  if (containerWidth <= 800) return getImageUrl(filePath, 'medium');
+  if (containerWidth <= 1600) return getImageUrl(filePath, 'large');
+  
+  return getImageUrl(filePath); // Original for very large containers
 }
 
 // Check if a path is a stored image file path (not a URL)
@@ -69,6 +130,65 @@ export function getImageFileExtension(filePath: string): string {
   if (!filePath) return '';
   const parts = filePath.split('.');
   return parts.length > 1 ? parts[parts.length - 1].toLowerCase() : '';
+}
+
+// Extract image information from file path
+export function getImageInfo(filePath: string): {
+  extension: string;
+  baseName: string;
+  isVariant: boolean;
+  variantType?: string;
+} {
+  if (!filePath) return { extension: '', baseName: '', isVariant: false };
+  
+  const parts = filePath.split('.');
+  const extension = parts.length > 1 ? parts[parts.length - 1].toLowerCase() : '';
+  
+  // Check if this is a variant (contains variant type before extension)
+  const nameWithoutExt = parts.slice(0, -1).join('.');
+  const variantMatch = nameWithoutExt.match(/_([a-z_]+)$/);
+  
+  if (variantMatch) {
+    const variantType = variantMatch[1];
+    const baseName = nameWithoutExt.replace(`_${variantType}`, '');
+    return {
+      extension,
+      baseName,
+      isVariant: true,
+      variantType,
+    };
+  }
+  
+  return {
+    extension,
+    baseName: nameWithoutExt,
+    isVariant: false,
+  };
+}
+
+// Format image dimensions for display
+export function formatImageDimensions(width?: number, height?: number): string {
+  if (!width || !height) return 'Unknown dimensions';
+  return `${width} × ${height}px`;
+}
+
+// Calculate aspect ratio
+export function calculateAspectRatio(width: number, height: number): number {
+  return width / height;
+}
+
+// Get aspect ratio description
+export function getAspectRatioDescription(aspectRatio: number): string {
+  if (aspectRatio > 1.7) return 'Wide';
+  if (aspectRatio > 1.2) return 'Landscape';
+  if (aspectRatio > 0.8) return 'Square';
+  if (aspectRatio > 0.6) return 'Portrait';
+  return 'Tall';
+}
+
+// Format compression ratio for display
+export function formatCompressionRatio(ratio: number): string {
+  return `${Math.round(ratio * 100)}% reduction`;
 }
 
 // Throttle function to limit function calls to once per interval
