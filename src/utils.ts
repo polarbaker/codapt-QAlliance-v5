@@ -14,16 +14,61 @@ export function debounce<T extends (...args: any[]) => any>(
   };
 }
 
-// Generate cache-busted image URLs using updatedAt timestamp
-export function getCacheBustedImageUrl(url: string, updatedAt?: Date | string): string {
-  if (!updatedAt) return url;
+// Generate URLs for images stored in our system
+export function getImageUrl(filePath: string): string {
+  if (!filePath) return '';
   
-  const timestamp = typeof updatedAt === 'string' ? new Date(updatedAt) : updatedAt;
-  const cacheBuster = timestamp.getTime();
+  // If it's already a full URL (for backwards compatibility), return as-is
+  if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+    return filePath;
+  }
   
-  // Add cache buster as query parameter
-  const separator = url.includes('?') ? '&' : '?';
-  return `${url}${separator}v=${cacheBuster}`;
+  // Generate URL for our image serving endpoint
+  const params = new URLSearchParams({ 
+    input: JSON.stringify({ filePath }) 
+  });
+  return `/api/trpc/getImage?${params.toString()}`;
+}
+
+// Generate cache-busted image URLs for our stored images
+export function getCacheBustedImageUrl(filePath: string, updatedAt?: Date | string): string {
+  if (!filePath) return '';
+  
+  // If it's already a full URL (for backwards compatibility), use original function
+  if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+    if (!updatedAt) return filePath;
+    
+    const timestamp = typeof updatedAt === 'string' ? new Date(updatedAt) : updatedAt;
+    const cacheBuster = timestamp.getTime();
+    const separator = filePath.includes('?') ? '&' : '?';
+    return `${filePath}${separator}v=${cacheBuster}`;
+  }
+  
+  // For our stored images, add cache buster to the tRPC endpoint
+  const params = new URLSearchParams({ 
+    input: JSON.stringify({ filePath }) 
+  });
+  
+  if (updatedAt) {
+    const timestamp = typeof updatedAt === 'string' ? new Date(updatedAt) : updatedAt;
+    const cacheBuster = timestamp.getTime();
+    params.append('v', cacheBuster.toString());
+  }
+  
+  return `/api/trpc/getImage?${params.toString()}`;
+}
+
+// Check if a path is a stored image file path (not a URL)
+export function isStoredImagePath(path: string): boolean {
+  if (!path) return false;
+  return !path.startsWith('http://') && !path.startsWith('https://');
+}
+
+// Extract file extension from stored image path
+export function getImageFileExtension(filePath: string): string {
+  if (!filePath) return '';
+  const parts = filePath.split('.');
+  return parts.length > 1 ? parts[parts.length - 1].toLowerCase() : '';
 }
 
 // Throttle function to limit function calls to once per interval

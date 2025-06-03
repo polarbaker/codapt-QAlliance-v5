@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTRPC } from "~/trpc/react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useUserStore } from "~/stores/userStore";
 import { toast } from "react-hot-toast";
 import {
@@ -26,39 +26,80 @@ export function InnovatorBulkActions({
   const [isExpanded, setIsExpanded] = useState(false);
   
   const trpc = useTRPC();
+  const queryClient = useQueryClient();
+
+  // Individual delete mutation
+  const deleteMutation = useMutation(
+    trpc.adminDeleteInnovator.mutationOptions()
+  );
+
+  // Individual update mutation
+  const updateMutation = useMutation(
+    trpc.adminUpdateInnovator.mutationOptions()
+  );
 
   const batchDeleteMutation = useMutation({
     mutationFn: async (ids: number[]) => {
-      const deletePromises = ids.map(id => 
-        trpc.adminDeleteInnovator.mutate({
-          adminToken: adminToken || "",
-          id,
-        })
-      );
-      return Promise.all(deletePromises);
+      // Execute deletions sequentially to avoid overwhelming the server
+      const results = [];
+      for (const id of ids) {
+        try {
+          const result = await deleteMutation.mutateAsync({
+            adminToken: adminToken || "",
+            id,
+          });
+          results.push(result);
+        } catch (error) {
+          console.error(`Failed to delete innovator ${id}:`, error);
+          throw error;
+        }
+      }
+      return results;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      // Invalidate all relevant queries to ensure immediate updates
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['adminGetInnovators'] }),
+        queryClient.invalidateQueries({ queryKey: ['getInnovators'] }),
+        queryClient.invalidateQueries({ queryKey: ['getFeaturedInnovators'] }),
+      ]);
+      
       toast.success(`${selectedIds.length} innovator${selectedIds.length > 1 ? 's' : ''} deleted`);
       onClear();
       onSuccess?.();
     },
     onError: (error) => {
-      toast.error("Error deleting innovators");
+      toast.error("Error deleting some innovators");
     },
   });
 
   const batchFeatureMutation = useMutation({
     mutationFn: async ({ ids, featured }: { ids: number[], featured: boolean }) => {
-      const updatePromises = ids.map(id => 
-        trpc.adminUpdateInnovator.mutate({
-          adminToken: adminToken || "",
-          id,
-          data: { featured },
-        })
-      );
-      return Promise.all(updatePromises);
+      // Execute updates sequentially to avoid overwhelming the server
+      const results = [];
+      for (const id of ids) {
+        try {
+          const result = await updateMutation.mutateAsync({
+            adminToken: adminToken || "",
+            id,
+            data: { featured },
+          });
+          results.push(result);
+        } catch (error) {
+          console.error(`Failed to update innovator ${id}:`, error);
+          throw error;
+        }
+      }
+      return results;
     },
-    onSuccess: (_, { featured }) => {
+    onSuccess: async (_, { featured }) => {
+      // Invalidate all relevant queries to ensure immediate updates
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['adminGetInnovators'] }),
+        queryClient.invalidateQueries({ queryKey: ['getInnovators'] }),
+        queryClient.invalidateQueries({ queryKey: ['getFeaturedInnovators'] }),
+      ]);
+      
       toast.success(`${selectedIds.length} innovator${selectedIds.length > 1 ? 's' : ''} ${featured ? 'featured' : 'unfeatured'}`);
       onClear();
       onSuccess?.();

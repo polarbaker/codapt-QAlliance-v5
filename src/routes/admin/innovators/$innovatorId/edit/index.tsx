@@ -3,7 +3,7 @@ import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useUserStore } from "~/stores/userStore";
 import { useTRPC } from "~/trpc/react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "react-hot-toast";
 import * as z from "zod";
 import {
@@ -16,12 +16,14 @@ import {
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { useEffect } from "react";
+import { ImageUpload } from "~/components/ui/ImageUpload";
+import { getImageUrl } from "~/utils";
 
 const innovatorFormSchema = z.object({
   name: z.string().min(1, "Name is required").max(100, "Name must be less than 100 characters"),
   title: z.string().min(1, "Title is required").max(150, "Title must be less than 150 characters"),
   bio: z.string().min(1, "Bio is required"),
-  image: z.string().min(1, "Image URL is required").url("Please enter a valid image URL"),
+  image: z.string().min(1, "Image is required"), // Now expects file path, not URL
   achievements: z.array(z.object({
     value: z.string().min(1, "Achievement cannot be empty")
   })).min(1, "At least one achievement is required"),
@@ -43,6 +45,7 @@ function EditInnovatorPage() {
   const { innovatorId } = Route.useParams();
   const { adminToken } = useUserStore();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   
   const trpc = useTRPC();
   
@@ -60,6 +63,7 @@ function EditInnovatorPage() {
     control,
     watch,
     reset,
+    setValue,
   } = useForm<InnovatorFormData>({
     resolver: zodResolver(innovatorFormSchema),
     defaultValues: {
@@ -108,7 +112,15 @@ function EditInnovatorPage() {
 
   const updateMutation = useMutation(
     trpc.adminUpdateInnovator.mutationOptions({
-      onSuccess: () => {
+      onSuccess: async () => {
+        // Invalidate all relevant queries to ensure immediate updates
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['adminGetInnovators'] }),
+          queryClient.invalidateQueries({ queryKey: ['adminGetInnovatorById'] }),
+          queryClient.invalidateQueries({ queryKey: ['getInnovators'] }),
+          queryClient.invalidateQueries({ queryKey: ['getFeaturedInnovators'] }),
+        ]);
+        
         toast.success("Innovator updated successfully");
         navigate({ to: "/admin/innovators" });
       },
@@ -239,16 +251,22 @@ function EditInnovatorPage() {
                       )}
                     </div>
 
-                    {/* Image URL */}
+                    {/* Image Upload */}
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-text-dark dark:text-text-light mb-2">
-                        Image URL *
+                        Profile Image *
                       </label>
-                      <input
-                        type="url"
-                        {...register("image")}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-text-dark dark:text-text-light focus:ring-2 focus:ring-secondary focus:border-secondary"
-                        placeholder="https://example.com/profile.jpg"
+                      <ImageUpload
+                        value={watch("image")}
+                        onChange={(filePath) => {
+                          if (filePath) {
+                            setValue("image", filePath);
+                          } else {
+                            setValue("image", "");
+                          }
+                        }}
+                        placeholder="Upload innovator profile image"
+                        previewClassName="h-48"
                       />
                       {errors.image && (
                         <p className="mt-1 text-sm text-red-600">{errors.image.message}</p>
@@ -431,7 +449,7 @@ function EditInnovatorPage() {
                 <div className="w-full h-48 bg-gray-50 dark:bg-gray-700 rounded-lg flex items-center justify-center p-4 border-2 border-dashed border-gray-300 dark:border-gray-600">
                   {imageUrl ? (
                     <img
-                      src={imageUrl}
+                      src={getImageUrl(imageUrl)}
                       alt="Innovator profile preview"
                       className="max-w-full max-h-full object-cover rounded-lg"
                       onError={(e) => {
@@ -439,7 +457,7 @@ function EditInnovatorPage() {
                         target.style.display = 'none';
                         const parent = target.parentElement;
                         if (parent) {
-                          parent.innerHTML = '<div class="text-red-500 text-sm text-center">Invalid image URL</div>';
+                          parent.innerHTML = '<div class="text-red-500 text-sm text-center">Invalid image</div>';
                         }
                       }}
                     />

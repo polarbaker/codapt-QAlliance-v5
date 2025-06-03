@@ -3,7 +3,7 @@ import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useUserStore } from "~/stores/userStore";
 import { useTRPC } from "~/trpc/react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "react-hot-toast";
 import * as z from "zod";
 import {
@@ -15,12 +15,14 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
+import { ImageUpload } from "~/components/ui/ImageUpload";
+import { getImageUrl } from "~/utils";
 
 const innovatorFormSchema = z.object({
   name: z.string().min(1, "Name is required").max(100, "Name must be less than 100 characters"),
   title: z.string().min(1, "Title is required").max(150, "Title must be less than 150 characters"),
   bio: z.string().min(1, "Bio is required"),
-  image: z.string().min(1, "Image URL is required").url("Please enter a valid image URL"),
+  image: z.string().min(1, "Image is required"),
   achievements: z.array(z.object({
     value: z.string().min(1, "Achievement cannot be empty")
   })).min(1, "At least one achievement is required"),
@@ -28,6 +30,8 @@ const innovatorFormSchema = z.object({
   twitterUrl: z.string().url("Please enter a valid Twitter URL").optional().or(z.literal("")),
   websiteUrl: z.string().url("Please enter a valid website URL").optional().or(z.literal("")),
   featured: z.boolean().default(false),
+  hasVideo: z.boolean().default(false),
+  videoUrl: z.string().url("Please enter a valid video URL").optional().or(z.literal("")),
 });
 
 type InnovatorFormData = z.infer<typeof innovatorFormSchema>;
@@ -39,6 +43,7 @@ export const Route = createFileRoute("/admin/innovators/new/")({
 function NewInnovatorPage() {
   const { adminToken } = useUserStore();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   
   const trpc = useTRPC();
   
@@ -48,10 +53,12 @@ function NewInnovatorPage() {
     formState: { errors, isSubmitting },
     control,
     watch,
+    setValue,
   } = useForm<InnovatorFormData>({
     resolver: zodResolver(innovatorFormSchema),
     defaultValues: {
       featured: false,
+      hasVideo: false,
       achievements: [{ value: "" }],
     },
   });
@@ -63,7 +70,14 @@ function NewInnovatorPage() {
 
   const createMutation = useMutation(
     trpc.adminCreateInnovator.mutationOptions({
-      onSuccess: () => {
+      onSuccess: async () => {
+        // Invalidate all relevant queries to ensure immediate updates
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['adminGetInnovators'] }),
+          queryClient.invalidateQueries({ queryKey: ['getInnovators'] }),
+          queryClient.invalidateQueries({ queryKey: ['getFeaturedInnovators'] }),
+        ]);
+        
         toast.success("Innovator created successfully");
         navigate({ to: "/admin/innovators" });
       },
@@ -88,11 +102,14 @@ function NewInnovatorPage() {
         twitterUrl: data.twitterUrl || undefined,
         websiteUrl: data.websiteUrl || undefined,
         featured: data.featured,
+        hasVideo: data.hasVideo,
+        videoUrl: data.hasVideo && data.videoUrl ? data.videoUrl : undefined,
       },
     });
   };
 
   const imageUrl = watch("image");
+  const hasVideo = watch("hasVideo");
 
   return (
     <div className="min-h-screen bg-background-light dark:bg-background-black">
@@ -163,16 +180,22 @@ function NewInnovatorPage() {
                       )}
                     </div>
 
-                    {/* Image URL */}
+                    {/* Image Upload */}
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-text-dark dark:text-text-light mb-2">
-                        Image URL *
+                        Profile Image *
                       </label>
-                      <input
-                        type="url"
-                        {...register("image")}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-text-dark dark:text-text-light focus:ring-2 focus:ring-secondary focus:border-secondary"
-                        placeholder="https://example.com/profile.jpg"
+                      <ImageUpload
+                        value={watch("image")}
+                        onChange={(filePath) => {
+                          if (filePath) {
+                            setValue("image", filePath);
+                          } else {
+                            setValue("image", "");
+                          }
+                        }}
+                        placeholder="Upload innovator profile image"
+                        previewClassName="h-48"
                       />
                       {errors.image && (
                         <p className="mt-1 text-sm text-red-600">{errors.image.message}</p>
@@ -238,6 +261,38 @@ function NewInnovatorPage() {
                         </span>
                       </label>
                     </div>
+
+                    {/* Has Video */}
+                    <div className="md:col-span-2">
+                      <label className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          {...register("hasVideo")}
+                          className="rounded border-gray-300 text-secondary focus:ring-secondary"
+                        />
+                        <span className="text-sm font-medium text-text-dark dark:text-text-light">
+                          Has Video
+                        </span>
+                      </label>
+                    </div>
+
+                    {/* Video URL - only show if hasVideo is checked */}
+                    {hasVideo && (
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-text-dark dark:text-text-light mb-2">
+                          Video URL
+                        </label>
+                        <input
+                          type="url"
+                          {...register("videoUrl")}
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-text-dark dark:text-text-light focus:ring-2 focus:ring-secondary focus:border-secondary"
+                          placeholder="https://youtube.com/watch?v=..."
+                        />
+                        {errors.videoUrl && (
+                          <p className="mt-1 text-sm text-red-600">{errors.videoUrl.message}</p>
+                        )}
+                      </div>
+                    )}
 
                     {/* Achievements */}
                     <div className="md:col-span-2">
@@ -323,7 +378,7 @@ function NewInnovatorPage() {
                 <div className="w-full h-48 bg-gray-50 dark:bg-gray-700 rounded-lg flex items-center justify-center p-4 border-2 border-dashed border-gray-300 dark:border-gray-600">
                   {imageUrl ? (
                     <img
-                      src={imageUrl}
+                      src={getImageUrl(imageUrl)}
                       alt="Innovator profile preview"
                       className="max-w-full max-h-full object-cover rounded-lg"
                       onError={(e) => {
@@ -331,7 +386,7 @@ function NewInnovatorPage() {
                         target.style.display = 'none';
                         const parent = target.parentElement;
                         if (parent) {
-                          parent.innerHTML = '<div class="text-red-500 text-sm text-center">Invalid image URL</div>';
+                          parent.innerHTML = '<div class="text-red-500 text-sm text-center">Invalid image</div>';
                         }
                       }}
                     />

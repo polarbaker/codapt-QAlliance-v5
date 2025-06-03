@@ -4,6 +4,7 @@ import { Search, Filter, Play, X, Award, User, MapPin, Briefcase } from "lucide-
 import { useTRPC } from "~/trpc/react";
 import { useQuery } from "@tanstack/react-query";
 import { Dialog, Transition } from "@headlessui/react";
+import { getCacheBustedImageUrl } from "~/utils";
 
 export const Route = createFileRoute("/innovators/")({
   component: Innovators,
@@ -21,6 +22,7 @@ interface InnovatorData {
   achievements?: string | null;
   featured: boolean;
   createdAt: Date;
+  updatedAt: Date;
   order: number;
 }
 
@@ -141,7 +143,7 @@ function InnovatorModal({ innovator, isOpen, onClose }: InnovatorModalProps) {
                               </div>
                             )}
                             <img
-                              src={innovator.avatar}
+                              src={getCacheBustedImageUrl(innovator.avatar, innovator.updatedAt)}
                               alt={`${innovator.name} - ${innovator.role}`}
                               className={`h-full w-full object-cover transition-opacity duration-300 ${
                                 modalImageLoading ? 'opacity-0' : 'opacity-100'
@@ -165,7 +167,7 @@ function InnovatorModal({ innovator, isOpen, onClose }: InnovatorModalProps) {
                           </div>
                         ) : (
                           <img
-                            src={innovator.avatar}
+                            src={getCacheBustedImageUrl(innovator.avatar, innovator.updatedAt)}
                             alt={`${innovator.name} avatar`}
                             className="h-full w-full object-cover"
                             onError={handleModalImageError}
@@ -399,7 +401,7 @@ function Innovators() {
                           </div>
                         )}
                         <img
-                          src={innovator.avatar}
+                          src={getCacheBustedImageUrl(innovator.avatar, innovator.updatedAt)}
                           alt={`${innovator.name} - ${innovator.role}`}
                           className={`h-full w-full object-cover transition-opacity duration-300 ${
                             imageLoading.has(innovator.id) ? 'opacity-0' : 'opacity-100'

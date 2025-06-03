@@ -8,6 +8,7 @@ import { Badge } from "~/components/ui/Badge";
 import { PartnerBulkActions } from "~/components/admin/PartnerBulkActions";
 import { PartnerStats } from "~/components/admin/PartnerStats";
 import { toast } from "react-hot-toast";
+import { getCacheBustedImageUrl } from "~/utils";
 import {
   Handshake,
   Plus,
@@ -291,7 +292,7 @@ function AdminPartnersPage() {
                   <div className="relative">
                     <div className="w-full h-32 bg-gray-50 dark:bg-gray-700 flex items-center justify-center p-4">
                       <img
-                        src={partner.logoUrl}
+                        src={getCacheBustedImageUrl(partner.logoUrl, partner.updatedAt)}
                         alt={partner.altText}
                         className="max-w-full max-h-full object-contain"
                         onError={(e) => {

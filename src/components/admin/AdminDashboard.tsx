@@ -20,6 +20,7 @@ import {
   BarChart3,
   Database,
   Eye,
+  Image,
 } from "lucide-react";
 
 export function AdminDashboard() {
@@ -127,6 +128,12 @@ export function AdminDashboard() {
               description="Create and publish news articles"
               icon={<Newspaper className="h-8 w-8 text-purple-600" />}
               link="/admin/news"
+            />
+            <AdminCard
+              title="Images"
+              description="Manage all images used across the site"
+              icon={<Image className="h-8 w-8 text-purple-600" />}
+              link="/admin/images"
             />
             <AdminCard
               title="Innovators"

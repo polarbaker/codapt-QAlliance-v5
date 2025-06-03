@@ -1,8 +1,9 @@
-import { useState, Fragment } from "react";
+import { useState, Fragment, useEffect } from "react";
 import { Play, X, Award, User } from "lucide-react";
 import { useTRPC } from "~/trpc/react";
 import { useQuery } from "@tanstack/react-query";
 import { Dialog, Transition } from "@headlessui/react";
+import { getCacheBustedImageUrl } from "~/utils";
 
 // Type for innovator data from API
 interface InnovatorData {
@@ -10,13 +11,14 @@ interface InnovatorData {
   name: string;
   role: string;
   impact: string;
-  avatar: string; // Now a URL instead of a CSS class
+  avatar: string; // Now a file path instead of a URL
   hasVideo: boolean;
   videoUrl?: string | null;
   bio?: string | null;
   achievements?: string | null;
   featured: boolean;
   createdAt: Date;
+  updatedAt: Date; // Add updatedAt for cache busting
   order: number;
 }
 
@@ -26,6 +28,24 @@ interface InnovatorCardProps {
 }
 
 function InnovatorCard({ innovator, onClick }: InnovatorCardProps) {
+  const [imageError, setImageError] = useState(false);
+  const [imageLoading, setImageLoading] = useState(true);
+
+  const handleImageError = () => {
+    setImageError(true);
+    setImageLoading(false);
+  };
+
+  const handleImageLoad = () => {
+    setImageError(false);
+    setImageLoading(false);
+  };
+
+  const handleImageLoadStart = () => {
+    setImageLoading(true);
+    setImageError(false);
+  };
+
   return (
     <div 
       className="group cursor-pointer overflow-hidden rounded-lg bg-background-light dark:bg-neutral-dark/30 transition-all duration-300 hover:-translate-y-2"
@@ -33,15 +53,34 @@ function InnovatorCard({ innovator, onClick }: InnovatorCardProps) {
     >
       {/* Image */}
       <div className="aspect-[3/4] relative overflow-hidden">
-        {/* Updated to use the avatar URL directly */}
-        <div 
-          className="h-full w-full bg-cover bg-center" 
-          style={{ backgroundImage: `url(${innovator.avatar})` }}
-        ></div>
-        <div className="absolute inset-0 bg-gradient-to-t from-background-black via-background-black/40 to-transparent"></div>
+        {imageError ? (
+          <div className="h-full w-full flex items-center justify-center bg-neutral-light/20 dark:bg-neutral-dark/20">
+            <User className="h-16 w-16 text-text-dark/40 dark:text-text-light/40" />
+          </div>
+        ) : (
+          <div className="relative h-full w-full">
+            {imageLoading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-neutral-light/20 dark:bg-neutral-dark/20 z-10">
+                <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-t-2 border-secondary"></div>
+              </div>
+            )}
+            <img
+              src={getCacheBustedImageUrl(innovator.avatar, innovator.updatedAt)}
+              alt={`${innovator.name} - ${innovator.role}`}
+              className={`h-full w-full object-cover transition-opacity duration-300 ${
+                imageLoading ? 'opacity-0' : 'opacity-100'
+              }`}
+              onError={handleImageError}
+              onLoad={handleImageLoad}
+              onLoadStart={handleImageLoadStart}
+              loading="lazy"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-background-black via-background-black/40 to-transparent"></div>
+          </div>
+        )}
         
         {/* Play button for videos */}
-        {innovator.hasVideo && (
+        {innovator.hasVideo && !imageError && (
           <div className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-300 group-hover:opacity-100">
             <button className="flex h-16 w-16 items-center justify-center rounded-full bg-secondary text-white transition-transform hover:scale-110">
               <Play size={32} className="ml-1" />
@@ -67,7 +106,34 @@ interface InnovatorModalProps {
 }
 
 function InnovatorModal({ innovator, isOpen, onClose }: InnovatorModalProps) {
+  const [modalImageError, setModalImageError] = useState(false);
+  const [modalImageLoading, setModalImageLoading] = useState(true);
+  
+  // Reset image states when modal opens with new innovator
+  useEffect(() => {
+    if (isOpen && innovator) {
+      setModalImageError(false);
+      setModalImageLoading(true);
+    }
+  }, [isOpen, innovator?.id]);
+  
   if (!innovator) return null;
+  
+  // Handle modal image loading events
+  const handleModalImageError = () => {
+    setModalImageError(true);
+    setModalImageLoading(false);
+  };
+
+  const handleModalImageLoad = () => {
+    setModalImageError(false);
+    setModalImageLoading(false);
+  };
+
+  const handleModalImageLoadStart = () => {
+    setModalImageLoading(true);
+    setModalImageError(false);
+  };
   
   // Parse achievements if they exist
   let achievementsList: string[] = [];
@@ -137,19 +203,49 @@ function InnovatorModal({ innovator, isOpen, onClose }: InnovatorModalProps) {
                         ></iframe>
                       </div>
                     ) : (
-                      <div 
-                        className="aspect-video rounded-lg bg-cover bg-center" 
-                        style={{ backgroundImage: `url(${innovator.avatar})` }}
-                      ></div>
+                      <div className="aspect-video overflow-hidden rounded-lg bg-neutral-dark/20">
+                        {modalImageError ? (
+                          <div className="h-full w-full flex items-center justify-center">
+                            <User className="h-16 w-16 text-text-light/40" />
+                          </div>
+                        ) : (
+                          <div className="relative h-full w-full">
+                            {modalImageLoading && (
+                              <div className="absolute inset-0 flex items-center justify-center bg-neutral-dark/20 z-10">
+                                <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-t-2 border-secondary"></div>
+                              </div>
+                            )}
+                            <img
+                              src={getCacheBustedImageUrl(innovator.avatar, innovator.updatedAt)}
+                              alt={`${innovator.name} - ${innovator.role}`}
+                              className={`h-full w-full object-cover transition-opacity duration-300 ${
+                                modalImageLoading ? 'opacity-0' : 'opacity-100'
+                              }`}
+                              onError={handleModalImageError}
+                              onLoad={handleModalImageLoad}
+                              onLoadStart={handleModalImageLoadStart}
+                            />
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
                   
                   <div>
                     <div className="mb-4 flex items-center">
-                      <div 
-                        className="mr-4 h-12 w-12 rounded-full bg-cover bg-center"
-                        style={{ backgroundImage: `url(${innovator.avatar})` }}
-                      >
+                      <div className="mr-4 h-12 w-12 rounded-full overflow-hidden bg-neutral-dark/20">
+                        {modalImageError ? (
+                          <div className="h-full w-full flex items-center justify-center">
+                            <User className="h-6 w-6 text-text-light/40" />
+                          </div>
+                        ) : (
+                          <img
+                            src={getCacheBustedImageUrl(innovator.avatar, innovator.updatedAt)}
+                            alt={`${innovator.name} avatar`}
+                            className="h-full w-full object-cover"
+                            onError={handleModalImageError}
+                          />
+                        )}
                       </div>
                       <div>
                         <p className="text-xl font-bold text-text-light">{innovator.name}</p>

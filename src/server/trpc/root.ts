@@ -15,6 +15,7 @@ import * as adminProblemsProcs from "~/server/trpc/procedures/admin-problems";
 import * as adminChallengesProcs from "~/server/trpc/procedures/admin-challenges";
 import * as adminInnovatorsProcs from "~/server/trpc/procedures/admin-innovators";
 import * as adminGeneralProcs from "~/server/trpc/procedures/admin-general";
+import * as imageUploadProcs from "~/server/trpc/procedures/image-upload";
 
 export const appRouter = createTRPCRouter({
   // Authentication procedures
@@ -71,6 +72,12 @@ export const appRouter = createTRPCRouter({
   adminGetNewsletterSubscribers: adminGeneralProcs.adminGetNewsletterSubscribers,
   adminGetContactMessages: adminGeneralProcs.adminGetContactMessages,
   adminUpdateContactMessageStatus: adminGeneralProcs.adminUpdateContactMessageStatus,
+  
+  // Image upload procedures
+  adminUploadImage: imageUploadProcs.adminUploadImage,
+  getImage: imageUploadProcs.getImage,
+  adminDeleteImage: imageUploadProcs.adminDeleteImage,
+  adminListImages: imageUploadProcs.adminListImages,
   
   // Partners procedures
   getPartners: partnersProcs.getPartners,

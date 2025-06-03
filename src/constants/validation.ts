@@ -18,7 +18,7 @@ export const caseStudySchema = z.object({
   title: z.string().min(1, "Title is required").max(200, "Title must be less than 200 characters"),
   summary: z.string().min(1, "Summary is required").max(500, "Summary must be less than 500 characters"),
   content: z.string().min(1, "Content is required"),
-  image: z.string().min(1, "Image URL is required").url("Please enter a valid image URL"),
+  image: z.string().min(1, "Image is required"), // Now expects file path, not URL
   video: urlSchema.optional(),
   pdfUrl: urlSchema.optional(),
   tags: jsonArraySchema("Tags"),
@@ -33,7 +33,7 @@ export const challengeSchema = z.object({
   category: z.string().min(1, "Category is required"),
   region: z.string().min(1, "Region is required"),
   status: z.string().min(1, "Status is required"),
-  image: z.string().min(1, "Image URL is required").url("Please enter a valid image URL"),
+  image: z.string().min(1, "Image is required"), // Now expects file path, not URL
   description: z.string().min(1, "Description is required"),
   prize: z.string().min(1, "Prize is required").max(100, "Prize must be less than 100 characters"),
   openDate: z.string().optional(),
@@ -50,7 +50,7 @@ export const newsSchema = z.object({
   excerpt: z.string().min(1, "Excerpt is required").max(500, "Excerpt must be less than 500 characters"),
   content: z.string().min(1, "Content is required"),
   category: z.string().min(1, "Category is required"),
-  imageUrl: urlSchema.optional(),
+  imageUrl: z.string().optional(), // Now expects file path, not URL
   author: z.string().max(100, "Author name must be less than 100 characters").optional(),
   tags: jsonArraySchema("Tags"),
   featured: z.boolean().default(false),
@@ -62,7 +62,7 @@ export const innovatorSchema = z.object({
   name: z.string().min(1, "Name is required").max(100, "Name must be less than 100 characters"),
   title: z.string().min(1, "Title is required").max(150, "Title must be less than 150 characters"),
   bio: z.string().min(1, "Bio is required"),
-  image: z.string().min(1, "Image URL is required").url("Please enter a valid image URL"),
+  image: z.string().min(1, "Image is required"), // Now expects file path, not URL
   achievements: z.array(z.string().min(1, "Achievement cannot be empty")).min(1, "At least one achievement is required"),
   linkedinUrl: urlSchema.optional(),
   twitterUrl: urlSchema.optional(),
@@ -78,7 +78,7 @@ export const innovatorFormSchema = z.object({
   name: z.string().min(1, "Name is required").max(100, "Name must be less than 100 characters"),
   title: z.string().min(1, "Title is required").max(150, "Title must be less than 150 characters"),
   bio: z.string().min(1, "Bio is required"),
-  image: z.string().min(1, "Image URL is required").url("Please enter a valid image URL"),
+  image: z.string().min(1, "Image is required"), // Now expects file path, not URL
   achievements: z.array(z.object({
     value: z.string().min(1, "Achievement cannot be empty")
   })).min(1, "At least one achievement is required"),
@@ -93,7 +93,7 @@ export const innovatorFormSchema = z.object({
 // Partner validation schema
 export const partnerSchema = z.object({
   name: z.string().min(1, "Name is required").max(100, "Name must be less than 100 characters"),
-  logoUrl: z.string().min(1, "Logo URL is required").url("Please enter a valid logo URL"),
+  logoUrl: z.string().min(1, "Logo is required"), // Now expects file path, not URL
   websiteUrl: z.string().url("Please enter a valid website URL").optional().or(z.literal("")),
   altText: z.string().min(1, "Alt text is required").max(200, "Alt text must be less than 200 characters"),
   visible: z.boolean().default(true),
@@ -105,11 +105,11 @@ export const adminLoginSchema = z.object({
   password: z.string().min(1, "Password is required"),
 });
 
-// File upload validation schema
+// File upload validation schema - now accepts any file size
 export const fileUploadSchema = z.object({
   fileName: z.string().min(1, "File name is required"),
   fileType: z.string().min(1, "File type is required"),
-  fileSize: z.number().positive("File size must be positive").max(5 * 1024 * 1024, "File size must be less than 5MB"),
+  fileSize: z.number().positive("File size must be positive"),
   fileContent: z.string().min(1, "File content is required"),
 });
 
@@ -117,6 +117,20 @@ export const fileUploadSchema = z.object({
 export const imageUploadSchema = z.object({
   image: z.string().min(1, "Image is required"),
   filename: z.string().min(1, "Filename is required"),
+});
+
+// Enhanced image upload validation schema for admin forms - now accepts any image type and size
+export const adminImageUploadSchema = z.object({
+  fileName: z.string().min(1, "File name is required"),
+  fileType: z.string().regex(/^image\//, "File must be an image"),
+  fileSize: z.number().positive("File size must be positive"),
+  fileContent: z.string().min(1, "File content is required"), // base64 encoded
+});
+
+// Schema for form data that includes image upload
+export const imageFormDataSchema = z.object({
+  imageFile: z.instanceof(File).optional(),
+  existingImagePath: z.string().optional(),
 });
 
 // Type exports for form data
@@ -129,6 +143,8 @@ export type PartnerFormData = z.infer<typeof partnerSchema>;
 export type AdminLoginFormData = z.infer<typeof adminLoginSchema>;
 export type FileUploadFormData = z.infer<typeof fileUploadSchema>;
 export type ImageUploadFormData = z.infer<typeof imageUploadSchema>;
+export type AdminImageUploadFormData = z.infer<typeof adminImageUploadSchema>;
+export type ImageFormData = z.infer<typeof imageFormDataSchema>;
 
 // Utility functions for validation
 export const validateJsonArray = (value: string): string[] => {
@@ -142,6 +158,26 @@ export const validateJsonArray = (value: string): string[] => {
 
 export const formatJsonArray = (array: string[]): string => {
   return JSON.stringify(array, null, 0);
+};
+
+// Validation for image file input - now accepts any image type and dimension
+export const validateImageFile = (file: File): { valid: boolean; error?: string } => {
+  // Check if it's actually an image file
+  if (!file.type.startsWith('image/')) {
+    return { valid: false, error: 'File must be an image' };
+  }
+  
+  return { valid: true };
+};
+
+// Helper function to convert File to base64
+export const fileToBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = error => reject(error);
+  });
 };
 
 // Constants for form options

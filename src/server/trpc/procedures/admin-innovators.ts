@@ -87,12 +87,14 @@ export const adminCreateInnovator = baseProcedure
       name: z.string().min(1).max(100),
       title: z.string().min(1).max(150), // Frontend sends 'title', maps to 'role'
       bio: z.string().min(1),
-      image: z.string().url(), // Frontend sends 'image', maps to 'avatar'
+      image: z.string().min(1), // Changed from .url() to accept file paths
       achievements: z.array(z.string()).min(1),
       linkedinUrl: z.string().url().optional().or(z.literal("")),
       twitterUrl: z.string().url().optional().or(z.literal("")),
       websiteUrl: z.string().url().optional().or(z.literal("")),
       featured: z.boolean().default(false),
+      hasVideo: z.boolean().default(false),
+      videoUrl: z.string().url().optional().or(z.literal("")),
     }),
   }))
   .mutation(async ({ input }) => {
@@ -108,8 +110,8 @@ export const adminCreateInnovator = baseProcedure
         avatar: data.image, // Map image to avatar
         bio: data.bio, // Store the full bio
         achievements: JSON.stringify(data.achievements),
-        hasVideo: false, // Default for now
-        videoUrl: null,
+        hasVideo: data.hasVideo || false,
+        videoUrl: data.hasVideo && data.videoUrl ? data.videoUrl : null,
         featured: data.featured,
         order: 0, // Default order
       },
@@ -130,7 +132,7 @@ export const adminUpdateInnovator = baseProcedure
       name: z.string().min(1).max(100).optional(),
       title: z.string().min(1).max(150).optional(), // Frontend sends 'title', maps to 'role'
       bio: z.string().min(1).optional(),
-      image: z.string().url().optional(), // Frontend sends 'image', maps to 'avatar'
+      image: z.string().min(1).optional(), // Changed from .url() to accept file paths
       achievements: z.array(z.string()).optional(),
       linkedinUrl: z.string().url().optional().or(z.literal("")),
       twitterUrl: z.string().url().optional().or(z.literal("")),

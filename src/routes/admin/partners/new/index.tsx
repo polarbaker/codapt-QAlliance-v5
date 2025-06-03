@@ -15,6 +15,8 @@ import {
   EyeOff,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
+import { ImageUpload } from "~/components/ui/ImageUpload";
+import { getImageUrl } from "~/utils";
 
 type PartnerFormData = z.infer<typeof partnerSchema>;
 
@@ -33,6 +35,7 @@ function NewPartnerPage() {
     handleSubmit,
     formState: { errors, isSubmitting },
     watch,
+    setValue,
   } = useForm<PartnerFormData>({
     resolver: zodResolver(partnerSchema),
     defaultValues: {
@@ -119,16 +122,23 @@ function NewPartnerPage() {
                       )}
                     </div>
 
-                    {/* Logo URL */}
+                    {/* Logo Upload */}
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-text-dark dark:text-text-light mb-2">
-                        Logo URL *
+                        Logo *
                       </label>
-                      <input
-                        type="url"
-                        {...register("logoUrl")}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-text-dark dark:text-text-light focus:ring-2 focus:ring-secondary focus:border-secondary"
-                        placeholder="https://example.com/logo.png"
+                      <ImageUpload
+                        value={watch("logoUrl")}
+                        onChange={(filePath) => {
+                          if (filePath) {
+                            // Use setValue to update the form field
+                            setValue("logoUrl", filePath);
+                          } else {
+                            setValue("logoUrl", "");
+                          }
+                        }}
+                        placeholder="Upload partner logo"
+                        previewClassName="h-32"
                       />
                       {errors.logoUrl && (
                         <p className="mt-1 text-sm text-red-600">{errors.logoUrl.message}</p>
@@ -228,7 +238,7 @@ function NewPartnerPage() {
                 <div className="w-full h-32 bg-gray-50 dark:bg-gray-700 rounded-lg flex items-center justify-center p-4 border-2 border-dashed border-gray-300 dark:border-gray-600">
                   {logoUrl ? (
                     <img
-                      src={logoUrl}
+                      src={getImageUrl(logoUrl)}
                       alt="Partner logo preview"
                       className="max-w-full max-h-full object-contain"
                       onError={(e) => {
@@ -236,7 +246,7 @@ function NewPartnerPage() {
                         target.style.display = 'none';
                         const parent = target.parentElement;
                         if (parent) {
-                          parent.innerHTML = '<div class="text-red-500 text-sm text-center">Invalid image URL</div>';
+                          parent.innerHTML = '<div class="text-red-500 text-sm text-center">Invalid image</div>';
                         }
                       }}
                     />

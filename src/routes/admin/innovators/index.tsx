@@ -2,12 +2,13 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useUserStore } from "~/stores/userStore";
 import { useTRPC } from "~/trpc/react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DebouncedSearchInput } from "~/components/ui/DebouncedSearchInput";
 import { Badge } from "~/components/ui/Badge";
 import { InnovatorBulkActions } from "~/components/admin/InnovatorBulkActions";
 import { InnovatorStats } from "~/components/admin/InnovatorStats";
 import { toast } from "react-hot-toast";
+import { getCacheBustedImageUrl } from "~/utils";
 import {
   Users,
   Plus,
@@ -35,6 +36,7 @@ function AdminInnovatorsPage() {
   const [isReorderMode, setIsReorderMode] = useState(false);
   
   const trpc = useTRPC();
+  const queryClient = useQueryClient();
   
   // Use the correct pattern for queries
   const innovatorsQuery = useQuery(
@@ -46,11 +48,16 @@ function AdminInnovatorsPage() {
     })
   );
   
-  // Use the correct pattern for mutations
+  // Use the correct pattern for mutations with proper invalidation
   const deleteMutation = useMutation(
     trpc.adminDeleteInnovator.mutationOptions({
-      onSuccess: () => {
-        innovatorsQuery.refetch();
+      onSuccess: async () => {
+        // Invalidate all relevant queries to ensure immediate updates
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['adminGetInnovators'] }),
+          queryClient.invalidateQueries({ queryKey: ['getInnovators'] }),
+          queryClient.invalidateQueries({ queryKey: ['getFeaturedInnovators'] }),
+        ]);
         toast.success("Innovator deleted successfully");
       },
       onError: (error) => {
@@ -61,8 +68,13 @@ function AdminInnovatorsPage() {
 
   const toggleFeaturedMutation = useMutation(
     trpc.adminUpdateInnovator.mutationOptions({
-      onSuccess: () => {
-        innovatorsQuery.refetch();
+      onSuccess: async () => {
+        // Invalidate all relevant queries to ensure immediate updates
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['adminGetInnovators'] }),
+          queryClient.invalidateQueries({ queryKey: ['getInnovators'] }),
+          queryClient.invalidateQueries({ queryKey: ['getFeaturedInnovators'] }),
+        ]);
         toast.success("Featured status updated");
       },
       onError: (error) => {
@@ -73,8 +85,13 @@ function AdminInnovatorsPage() {
 
   const reorderMutation = useMutation(
     trpc.adminReorderInnovators.mutationOptions({
-      onSuccess: () => {
-        innovatorsQuery.refetch();
+      onSuccess: async () => {
+        // Invalidate all relevant queries to ensure immediate updates
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['adminGetInnovators'] }),
+          queryClient.invalidateQueries({ queryKey: ['getInnovators'] }),
+          queryClient.invalidateQueries({ queryKey: ['getFeaturedInnovators'] }),
+        ]);
         toast.success("Innovator order updated");
       },
       onError: (error) => {
@@ -264,7 +281,14 @@ function AdminInnovatorsPage() {
           <InnovatorBulkActions
             selectedIds={selectedInnovators}
             onClear={() => setSelectedInnovators([])}
-            onSuccess={() => innovatorsQuery.refetch()}
+            onSuccess={async () => {
+              // Invalidate all relevant queries to ensure immediate updates
+              await Promise.all([
+                queryClient.invalidateQueries({ queryKey: ['adminGetInnovators'] }),
+                queryClient.invalidateQueries({ queryKey: ['getInnovators'] }),
+                queryClient.invalidateQueries({ queryKey: ['getFeaturedInnovators'] }),
+              ]);
+            }}
           />
 
           {/* Filters */}
@@ -347,7 +371,7 @@ function AdminInnovatorsPage() {
                   >
                     <div className="relative">
                       <img
-                        src={innovator.avatar}
+                        src={getCacheBustedImageUrl(innovator.avatar, innovator.updatedAt)}
                         alt={innovator.name}
                         className="w-full h-48 object-cover"
                       />
