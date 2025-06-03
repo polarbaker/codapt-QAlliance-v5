@@ -99,8 +99,24 @@ services:
       - node-modules-cache:/app/node_modules:nocopy
     tmpfs:
       - /app/.pnpm-store:ro,size=1k
+      - /tmp:rw,size=512m,mode=1777  # Temporary files for image processing
     env_file:
       - ../.env
+    # Memory configuration for image processing
+    shm_size: 1gb  # Shared memory for Sharp image processing
+    deploy:
+      resources:
+        limits:
+          memory: 4gb  # Total memory limit
+        reservations:
+          memory: 2gb  # Reserved memory
+    environment:
+      - NODE_OPTIONS=--max-old-space-size=3072 --expose-gc
+      - UV_THREADPOOL_SIZE=4
+      - MALLOC_ARENA_MAX=2
+      - SHARP_IGNORE_GLOBAL_LIBVIPS=1
+      - SHARP_CONCURRENCY=1
+      - SHARP_CACHE_SIZE=0
 
 volumes:
   postgres-data:

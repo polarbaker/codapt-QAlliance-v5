@@ -119,7 +119,7 @@ export const imageUploadSchema = z.object({
   filename: z.string().min(1, "Filename is required"),
 });
 
-// Enhanced image upload validation schema for admin forms - now accepts any image type and size
+// Enhanced image upload validation schema for admin forms - updated with conservative limits
 export const adminImageUploadSchema = z.object({
   fileName: z.string().min(1, "File name is required"),
   fileType: z.string().refine(
@@ -127,8 +127,8 @@ export const adminImageUploadSchema = z.object({
     "File must be an image"
   ),
   fileSize: z.number().positive("File size must be positive").max(
-    50 * 1024 * 1024, // 50MB max
-    "File size must be less than 50MB"
+    25 * 1024 * 1024, // 25MB max (reduced from 50MB)
+    "File size must be less than 25MB for optimal processing"
   ),
   fileContent: z.string().min(1, "File content is required"), // base64 encoded
 });
@@ -156,7 +156,7 @@ export const imageCollectionSchema = z.object({
   imageIds: z.array(z.number()).optional(),
 });
 
-// Bulk image upload validation schema
+// Bulk image upload validation schema with conservative limits
 export const bulkImageUploadSchema = z.object({
   images: z.array(z.object({
     fileName: z.string().min(1, "File name is required"),
@@ -166,7 +166,7 @@ export const bulkImageUploadSchema = z.object({
     ),
     fileContent: z.string().min(1, "File content is required"),
     ...imageMetadataSchema.shape,
-  })).min(1, "At least one image is required").max(20, "Maximum 20 images per bulk upload"),
+  })).min(1, "At least one image is required").max(10, "Maximum 10 images per bulk upload for optimal memory usage"), // Reduced from 20
   generateVariants: z.boolean().default(true),
   collectionName: z.string().max(100, "Collection name must be less than 100 characters").optional(),
 });
@@ -230,53 +230,73 @@ export const formatJsonArray = (array: string[]): string => {
   return JSON.stringify(array, null, 0);
 };
 
-// Enhanced validation for image file input - more permissive with better error messages
-export const validateImageFile = (file: File): { valid: boolean; error?: string; warnings?: string[] } => {
+// Enhanced validation for image file input with more permissive rules and better UX
+export const validateImageFile = (file: File): { 
+  valid: boolean; 
+  error?: string; 
+  warnings?: string[];
+  category?: 'format' | 'size' | 'validation' | 'compatibility';
+  severity?: 'error' | 'warning' | 'info';
+} => {
   const warnings: string[] = [];
   
   // Check if it's actually a file
   if (!file) {
-    return { valid: false, error: 'No file provided' };
+    return { 
+      valid: false, 
+      error: 'No file provided',
+      category: 'validation',
+      severity: 'error'
+    };
   }
   
-  // Check if it's an image file (more permissive check)
+  // Enhanced file type checking with better error messages and more permissive rules
   const isImageType = file.type.startsWith('image/') || 
-                     /\.(jpg|jpeg|png|gif|webp|bmp|tiff?|svg|avif|heic|heif)$/i.test(file.name);
+                     /\.(jpg|jpeg|png|gif|webp|bmp|tiff?|svg|avif|heic|heif|ico|jfif)$/i.test(file.name);
   
   if (!isImageType) {
     return { 
       valid: false, 
-      error: 'File must be an image. Supported formats: JPEG, PNG, WebP, GIF, BMP, TIFF, SVG, AVIF, HEIC, HEIF' 
+      error: `"${file.name}" is not recognized as an image. Supported formats: JPEG, PNG, WebP, GIF, BMP, TIFF, SVG, AVIF, HEIC, HEIF, ICO`,
+      category: 'format',
+      severity: 'error'
     };
   }
   
-  // More generous file size limit (100MB instead of 50MB)
-  const maxSize = 100 * 1024 * 1024; // 100MB
+  // More reasonable file size limit for production use (reduced from 100MB to 25MB for memory management)
+  const maxSize = 25 * 1024 * 1024; // 25MB
   if (file.size > maxSize) {
+    const fileSizeMB = (file.size / (1024 * 1024)).toFixed(1);
+    const maxSizeMB = (maxSize / (1024 * 1024)).toFixed(0);
+    
     return { 
       valid: false, 
-      error: `Image file is too large (${formatFileSize(file.size)}). Maximum size is ${formatFileSize(maxSize)}. Please resize or compress your image.` 
+      error: `Image "${file.name}" is too large (${fileSizeMB}MB). Maximum size is ${maxSizeMB}MB for optimal processing. Please compress or resize your image.`,
+      category: 'size',
+      severity: 'error'
     };
   }
   
-  // Check for minimum file size (avoid empty files)
+  // Check for minimum file size (avoid empty or corrupted files)
   if (file.size < 100) {
     return { 
       valid: false, 
-      error: 'Image file is too small or empty. Please select a valid image file.' 
+      error: `Image "${file.name}" is too small (${file.size} bytes) or empty. Please select a valid image file.`,
+      category: 'validation',
+      severity: 'error'
     };
   }
   
-  // Check file name for potential issues
+  // More permissive file name validation
   const fileName = file.name.toLowerCase();
   
-  // Warn about potentially problematic formats but don't reject them
+  // Check for problematic file extensions with helpful guidance
   if (fileName.endsWith('.heic') || fileName.endsWith('.heif')) {
-    warnings.push('HEIC/HEIF format may require conversion. If upload fails, please convert to JPEG or PNG first.');
+    warnings.push('HEIC/HEIF format will be converted during upload. For best results, consider converting to JPEG or PNG first.');
   }
   
   if (fileName.endsWith('.tiff') || fileName.endsWith('.tif')) {
-    warnings.push('TIFF format will be converted to JPEG/PNG for web compatibility.');
+    warnings.push('TIFF format will be converted to JPEG for web compatibility.');
   }
   
   if (fileName.endsWith('.bmp')) {
@@ -284,31 +304,58 @@ export const validateImageFile = (file: File): { valid: boolean; error?: string;
   }
   
   if (fileName.endsWith('.svg')) {
-    warnings.push('SVG format will be rasterized during processing.');
+    warnings.push('SVG format will be rasterized (converted to pixels) during processing.');
   }
   
-  // Check for large file size warnings
-  if (file.size > 10 * 1024 * 1024) { // 10MB
-    warnings.push(`Large file size (${formatFileSize(file.size)}) detected. Processing may take longer and the image will be optimized.`);
+  if (fileName.endsWith('.avif')) {
+    warnings.push('AVIF format support is experimental. Consider using WebP or JPEG for maximum compatibility.');
   }
   
-  // Check for problematic file names
-  if (fileName.includes(' ')) {
-    warnings.push('File name contains spaces. Consider using hyphens or underscores for better compatibility.');
+  // File size warnings with helpful recommendations (updated thresholds)
+  if (file.size > 15 * 1024 * 1024) { // 15MB
+    const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+    warnings.push(`Large file size (${sizeMB}MB) detected. Processing may take longer and the image will be optimized for web use.`);
+  } else if (file.size > 10 * 1024 * 1024) { // 10MB
+    const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+    warnings.push(`File size (${sizeMB}MB) is large. The image will be optimized during upload.`);
   }
   
-  if (!/^[a-zA-Z0-9._-]+$/.test(fileName)) {
-    warnings.push('File name contains special characters that may cause issues.');
+  // More permissive file name validation (removed overly strict checks)
+  // Only warn about potential issues, don't fail validation
+  
+  // Very long file names (warning only)
+  if (file.name.length > 200) {
+    warnings.push('File name is very long. Consider using a shorter, more descriptive name.');
   }
   
-  // Check for very long file names
-  if (file.name.length > 100) {
-    warnings.push('File name is very long. Consider using a shorter name.');
+  // File extension validation (warning only)
+  if (!fileName.includes('.')) {
+    warnings.push('File has no extension. Format will be detected from file content.');
+  }
+  
+  // Multiple extension check (warning only)
+  const extensionMatches = fileName.match(/\.[^.]+/g);
+  if (extensionMatches && extensionMatches.length > 1) {
+    warnings.push('File has multiple extensions. Only the last extension will be used for format detection.');
+  }
+  
+  // Check for potentially problematic file names (warning only, more permissive)
+  const problematicNames = ['con', 'prn', 'aux', 'nul'];
+  const baseName = fileName.split('.')[0];
+  if (problematicNames.includes(baseName)) {
+    warnings.push('File name may cause issues on some systems. Consider renaming the file.');
+  }
+  
+  // Check for non-ASCII characters (warning only, not an error)
+  if (!/^[a-zA-Z0-9._\-\s()[\]{}]+$/.test(fileName)) {
+    warnings.push('File name contains special characters. These will be preserved but may cause issues in some contexts.');
   }
   
   return { 
     valid: true, 
-    warnings: warnings.length > 0 ? warnings : undefined 
+    warnings: warnings.length > 0 ? warnings : undefined,
+    category: warnings.length > 0 ? 'compatibility' : undefined,
+    severity: warnings.length > 0 ? 'warning' : 'info'
   };
 };
 
@@ -359,34 +406,45 @@ export const validateImageFileEnhanced = (file: File): {
   };
 };
 
-// Enhanced validation for multiple image files with better error categorization
+// Enhanced validation for multiple image files with more conservative limits for memory management
 export const validateImageFiles = (files: File[]): {
   valid: boolean;
   validFiles: File[];
-  invalidFiles: Array<{ file: File; error: string }>;
-  warnings: string[];
+  invalidFiles: Array<{ file: File; error: string; category: string }>;
+  warnings: Array<{ file: File; warnings: string[] }>;
   totalSize: number;
   summary: {
     totalFiles: number;
     validCount: number;
     invalidCount: number;
     warningCount: number;
+    totalSizeMB: number;
+    largeFileCount: number;
+    formatIssueCount: number;
   };
+  recommendations: string[];
 } => {
   const validFiles: File[] = [];
-  const invalidFiles: Array<{ file: File; error: string }> = [];
-  const warnings: string[] = [];
+  const invalidFiles: Array<{ file: File; error: string; category: string }> = [];
+  const warnings: Array<{ file: File; warnings: string[] }> = [];
   let totalSize = 0;
-  let warningCount = 0;
+  let largeFileCount = 0;
+  let formatIssueCount = 0;
   
-  // Check overall limits (increased from 20 to 50)
-  if (files.length > 50) {
+  // More conservative limits for production and memory management
+  const maxFiles = 10; // Reduced from 20 for better memory management
+  const maxTotalSize = 100 * 1024 * 1024; // Reduced to 100MB total for batch
+  const largeFileThreshold = 10 * 1024 * 1024; // 10MB per file (reduced from 20MB)
+  
+  // Check overall file count limit
+  if (files.length > maxFiles) {
     return {
       valid: false,
       validFiles: [],
       invalidFiles: files.map(file => ({ 
         file, 
-        error: `Too many files selected. Maximum 50 files allowed, but ${files.length} were selected.` 
+        error: `Too many files selected. Maximum ${maxFiles} files allowed per batch for optimal processing, but ${files.length} were selected. Please select fewer files or upload in multiple smaller batches.`,
+        category: 'validation'
       })),
       warnings: [],
       totalSize: 0,
@@ -395,43 +453,99 @@ export const validateImageFiles = (files: File[]): {
         validCount: 0,
         invalidCount: files.length,
         warningCount: 0,
+        totalSizeMB: 0,
+        largeFileCount: 0,
+        formatIssueCount: 0,
       },
+      recommendations: [
+        `Select maximum ${maxFiles} files at a time for optimal memory usage`,
+        'Consider uploading files in smaller batches',
+        'Large batches may fail due to memory constraints'
+      ]
     };
   }
   
-  // Validate each file
+  // Validate each file with enhanced categorization
   for (const file of files) {
     const validation = validateImageFile(file);
+    totalSize += file.size;
     
     if (validation.valid) {
       validFiles.push(file);
-      totalSize += file.size;
       
       if (validation.warnings) {
-        validation.warnings.forEach(warning => {
-          warnings.push(`${file.name}: ${warning}`);
-        });
-        warningCount++;
+        warnings.push({ file, warnings: validation.warnings });
+        
+        // Count specific issue types
+        if (validation.category === 'compatibility') {
+          formatIssueCount++;
+        }
       }
+      
+      // Count large files
+      if (file.size > largeFileThreshold) {
+        largeFileCount++;
+      }
+      
     } else {
-      invalidFiles.push({ file, error: validation.error || 'Invalid file' });
+      invalidFiles.push({ 
+        file, 
+        error: validation.error || 'Invalid file',
+        category: validation.category || 'unknown'
+      });
     }
   }
   
-  // Check total size (increased limit)
-  const maxTotalSize = 500 * 1024 * 1024; // 500MB total (increased from 100MB)
+  // Generate recommendations based on analysis
+  const recommendations: string[] = [];
+  const totalSizeMB = totalSize / (1024 * 1024);
+  
   if (totalSize > maxTotalSize) {
-    warnings.push(
-      `Total file size (${formatFileSize(totalSize)}) exceeds recommended limit (${formatFileSize(maxTotalSize)}). ` +
-      'Consider uploading files in smaller batches or reducing individual file sizes.'
+    recommendations.push(
+      `Total batch size (${totalSizeMB.toFixed(1)}MB) exceeds the ${maxTotalSize / (1024 * 1024)}MB limit. Please upload in smaller batches to prevent memory issues.`
     );
   }
   
-  // Provide helpful summary
-  if (validFiles.length === 0 && invalidFiles.length > 0) {
-    warnings.push(
-      'No valid image files found. Please ensure you are selecting image files in supported formats.'
+  if (largeFileCount > 0) {
+    recommendations.push(
+      `${largeFileCount} large files detected. These will be optimized during upload but may take longer to process and could fail if system memory is low.`
     );
+  }
+  
+  if (formatIssueCount > 0) {
+    recommendations.push(
+      `${formatIssueCount} files have format compatibility notes. Check warnings for details.`
+    );
+  }
+  
+  if (invalidFiles.length > 0) {
+    const formatErrors = invalidFiles.filter(f => f.category === 'format').length;
+    const sizeErrors = invalidFiles.filter(f => f.category === 'size').length;
+    
+    if (formatErrors > 0) {
+      recommendations.push(`${formatErrors} files have unsupported formats. Convert to JPEG, PNG, or WebP.`);
+    }
+    
+    if (sizeErrors > 0) {
+      recommendations.push(`${sizeErrors} files are too large. Compress or resize to under 25MB before uploading.`);
+    }
+  }
+  
+  if (validFiles.length > 5) {
+    recommendations.push('Batch of 5+ images detected. Upload may take several minutes and could fail if system memory is low.');
+  }
+  
+  if (validFiles.length === 0 && invalidFiles.length > 0) {
+    recommendations.push('No valid image files found. Please ensure you are selecting image files in supported formats under 25MB each.');
+  }
+  
+  // Performance recommendations for memory management
+  if (validFiles.length > 7) {
+    recommendations.push('Consider uploading in batches of 7 or fewer for optimal performance and to prevent memory issues.');
+  }
+  
+  if (totalSizeMB > 50) {
+    recommendations.push('Large total size detected. Consider compressing images or uploading in smaller batches to prevent memory-related failures.');
   }
   
   return {
@@ -444,8 +558,12 @@ export const validateImageFiles = (files: File[]): {
       totalFiles: files.length,
       validCount: validFiles.length,
       invalidCount: invalidFiles.length,
-      warningCount,
+      warningCount: warnings.length,
+      totalSizeMB: Number(totalSizeMB.toFixed(1)),
+      largeFileCount,
+      formatIssueCount,
     },
+    recommendations,
   };
 };
 
@@ -619,89 +737,386 @@ export const getFormatRecommendation = (useCase: 'profile' | 'logo' | 'hero' | '
   return recommendations[useCase] || recommendations.general;
 };
 
-// Get user-friendly error messages for common upload issues
+// Enhanced error message handling with more actionable guidance and better categorization
 export const getUploadErrorMessage = (error: string): { 
   message: string; 
   suggestions: string[];
   canRetry: boolean; 
+  severity: 'error' | 'warning' | 'info';
+  category: 'format' | 'size' | 'network' | 'auth' | 'processing' | 'storage' | 'validation' | 'system' | 'server_memory' | 'timeout' | 'conversion' | 'permissions';
 } => {
   const errorLower = error.toLowerCase();
   
-  if (errorLower.includes('too large') || errorLower.includes('file size')) {
+  // Handle enhanced server-side memory errors with specific guidance
+  if (errorLower.includes('system memory usage is too high') || errorLower.includes('memory usage is too high')) {
+    const memoryMatch = errorLower.match(/(\d+\.?\d*)%/);
+    const memoryUsage = memoryMatch ? memoryMatch[1] : 'high';
+    const rssMatch = errorLower.match(/(\d+\.?\d*)mb rss/);
+    const rssUsage = rssMatch ? rssMatch[1] : '';
+    
     return {
-      message: 'Your image file is too large to upload.',
+      message: `Server memory usage is too high (${memoryUsage}%${rssUsage ? `, ${rssUsage}MB RSS` : ''}) to process this image safely`,
       suggestions: [
-        'Resize your image to smaller dimensions',
-        'Compress the image using an image editor',
+        'Wait 2-3 minutes for server resources to free up, then try again',
+        'Reduce image size to under 10MB before uploading',
+        'Resize image dimensions to 1920x1920 pixels or smaller',
         'Convert to JPEG format for better compression',
-        'Try uploading a different image'
+        'Try uploading during off-peak hours (early morning or late evening)',
+        'Upload images one at a time instead of in batches'
       ],
       canRetry: true,
+      severity: 'warning',
+      category: 'server_memory'
     };
   }
   
-  if (errorLower.includes('unsupported') || errorLower.includes('format')) {
+  // Handle ProcessingError types with enhanced guidance
+  if (errorLower.includes('processingerror') || errorLower.includes('processing error')) {
+    if (errorLower.includes('sharp') || errorLower.includes('image processing engine')) {
+      return {
+        message: 'Image processing engine failed to handle this file',
+        suggestions: [
+          'Convert the image to JPEG or PNG format using an image editor',
+          'Re-save the image with standard settings (no special color profiles)',
+          'Try opening the image in an image viewer first to verify it works',
+          'Remove any embedded metadata or color profiles',
+          'If from a camera, try exporting in a different format'
+        ],
+        canRetry: true,
+        severity: 'error',
+        category: 'processing'
+      };
+    }
+    
+    if (errorLower.includes('timeout') || errorLower.includes('took too long')) {
+      return {
+        message: 'Image processing timed out due to complexity or size',
+        suggestions: [
+          'Reduce image file size to under 10MB',
+          'Resize image dimensions to maximum 2048x2048 pixels',
+          'Convert complex formats (TIFF, BMP, HEIC) to JPEG first',
+          'Try uploading during off-peak hours when server load is lower',
+          'Split large batches into individual uploads'
+        ],
+        canRetry: true,
+        severity: 'error',
+        category: 'timeout'
+      };
+    }
+    
+    if (errorLower.includes('too large for the system to process')) {
+      const sizeMatch = errorLower.match(/(\d+\.?\d*)mb/);
+      const fileSize = sizeMatch ? sizeMatch[1] : '';
+      
+      return {
+        message: `Image${fileSize ? ` (${fileSize}MB)` : ''} is too large for the system to process safely`,
+        suggestions: [
+          'Reduce image dimensions to 1920x1920 pixels or smaller',
+          'Compress the image file size to under 15MB',
+          'Convert to JPEG format for better compression',
+          'Use online compression tools like TinyPNG, Squoosh, or ImageOptim',
+          'Upload one image at a time instead of batches'
+        ],
+        canRetry: true,
+        severity: 'error',
+        category: 'size'
+      };
+    }
+    
+    if (errorLower.includes('conversion') || errorLower.includes('convert')) {
+      return {
+        message: 'Unable to convert image to web-compatible format',
+        suggestions: [
+          'Manually convert to JPEG or PNG format before uploading',
+          'Try re-saving the image in a different image editor',
+          'Remove any special color profiles or embedded metadata',
+          'If using HEIC/HEIF, convert to JPEG using your device\'s photo app',
+          'Try uploading the original source image if this is a processed version'
+        ],
+        canRetry: true,
+        severity: 'error',
+        category: 'conversion'
+      };
+    }
+  }
+  
+  // Handle enhanced StorageError types
+  if (errorLower.includes('not found in storage') || errorLower.includes('nosuchkey')) {
     return {
-      message: 'The image format is not supported or the file is corrupted.',
+      message: 'Image was not found in storage after upload',
       suggestions: [
-        'Convert your image to JPEG, PNG, or WebP format',
-        'Try saving the image from an image editor',
-        'Ensure the file is not corrupted',
-        'Try a different image file'
+        'Try uploading the image again - this may be a temporary storage issue',
+        'Check your internet connection stability',
+        'Refresh the page and retry the upload',
+        'If this persists, contact support with the file name'
       ],
       canRetry: true,
+      severity: 'error',
+      category: 'storage'
     };
   }
   
+  if (errorLower.includes('access denied') || errorLower.includes('forbidden')) {
+    return {
+      message: 'Storage access denied - insufficient permissions',
+      suggestions: [
+        'Check if you have proper upload permissions',
+        'Try logging out and back in to refresh your session',
+        'Contact administrator if you should have access',
+        'Clear browser cache and cookies, then try again'
+      ],
+      canRetry: false,
+      severity: 'error',
+      category: 'permissions'
+    };
+  }
+  
+  if (errorLower.includes('storage system') && errorLower.includes('temporarily unavailable')) {
+    return {
+      message: 'Storage system is temporarily unavailable',
+      suggestions: [
+        'Wait a few minutes and try uploading again',
+        'Check your internet connection',
+        'Try uploading a smaller file first to test connectivity',
+        'Contact support if the problem persists for more than 15 minutes'
+      ],
+      canRetry: true,
+      severity: 'warning',
+      category: 'storage'
+    };
+  }
+  
+  // Handle DatabaseError types with clearer guidance
+  if (errorLower.includes('databaseerror') || errorLower.includes('database error')) {
+    if (errorLower.includes('constraint') || errorLower.includes('unique')) {
+      return {
+        message: 'A file with this name already exists',
+        suggestions: [
+          'The system will automatically generate a unique name - try uploading again',
+          'Rename the file before uploading if you prefer a specific name',
+          'Check if you already uploaded this image previously',
+          'This is usually resolved automatically on retry'
+        ],
+        canRetry: true,
+        severity: 'warning',
+        category: 'validation'
+      };
+    }
+    
+    return {
+      message: 'Database temporarily unavailable',
+      suggestions: [
+        'Try uploading again in a few moments',
+        'Check your internet connection',
+        'Refresh the page and try logging in again',
+        'Contact support if the problem persists'
+      ],
+      canRetry: true,
+      severity: 'error',
+      category: 'system'
+    };
+  }
+  
+  // Enhanced HEIC/HEIF handling with device-specific guidance
   if (errorLower.includes('heic') || errorLower.includes('heif')) {
     return {
-      message: 'HEIC/HEIF format needs to be converted before uploading.',
+      message: 'HEIC/HEIF format needs to be converted before upload',
       suggestions: [
-        'Convert the image to JPEG or PNG format',
-        'Use an online converter or image editing software',
-        'Take a screenshot of the image as an alternative',
-        'Use a different image in a supported format'
+        'On iPhone/iPad: Settings > Camera > Formats > Most Compatible',
+        'Use Photos app: Select image > Share > Save to Files > Options > JPEG',
+        'On Mac: Open in Preview > File > Export As > JPEG',
+        'Use online converters like CloudConvert or Convertio',
+        'Take new photos in JPEG format for easier uploading'
       ],
       canRetry: true,
+      severity: 'warning',
+      category: 'format'
     };
   }
   
-  if (errorLower.includes('corrupted') || errorLower.includes('invalid')) {
+  // Enhanced format and corruption errors
+  if (errorLower.includes('unsupported') || errorLower.includes('format')) {
+    if (errorLower.includes('svg')) {
+      return {
+        message: 'SVG files need to be converted to raster format',
+        suggestions: [
+          'Open SVG in image editor and export as PNG or JPEG',
+          'Use online SVG to PNG converters',
+          'In Illustrator/Inkscape: File > Export As > PNG with high resolution',
+          'Take a screenshot of the SVG as an alternative'
+        ],
+        canRetry: true,
+        severity: 'warning',
+        category: 'format'
+      };
+    }
+    
     return {
-      message: 'The image file appears to be corrupted or invalid.',
+      message: 'Image format is not supported or file is corrupted',
       suggestions: [
-        'Try re-saving the image from an image editor',
-        'Download the original image again if possible',
-        'Try a different image file',
-        'Check if the file opens correctly in an image viewer'
+        'Use supported formats: JPEG, PNG, WebP, GIF, BMP, or TIFF',
+        'Re-save the image using an image editor (GIMP, Photoshop, etc.)',
+        'Try converting to JPEG or PNG format',
+        'Check if the file downloaded completely without errors',
+        'Try opening the image in multiple programs to verify it works'
       ],
       canRetry: true,
+      severity: 'error',
+      category: 'format'
     };
   }
   
-  if (errorLower.includes('network') || errorLower.includes('connection')) {
+  // Enhanced file corruption handling
+  if (errorLower.includes('corrupted') || errorLower.includes('invalid') || errorLower.includes('premature end')) {
     return {
-      message: 'Upload failed due to a network issue.',
+      message: 'Image file appears to be corrupted or incomplete',
       suggestions: [
-        'Check your internet connection',
-        'Try uploading again',
-        'Try uploading a smaller image first',
-        'Refresh the page and try again'
+        'Try re-downloading the original image file',
+        'Re-save the image using an image editing program',
+        'Check if the image opens correctly in multiple image viewers',
+        'Try a different image file from the same source',
+        'If from email/messaging, ask for the file to be sent again'
       ],
       canRetry: true,
+      severity: 'error',
+      category: 'validation'
     };
   }
   
-  // Default error handling
+  // Enhanced size and dimension errors
+  if (errorLower.includes('too large') || errorLower.includes('file size')) {
+    const sizeMB = errorLower.match(/(\d+(?:\.\d+)?)\s*mb/i);
+    const currentSize = sizeMB ? sizeMB[1] : '';
+    
+    return {
+      message: `Image file is too large${currentSize ? ` (${currentSize}MB)` : ''} for upload`,
+      suggestions: [
+        'Compress the image using online tools (TinyPNG, Squoosh, ImageOptim)',
+        'Reduce image quality/compression in an image editor',
+        'Resize image dimensions to reduce file size',
+        'Convert to JPEG format for better compression',
+        'For photos: Use "Export for Web" option in image editors'
+      ],
+      canRetry: true,
+      severity: 'error',
+      category: 'size'
+    };
+  }
+  
+  if (errorLower.includes('dimensions') && (errorLower.includes('large') || errorLower.includes('too big'))) {
+    return {
+      message: 'Image dimensions are too large for processing',
+      suggestions: [
+        'Resize image to maximum 4096x4096 pixels for large images',
+        'For web use, 1920x1920 pixels is usually sufficient',
+        'Use image editing software to reduce dimensions',
+        'Consider creating multiple smaller images if needed',
+        'Many online tools can resize images automatically'
+      ],
+      canRetry: true,
+      severity: 'error',
+      category: 'size'
+    };
+  }
+  
+  // Enhanced authentication errors
+  if (errorLower.includes('authentication') || errorLower.includes('unauthorized') || errorLower.includes('token')) {
+    return {
+      message: 'Authentication failed - please verify your access',
+      suggestions: [
+        'Log out and log back in to refresh your session',
+        'Check if your admin permissions are still active',
+        'Clear browser cache and cookies, then try again',
+        'Contact administrator if you should have access',
+        'Try refreshing the page before uploading'
+      ],
+      canRetry: false,
+      severity: 'error',
+      category: 'auth'
+    };
+  }
+  
+  // Enhanced network and connection errors
+  if (errorLower.includes('network') || errorLower.includes('connection') || errorLower.includes('fetch')) {
+    return {
+      message: 'Network connection issue during upload',
+      suggestions: [
+        'Check your internet connection stability',
+        'Try uploading smaller files to test connectivity',
+        'Disable VPN or proxy temporarily if using one',
+        'Try using a different browser or incognito mode',
+        'Wait a moment and try again'
+      ],
+      canRetry: true,
+      severity: 'error',
+      category: 'network'
+    };
+  }
+  
+  // Enhanced system resource errors
+  if (errorLower.includes('memory') && errorLower.includes('critically low')) {
+    return {
+      message: 'System resources temporarily unavailable',
+      suggestions: [
+        'Try uploading fewer images at once (maximum 3-5)',
+        'Wait a few minutes for system resources to free up',
+        'Upload smaller image files (under 10MB each)',
+        'Try during off-peak hours',
+        'Contact support if this happens frequently'
+      ],
+      canRetry: true,
+      severity: 'warning',
+      category: 'system'
+    };
+  }
+  
+  // Enhanced base64 and data transmission errors
+  if (errorLower.includes('base64') || errorLower.includes('invalid image data') || errorLower.includes('transmission error')) {
+    return {
+      message: 'Image data transmission error occurred',
+      suggestions: [
+        'Try uploading the image again',
+        'Refresh the page and retry the upload',
+        'Try using a different browser',
+        'Check your internet connection stability',
+        'Clear browser cache and try again'
+      ],
+      canRetry: true,
+      severity: 'error',
+      category: 'network'
+    };
+  }
+  
+  // Enhanced timeout errors
+  if (errorLower.includes('timeout') || errorLower.includes('timed out')) {
+    return {
+      message: 'Upload process timed out',
+      suggestions: [
+        'Try uploading smaller image files (under 10MB)',
+        'Check your internet connection speed',
+        'Try uploading during off-peak hours',
+        'Reduce image dimensions before uploading',
+        'Upload images one at a time instead of batches'
+      ],
+      canRetry: true,
+      severity: 'error',
+      category: 'timeout'
+    };
+  }
+  
+  // Default fallback with enhanced guidance
   return {
-    message: 'An unexpected error occurred during upload.',
+    message: error || 'Upload failed due to an unexpected error',
     suggestions: [
       'Try uploading the image again',
-      'Try a different image file',
-      'Refresh the page and try again',
+      'Try converting the image to JPEG or PNG format',
+      'Refresh the page and retry',
+      'Check if the image file is valid and not corrupted',
       'Contact support if the problem persists'
     ],
     canRetry: true,
+    severity: 'error',
+    category: 'system'
   };
 };
 
@@ -724,46 +1139,166 @@ export const formatFileSize = (bytes: number): string => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
-// Helper function to detect image type from file signature (magic bytes)
-export const detectImageType = async (file: File): Promise<string | null> => {
+// Enhanced helper function to detect image type from file signature with better error handling
+export const detectImageType = async (file: File): Promise<{
+  detectedType: string | null;
+  confidence: 'high' | 'medium' | 'low';
+  issues: string[];
+}> => {
   return new Promise((resolve) => {
+    const issues: string[] = [];
+    
+    if (!file || file.size === 0) {
+      resolve({
+        detectedType: null,
+        confidence: 'low',
+        issues: ['File is empty or invalid']
+      });
+      return;
+    }
+    
     const reader = new FileReader();
+    
     reader.onload = (e) => {
-      const arr = new Uint8Array(e.target?.result as ArrayBuffer);
-      
-      // Check file signatures
-      if (arr.length >= 4) {
-        // JPEG
+      try {
+        const arrayBuffer = e.target?.result as ArrayBuffer;
+        if (!arrayBuffer) {
+          resolve({
+            detectedType: null,
+            confidence: 'low',
+            issues: ['Could not read file data']
+          });
+          return;
+        }
+        
+        const arr = new Uint8Array(arrayBuffer);
+        
+        if (arr.length < 4) {
+          resolve({
+            detectedType: file.type || null,
+            confidence: 'low',
+            issues: ['File too small to detect format reliably']
+          });
+          return;
+        }
+        
+        // Enhanced file signature detection
+        let detectedType: string | null = null;
+        let confidence: 'high' | 'medium' | 'low' = 'low';
+        
+        // JPEG signatures
         if (arr[0] === 0xFF && arr[1] === 0xD8 && arr[2] === 0xFF) {
-          resolve('image/jpeg');
-          return;
+          detectedType = 'image/jpeg';
+          confidence = 'high';
         }
-        // PNG
-        if (arr[0] === 0x89 && arr[1] === 0x50 && arr[2] === 0x4E && arr[3] === 0x47) {
-          resolve('image/png');
-          return;
+        // PNG signature
+        else if (arr[0] === 0x89 && arr[1] === 0x50 && arr[2] === 0x4E && arr[3] === 0x47) {
+          detectedType = 'image/png';
+          confidence = 'high';
         }
-        // GIF
-        if (arr[0] === 0x47 && arr[1] === 0x49 && arr[2] === 0x46) {
-          resolve('image/gif');
-          return;
+        // GIF signatures
+        else if (arr[0] === 0x47 && arr[1] === 0x49 && arr[2] === 0x46) {
+          detectedType = 'image/gif';
+          confidence = 'high';
         }
-        // WebP
-        if (arr[0] === 0x52 && arr[1] === 0x49 && arr[2] === 0x46 && arr[3] === 0x46) {
-          resolve('image/webp');
-          return;
+        // WebP signature
+        else if (arr[0] === 0x52 && arr[1] === 0x49 && arr[2] === 0x46 && arr[3] === 0x46 && 
+                 arr.length >= 12 && arr[8] === 0x57 && arr[9] === 0x45 && arr[10] === 0x42 && arr[11] === 0x50) {
+          detectedType = 'image/webp';
+          confidence = 'high';
         }
-        // BMP
-        if (arr[0] === 0x42 && arr[1] === 0x4D) {
-          resolve('image/bmp');
-          return;
+        // BMP signature
+        else if (arr[0] === 0x42 && arr[1] === 0x4D) {
+          detectedType = 'image/bmp';
+          confidence = 'high';
         }
+        // TIFF signatures (little-endian and big-endian)
+        else if ((arr[0] === 0x49 && arr[1] === 0x49 && arr[2] === 0x2A && arr[3] === 0x00) ||
+                 (arr[0] === 0x4D && arr[1] === 0x4D && arr[2] === 0x00 && arr[3] === 0x2A)) {
+          detectedType = 'image/tiff';
+          confidence = 'high';
+        }
+        // HEIC signature (more complex, check for ftyp box)
+        else if (arr.length >= 12 && arr[4] === 0x66 && arr[5] === 0x74 && arr[6] === 0x79 && arr[7] === 0x70) {
+          // Check for HEIC/HEIF brand
+          const brand = String.fromCharCode(arr[8], arr[9], arr[10], arr[11]);
+          if (brand === 'heic' || brand === 'mif1' || brand === 'msf1') {
+            detectedType = 'image/heic';
+            confidence = 'high';
+          }
+        }
+        // SVG detection (text-based)
+        else if (arr.length >= 5) {
+          const text = String.fromCharCode(...arr.slice(0, Math.min(100, arr.length)));
+          if (text.includes('<svg') || text.includes('<?xml')) {
+            detectedType = 'image/svg+xml';
+            confidence = 'medium';
+          }
+        }
+        
+        // Fallback to file extension if no signature match
+        if (!detectedType) {
+          const extension = file.name.toLowerCase().split('.').pop();
+          const extensionMap: Record<string, string> = {
+            'jpg': 'image/jpeg',
+            'jpeg': 'image/jpeg',
+            'png': 'image/png',
+            'gif': 'image/gif',
+            'webp': 'image/webp',
+            'bmp': 'image/bmp',
+            'tiff': 'image/tiff',
+            'tif': 'image/tiff',
+            'svg': 'image/svg+xml',
+            'heic': 'image/heic',
+            'heif': 'image/heif',
+            'avif': 'image/avif'
+          };
+          
+          if (extension && extensionMap[extension]) {
+            detectedType = extensionMap[extension];
+            confidence = 'medium';
+            issues.push('Format detected from file extension only - file signature not recognized');
+          }
+        }
+        
+        // Check for mismatches between declared type and detected type
+        if (detectedType && file.type && file.type !== detectedType) {
+          issues.push(`File type mismatch: declared as ${file.type}, detected as ${detectedType}`);
+          confidence = 'medium';
+        }
+        
+        // Additional validation
+        if (!detectedType && file.type) {
+          detectedType = file.type;
+          confidence = 'low';
+          issues.push('Could not verify file format - relying on browser detection');
+        }
+        
+        resolve({
+          detectedType,
+          confidence,
+          issues
+        });
+        
+      } catch (error) {
+        resolve({
+          detectedType: file.type || null,
+          confidence: 'low',
+          issues: ['Error analyzing file signature']
+        });
       }
-      
-      resolve(null);
     };
-    reader.onerror = () => resolve(null);
-    reader.readAsArrayBuffer(file.slice(0, 8));
+    
+    reader.onerror = () => {
+      resolve({
+        detectedType: file.type || null,
+        confidence: 'low',
+        issues: ['Could not read file for analysis']
+      });
+    };
+    
+    // Read first 100 bytes for signature detection
+    reader.readAsArrayBuffer(file.slice(0, 100));
   });
 };
 

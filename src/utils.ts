@@ -23,16 +23,20 @@ export function getImageUrl(filePath: string, variantType?: string): string {
     return filePath;
   }
   
-  // Generate URL for our image serving endpoint with optional variant
-  const params = new URLSearchParams({ 
-    input: JSON.stringify({ 
-      filePath,
-      ...(variantType && { variantType })
-    }) 
-  });
+  // If it's a data URL (base64), return as-is
+  if (filePath.startsWith('data:')) {
+    return filePath;
+  }
+  
+  // Generate URL for our image serving endpoint with proper tRPC structure
+  const input = variantType 
+    ? { filePath, variantType }
+    : { filePath };
   
   const endpoint = variantType ? 'getImageVariant' : 'getImage';
-  return `/api/trpc/${endpoint}?${params.toString()}`;
+  const encodedInput = encodeURIComponent(JSON.stringify(input));
+  
+  return `/api/trpc/${endpoint}?input=${encodedInput}`;
 }
 
 // Generate cache-busted image URLs with variant support
@@ -49,22 +53,28 @@ export function getCacheBustedImageUrl(filePath: string, updatedAt?: Date | stri
     return `${filePath}${separator}v=${cacheBuster}`;
   }
   
+  // If it's a data URL (base64), return as-is
+  if (filePath.startsWith('data:')) {
+    return filePath;
+  }
+  
   // For our stored images, add cache buster to the tRPC endpoint
-  const params = new URLSearchParams({ 
-    input: JSON.stringify({ 
-      filePath,
-      ...(variantType && { variantType })
-    }) 
-  });
+  const input = variantType 
+    ? { filePath, variantType }
+    : { filePath };
+  
+  const endpoint = variantType ? 'getImageVariant' : 'getImage';
+  const encodedInput = encodeURIComponent(JSON.stringify(input));
+  
+  let url = `/api/trpc/${endpoint}?input=${encodedInput}`;
   
   if (updatedAt) {
     const timestamp = typeof updatedAt === 'string' ? new Date(updatedAt) : updatedAt;
     const cacheBuster = timestamp.getTime();
-    params.append('v', cacheBuster.toString());
+    url += `&v=${cacheBuster}`;
   }
   
-  const endpoint = variantType ? 'getImageVariant' : 'getImage';
-  return `/api/trpc/${endpoint}?${params.toString()}`;
+  return url;
 }
 
 // Get responsive image URLs for different screen sizes
@@ -228,6 +238,15 @@ export function formatNumber(num: number): string {
     return (num / 1000).toFixed(1) + 'K';
   }
   return num.toString();
+}
+
+// Format file sizes for user display
+export function formatFileSize(bytes: number): string {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
 // Format dates for consistent display

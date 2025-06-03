@@ -1,7 +1,14 @@
 import { db } from "~/server/db";
+import { optimizeMemorySettings, startMemoryMonitoring, validateMemoryConfiguration } from "./optimize-memory";
 
 async function setup() {
   console.log("Starting database setup and seeding...");
+
+  // Initialize memory optimization for image processing
+  console.log("Initializing memory optimization...");
+  optimizeMemorySettings();
+  validateMemoryConfiguration();
+  startMemoryMonitoring();
 
   try {
     // Seed Partners
