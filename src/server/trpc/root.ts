@@ -56,9 +56,14 @@ export const appRouter = createTRPCRouter({
   
   // Admin procedures - Partners
   adminGetPartners: adminGeneralProcs.adminGetPartners,
+  adminGetPartnerById: adminGeneralProcs.adminGetPartnerById,
   adminCreatePartner: adminGeneralProcs.adminCreatePartner,
   adminUpdatePartner: adminGeneralProcs.adminUpdatePartner,
   adminDeletePartner: adminGeneralProcs.adminDeletePartner,
+  adminReorderPartners: adminGeneralProcs.adminReorderPartners,
+  adminTogglePartnerVisibility: adminGeneralProcs.adminTogglePartnerVisibility,
+  adminBulkDeletePartners: adminGeneralProcs.adminBulkDeletePartners,
+  adminBulkUpdatePartners: adminGeneralProcs.adminBulkUpdatePartners,
   
   // Admin procedures - Comments & Community
   adminGetComments: adminGeneralProcs.adminGetComments,

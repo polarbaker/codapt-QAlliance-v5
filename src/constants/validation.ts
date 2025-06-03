@@ -93,10 +93,11 @@ export const innovatorFormSchema = z.object({
 // Partner validation schema
 export const partnerSchema = z.object({
   name: z.string().min(1, "Name is required").max(100, "Name must be less than 100 characters"),
-  logo: z.string().min(1, "Logo URL is required").url("Please enter a valid logo URL"),
-  description: z.string().max(500, "Description must be less than 500 characters").optional(),
-  websiteUrl: urlSchema.optional(),
+  logoUrl: z.string().min(1, "Logo URL is required").url("Please enter a valid logo URL"),
+  websiteUrl: z.string().url("Please enter a valid website URL").optional().or(z.literal("")),
+  altText: z.string().min(1, "Alt text is required").max(200, "Alt text must be less than 200 characters"),
   visible: z.boolean().default(true),
+  order: z.number().int().min(0).default(0),
 });
 
 // Admin login validation schema

@@ -3,48 +3,56 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useUserStore } from "~/stores/userStore";
 import { useTRPC } from "~/trpc/react";
-import { useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { toast } from "react-hot-toast";
 import { partnerSchema } from "~/constants/validation";
 import * as z from "zod";
+import { useEffect } from "react";
 import {
   ArrowLeft,
   Save,
   Handshake,
   Eye,
   EyeOff,
+  Loader2,
+  Building,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
 type PartnerFormData = z.infer<typeof partnerSchema>;
 
-export const Route = createFileRoute("/admin/partners/new/")({
-  component: NewPartnerPage,
+export const Route = createFileRoute("/admin/partners/$partnerId/edit/")({
+  component: EditPartnerPage,
 });
 
-function NewPartnerPage() {
+function EditPartnerPage() {
+  const { partnerId } = Route.useParams();
   const { adminToken } = useUserStore();
   const navigate = useNavigate();
   
   const trpc = useTRPC();
+  
+  const partnerQuery = useQuery(
+    trpc.adminGetPartnerById.queryOptions({
+      adminToken: adminToken || "",
+      id: parseInt(partnerId),
+    })
+  );
   
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
     watch,
+    reset,
   } = useForm<PartnerFormData>({
     resolver: zodResolver(partnerSchema),
-    defaultValues: {
-      visible: true,
-      order: 0,
-    },
   });
 
-  const createMutation = useMutation(
-    trpc.adminCreatePartner.mutationOptions({
+  const updateMutation = useMutation(
+    trpc.adminUpdatePartner.mutationOptions({
       onSuccess: () => {
-        toast.success("Partner created successfully");
+        toast.success("Partner updated successfully");
         navigate({ to: "/admin/partners" });
       },
       onError: (error) => {
@@ -53,9 +61,24 @@ function NewPartnerPage() {
     })
   );
 
+  // Pre-populate form when data is loaded
+  useEffect(() => {
+    if (partnerQuery.data) {
+      reset({
+        name: partnerQuery.data.name,
+        logoUrl: partnerQuery.data.logoUrl,
+        websiteUrl: partnerQuery.data.websiteUrl || "",
+        altText: partnerQuery.data.altText,
+        visible: partnerQuery.data.visible,
+        order: partnerQuery.data.order,
+      });
+    }
+  }, [partnerQuery.data, reset]);
+
   const onSubmit = (data: PartnerFormData) => {
-    createMutation.mutate({
+    updateMutation.mutate({
       adminToken: adminToken || "",
+      id: parseInt(partnerId),
       data: {
         ...data,
         websiteUrl: data.websiteUrl || undefined,
@@ -65,6 +88,43 @@ function NewPartnerPage() {
 
   const visible = watch("visible");
   const logoUrl = watch("logoUrl");
+
+  if (partnerQuery.isLoading) {
+    return (
+      <div className="min-h-screen bg-background-light dark:bg-background-black">
+        <div className="container-padding">
+          <div className="flex items-center justify-center py-32">
+            <div className="text-center">
+              <Loader2 className="h-8 w-8 animate-spin text-secondary mx-auto mb-4" />
+              <p className="text-text-muted dark:text-text-light/70">Loading partner...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (partnerQuery.error) {
+    return (
+      <div className="min-h-screen bg-background-light dark:bg-background-black">
+        <div className="container-padding">
+          <div className="flex items-center justify-center py-32">
+            <div className="text-center">
+              <Building className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-text-muted dark:text-text-light/70 mb-4">Partner not found</p>
+              <Link
+                to="/admin/partners"
+                className="inline-flex items-center space-x-2 px-4 py-2 bg-secondary text-white rounded-lg hover:bg-secondary/90 transition-colors"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                <span>Back to Partners</span>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background-light dark:bg-background-black">
@@ -89,10 +149,10 @@ function NewPartnerPage() {
             </div>
             <div>
               <h1 className="text-3xl font-bold text-text-dark dark:text-text-light">
-                Add Partner
+                Edit Partner
               </h1>
               <p className="text-text-muted dark:text-text-light/70">
-                Add a new partner organization
+                Update partner information and settings
               </p>
             </div>
           </div>
@@ -206,12 +266,12 @@ function NewPartnerPage() {
                   <div className="flex justify-end pt-6 border-t border-gray-200 dark:border-gray-700 mt-8">
                     <button
                       type="submit"
-                      disabled={isSubmitting || createMutation.isPending}
+                      disabled={isSubmitting || updateMutation.isPending}
                       className="flex items-center space-x-2 px-6 py-3 bg-secondary text-white rounded-lg hover:bg-secondary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <Save className="h-4 w-4" />
                       <span>
-                        {isSubmitting || createMutation.isPending ? "Creating..." : "Create Partner"}
+                        {isSubmitting || updateMutation.isPending ? "Updating..." : "Update Partner"}
                       </span>
                     </button>
                   </div>

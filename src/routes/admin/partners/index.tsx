@@ -5,6 +5,8 @@ import { useTRPC } from "~/trpc/react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { DebouncedSearchInput } from "~/components/ui/DebouncedSearchInput";
 import { Badge } from "~/components/ui/Badge";
+import { PartnerBulkActions } from "~/components/admin/PartnerBulkActions";
+import { PartnerStats } from "~/components/admin/PartnerStats";
 import { toast } from "react-hot-toast";
 import {
   Handshake,
@@ -16,6 +18,11 @@ import {
   Eye,
   EyeOff,
   Building,
+  ArrowUp,
+  ArrowDown,
+  GripVertical,
+  CheckSquare,
+  Square,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
@@ -27,6 +34,8 @@ function AdminPartnersPage() {
   const { adminToken } = useUserStore();
   const [searchQuery, setSearchQuery] = useState("");
   const [visibilityFilter, setVisibilityFilter] = useState<"all" | "visible" | "hidden">("all");
+  const [selectedPartners, setSelectedPartners] = useState<number[]>([]);
+  const [isReorderMode, setIsReorderMode] = useState(false);
   
   const trpc = useTRPC();
   
@@ -51,6 +60,31 @@ function AdminPartnersPage() {
     })
   );
 
+  const toggleVisibilityMutation = useMutation(
+    trpc.adminTogglePartnerVisibility.mutationOptions({
+      onSuccess: () => {
+        partnersQuery.refetch();
+        toast.success("Partner visibility updated");
+      },
+      onError: (error) => {
+        toast.error(error.message);
+      },
+    })
+  );
+
+  const reorderMutation = useMutation(
+    trpc.adminReorderPartners.mutationOptions({
+      onSuccess: () => {
+        partnersQuery.refetch();
+        toast.success("Partners reordered successfully");
+        setIsReorderMode(false);
+      },
+      onError: (error) => {
+        toast.error(error.message);
+      },
+    })
+  );
+
   const handleDelete = (id: number, name: string) => {
     if (confirm(`Are you sure you want to delete "${name}"?`)) {
       deleteMutation.mutate({
@@ -58,6 +92,61 @@ function AdminPartnersPage() {
         id,
       });
     }
+  };
+
+  const handleToggleVisibility = (id: number, currentVisibility: boolean) => {
+    toggleVisibilityMutation.mutate({
+      adminToken: adminToken || "",
+      id,
+      visible: !currentVisibility,
+    });
+  };
+
+  const handleToggleSelection = (partnerId: number) => {
+    setSelectedPartners(prev => 
+      prev.includes(partnerId) 
+        ? prev.filter(id => id !== partnerId)
+        : [...prev, partnerId]
+    );
+  };
+
+  const handleSelectAll = () => {
+    const allPartnerIds = partnersQuery.data?.partners.map(p => p.id) || [];
+    setSelectedPartners(
+      selectedPartners.length === allPartnerIds.length ? [] : allPartnerIds
+    );
+  };
+
+  const handleMoveUp = (index: number) => {
+    if (index === 0 || !partnersQuery.data?.partners) return;
+    
+    const partners = [...partnersQuery.data.partners];
+    const newOrder = partners.map((partner, i) => {
+      if (i === index) return partners[index - 1].id;
+      if (i === index - 1) return partners[index].id;
+      return partner.id;
+    });
+    
+    reorderMutation.mutate({
+      adminToken: adminToken || "",
+      partnerIds: newOrder,
+    });
+  };
+
+  const handleMoveDown = (index: number) => {
+    if (!partnersQuery.data?.partners || index === partnersQuery.data.partners.length - 1) return;
+    
+    const partners = [...partnersQuery.data.partners];
+    const newOrder = partners.map((partner, i) => {
+      if (i === index) return partners[index + 1].id;
+      if (i === index + 1) return partners[index].id;
+      return partner.id;
+    });
+    
+    reorderMutation.mutate({
+      adminToken: adminToken || "",
+      partnerIds: newOrder,
+    });
   };
 
   return (
@@ -98,6 +187,9 @@ function AdminPartnersPage() {
             </div>
           </div>
 
+          {/* Stats */}
+          <PartnerStats />
+
           {/* Filters */}
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700 mb-8">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -129,6 +221,46 @@ function AdminPartnersPage() {
             </div>
           </div>
 
+          {/* Bulk Actions */}
+          <PartnerBulkActions
+            selectedPartners={selectedPartners}
+            onClearSelection={() => setSelectedPartners([])}
+            onRefresh={() => partnersQuery.refetch()}
+            partnerNames={
+              partnersQuery.data?.partners
+                .filter(p => selectedPartners.includes(p.id))
+                .map(p => p.name) || []
+            }
+          />
+
+          {/* Controls */}
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={handleSelectAll}
+                className="flex items-center space-x-2 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                {selectedPartners.length === partnersQuery.data?.partners.length ? (
+                  <CheckSquare className="h-4 w-4" />
+                ) : (
+                  <Square className="h-4 w-4" />
+                )}
+                <span className="text-sm">Select All</span>
+              </button>
+              <button
+                onClick={() => setIsReorderMode(!isReorderMode)}
+                className={`flex items-center space-x-2 px-3 py-2 border rounded-lg transition-colors ${
+                  isReorderMode
+                    ? 'border-secondary bg-secondary text-white'
+                    : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
+                }`}
+              >
+                <GripVertical className="h-4 w-4" />
+                <span className="text-sm">{isReorderMode ? 'Exit Reorder' : 'Reorder'}</span>
+              </button>
+            </div>
+          </div>
+
           {/* Partners Grid */}
           {partnersQuery.isLoading ? (
             <div className="text-center py-12">
@@ -149,10 +281,12 @@ function AdminPartnersPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {partnersQuery.data?.partners.map((partner) => (
+              {partnersQuery.data?.partners.map((partner, index) => (
                 <div
                   key={partner.id}
-                  className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-lg transition-shadow"
+                  className={`bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-lg transition-shadow ${
+                    selectedPartners.includes(partner.id) ? 'ring-2 ring-secondary' : ''
+                  }`}
                 >
                   <div className="relative">
                     <div className="w-full h-32 bg-gray-50 dark:bg-gray-700 flex items-center justify-center p-4">
@@ -170,18 +304,35 @@ function AdminPartnersPage() {
                         }}
                       />
                     </div>
+                    
+                    {/* Selection Checkbox */}
+                    <div className="absolute top-2 left-2">
+                      <button
+                        onClick={() => handleToggleSelection(partner.id)}
+                        className="p-1 bg-white dark:bg-gray-800 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                      >
+                        {selectedPartners.includes(partner.id) ? (
+                          <CheckSquare className="h-4 w-4 text-secondary" />
+                        ) : (
+                          <Square className="h-4 w-4 text-gray-400" />
+                        )}
+                      </button>
+                    </div>
+                    
+                    {/* Visibility Badge */}
                     <div className="absolute top-2 right-2">
-                      {partner.visible ? (
-                        <Badge variant="success" className="flex items-center space-x-1">
-                          <Eye className="h-3 w-3" />
-                          <span>Visible</span>
-                        </Badge>
-                      ) : (
-                        <Badge variant="default" className="flex items-center space-x-1">
-                          <EyeOff className="h-3 w-3" />
-                          <span>Hidden</span>
-                        </Badge>
-                      )}
+                      <button
+                        onClick={() => handleToggleVisibility(partner.id, partner.visible)}
+                        disabled={toggleVisibilityMutation.isPending}
+                        className="flex items-center space-x-1 px-2 py-1 rounded text-xs font-medium transition-colors hover:opacity-80"
+                        style={{
+                          backgroundColor: partner.visible ? '#10b981' : '#6b7280',
+                          color: 'white'
+                        }}
+                      >
+                        {partner.visible ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
+                        <span>{partner.visible ? "Visible" : "Hidden"}</span>
+                      </button>
                     </div>
                   </div>
                   
@@ -212,22 +363,47 @@ function AdminPartnersPage() {
                       <span>Created: {new Date(partner.createdAt).toLocaleDateString()}</span>
                     </div>
                     
-                    <div className="flex items-center justify-end space-x-2 pt-4 border-t border-gray-200 dark:border-gray-700">
-                      <Link
-                        to="/admin/partners/$partnerId/edit"
-                        params={{ partnerId: partner.id.toString() }}
-                        className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                        title="Edit Partner"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Link>
-                      <button
-                        onClick={() => handleDelete(partner.id, partner.name)}
-                        className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                        title="Delete Partner"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                    <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
+                      {/* Reorder Controls */}
+                      {isReorderMode && (
+                        <div className="flex items-center space-x-1">
+                          <button
+                            onClick={() => handleMoveUp(index)}
+                            disabled={index === 0 || reorderMutation.isPending}
+                            className="p-1 text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="Move Up"
+                          >
+                            <ArrowUp className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleMoveDown(index)}
+                            disabled={index === (partnersQuery.data?.partners.length || 0) - 1 || reorderMutation.isPending}
+                            className="p-1 text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="Move Down"
+                          >
+                            <ArrowDown className="h-4 w-4" />
+                          </button>
+                        </div>
+                      )}
+                      
+                      {/* Action Buttons */}
+                      <div className="flex items-center space-x-2 ml-auto">
+                        <Link
+                          to="/admin/partners/$partnerId/edit"
+                          params={{ partnerId: partner.id.toString() }}
+                          className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                          title="Edit Partner"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Link>
+                        <button
+                          onClick={() => handleDelete(partner.id, partner.name)}
+                          className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                          title="Delete Partner"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>

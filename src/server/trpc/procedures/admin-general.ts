@@ -307,17 +307,31 @@ export const adminGetPartners = baseProcedure
     };
   });
 
+export const adminGetPartnerById = baseProcedure
+  .input(z.object({
+    adminToken: z.string(),
+    id: z.number().int().positive(),
+  }))
+  .query(async ({ input }) => {
+    await requireAdminAuth(input.adminToken);
+    
+    const { id } = input;
+    
+    const partner = await db.partner.findUnique({
+      where: { id },
+    });
+    
+    if (!partner) {
+      throw new Error('Partner not found');
+    }
+    
+    return partner;
+  });
+
 export const adminCreatePartner = baseProcedure
   .input(z.object({
     adminToken: z.string(),
-    data: z.object({
-      name: z.string().min(1).max(100),
-      logoUrl: z.string().url(),
-      websiteUrl: z.string().url().optional(),
-      altText: z.string().min(1).max(200),
-      visible: z.boolean().default(true),
-      order: z.number().int().default(0),
-    }),
+    data: partnerSchema,
   }))
   .mutation(async ({ input }) => {
     await requireAdminAuth(input.adminToken);
@@ -339,14 +353,7 @@ export const adminUpdatePartner = baseProcedure
   .input(z.object({
     adminToken: z.string(),
     id: z.number().int().positive(),
-    data: z.object({
-      name: z.string().min(1).max(100).optional(),
-      logoUrl: z.string().url().optional(),
-      websiteUrl: z.string().url().optional(),
-      altText: z.string().min(1).max(200).optional(),
-      visible: z.boolean().optional(),
-      order: z.number().int().optional(),
-    }),
+    data: partnerSchema.partial(),
   }))
   .mutation(async ({ input }) => {
     await requireAdminAuth(input.adminToken);
@@ -382,6 +389,107 @@ export const adminDeletePartner = baseProcedure
     return {
       success: true,
       message: 'Partner deleted successfully',
+    };
+  });
+
+export const adminReorderPartners = baseProcedure
+  .input(z.object({
+    adminToken: z.string(),
+    partnerIds: z.array(z.number().int().positive()),
+  }))
+  .mutation(async ({ input }) => {
+    await requireAdminAuth(input.adminToken);
+    
+    const { partnerIds } = input;
+    
+    // Update each partner's order based on its position in the array
+    await Promise.all(
+      partnerIds.map((partnerId, index) =>
+        db.partner.update({
+          where: { id: partnerId },
+          data: { order: index },
+        })
+      )
+    );
+    
+    return {
+      success: true,
+      message: 'Partners reordered successfully',
+    };
+  });
+
+export const adminTogglePartnerVisibility = baseProcedure
+  .input(z.object({
+    adminToken: z.string(),
+    id: z.number().int().positive(),
+    visible: z.boolean(),
+  }))
+  .mutation(async ({ input }) => {
+    await requireAdminAuth(input.adminToken);
+    
+    const { id, visible } = input;
+    
+    const partner = await db.partner.update({
+      where: { id },
+      data: { visible },
+    });
+    
+    return {
+      success: true,
+      partner,
+      message: `Partner ${visible ? 'shown' : 'hidden'} successfully`,
+    };
+  });
+
+export const adminBulkDeletePartners = baseProcedure
+  .input(z.object({
+    adminToken: z.string(),
+    partnerIds: z.array(z.number().int().positive()),
+  }))
+  .mutation(async ({ input }) => {
+    await requireAdminAuth(input.adminToken);
+    
+    const { partnerIds } = input;
+    
+    await db.partner.deleteMany({
+      where: {
+        id: {
+          in: partnerIds,
+        },
+      },
+    });
+    
+    return {
+      success: true,
+      message: `${partnerIds.length} partner(s) deleted successfully`,
+    };
+  });
+
+export const adminBulkUpdatePartners = baseProcedure
+  .input(z.object({
+    adminToken: z.string(),
+    partnerIds: z.array(z.number().int().positive()),
+    data: z.object({
+      visible: z.boolean().optional(),
+    }),
+  }))
+  .mutation(async ({ input }) => {
+    await requireAdminAuth(input.adminToken);
+    
+    const { partnerIds, data } = input;
+    
+    await db.partner.updateMany({
+      where: {
+        id: {
+          in: partnerIds,
+        },
+      },
+      data,
+    });
+    
+    return {
+      success: true,
+      message: `${partnerIds.length} partner(s) updated successfully`,
     };
   });
 
