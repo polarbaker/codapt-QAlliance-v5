@@ -5,7 +5,6 @@ import { useUserStore } from "~/stores/userStore";
 import { useTRPC } from "~/trpc/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "react-hot-toast";
-import { useState } from "react";
 import React from "react";
 import * as z from "zod";
 import {
@@ -18,7 +17,7 @@ import {
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { BulletproofImageUpload } from "~/components/ui/BulletproofImageUpload";
-import { getImageUrl } from "~/utils";
+import { ImagePreview } from "~/components/ui/ImagePreview";
 
 const innovatorFormSchema = z.object({
   name: z.string().min(1, "Name is required").max(100, "Name must be less than 100 characters"),
@@ -49,9 +48,6 @@ function NewInnovatorPage() {
   
   const trpc = useTRPC();
   
-  const [previewImageLoading, setPreviewImageLoading] = useState(false);
-  const [previewImageError, setPreviewImageError] = useState(false);
-  
   const {
     register,
     handleSubmit,
@@ -59,12 +55,15 @@ function NewInnovatorPage() {
     control,
     watch,
     setValue,
+    trigger,
+    formState,
   } = useForm<InnovatorFormData>({
     resolver: zodResolver(innovatorFormSchema),
     defaultValues: {
       featured: false,
       hasVideo: false,
       achievements: [{ value: "" }],
+      image: "", // Initialize with explicit empty string
     },
   });
 
@@ -116,10 +115,45 @@ function NewInnovatorPage() {
   const imageUrl = watch("image");
   const hasVideo = watch("hasVideo");
 
-  // Debug logging for image URL changes
+  // Enhanced image field validation watcher
   React.useEffect(() => {
-    console.log('Form image field changed to:', imageUrl);
-  }, [imageUrl]);
+    console.log('🔍 DEBUG: Innovator NEW form - Image field validation watcher triggered:', {
+      imageUrl: imageUrl,
+      imageUrlType: typeof imageUrl,
+      imageUrlLength: imageUrl?.length,
+      imageUrlTrimmed: imageUrl?.trim(),
+      isEmpty: !imageUrl || imageUrl.trim() === '',
+      formErrors: errors,
+      imageFieldError: errors.image,
+      hasImageValidationError: !!errors.image,
+      formIsValid: formState.isValid,
+      formIsDirty: formState.isDirty,
+      dirtyFields: formState.dirtyFields,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Force re-validation if we have a valid image but still have an error
+    if (imageUrl && imageUrl.trim() !== '' && errors.image) {
+      console.log('🔍 DEBUG: Innovator NEW form - Detected valid image with validation error, triggering re-validation');
+      setTimeout(() => {
+        trigger("image");
+      }, 100);
+    }
+    
+    // Force validation after setValue to ensure form state is updated
+    if (imageUrl && imageUrl.trim() !== '') {
+      setTimeout(async () => {
+        console.log('🔍 DEBUG: Innovator NEW form - Forcing validation after image change');
+        const isValid = await trigger("image");
+        console.log('🔍 DEBUG: Innovator NEW form - Validation result:', {
+          isValid: isValid,
+          currentImageValue: imageUrl,
+          imageFieldError: errors.image,
+          timestamp: new Date().toISOString()
+        });
+      }, 200);
+    }
+  }, [imageUrl, errors.image, formState.isValid, trigger]);
 
   return (
     <div className="min-h-screen bg-background-light dark:bg-background-black">
@@ -190,41 +224,108 @@ function NewInnovatorPage() {
                       )}
                     </div>
 
-                    {/* Profile Image Upload with Bulletproof Processing */}
+                    {/* Profile Image Upload with Bulletproof System */}
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-text-dark dark:text-text-light mb-2">
                         Profile Image *
                       </label>
+                      
+                      {/* Hidden input for form validation */}
+                      <input
+                        type="hidden"
+                        {...register("image")}
+                      />
+                      
                       <BulletproofImageUpload
-                        value={watch("image")}
+                        value={imageUrl}
                         onChange={(filePath) => {
-                          console.log('BulletproofImageUpload onChange called with:', filePath);
-                          if (filePath && typeof filePath === 'string' && filePath.trim() !== '') {
-                            console.log('Setting image field to:', filePath);
-                            setValue("image", filePath, { shouldValidate: true, shouldDirty: true });
-                          } else {
-                            console.log('Clearing image field (received empty/null filePath)');
-                            setValue("image", "", { shouldValidate: true, shouldDirty: true });
+                          console.log('🔍 DEBUG: Innovator NEW form - BulletproofImageUpload onChange called with:', {
+                            filePath: filePath,
+                            filePathType: typeof filePath,
+                            filePathLength: typeof filePath === 'string' ? filePath?.length : (Array.isArray(filePath) ? filePath.length : 0),
+                            isString: typeof filePath === 'string',
+                            isNonEmptyString: typeof filePath === 'string' && filePath.trim() !== '',
+                            trimmedValue: typeof filePath === 'string' ? filePath.trim() : filePath,
+                            currentFormImageValue: watch("image"),
+                            timestamp: new Date().toISOString()
+                          });
+                          
+                          // Ensure filePath is a string before setting
+                          const pathValue = typeof filePath === 'string' ? filePath : null;
+                          
+                          if (pathValue && pathValue.trim() !== '') {
+                            console.log('🔍 DEBUG: Innovator NEW form - About to call setValue with valid pathValue:', {
+                              valueToSet: pathValue,
+                              shouldValidate: true, 
+                              shouldDirty: true,
+                              shouldTouch: true,
+                              timestamp: new Date().toISOString()
+                            });
+                            
+                            setValue("image", pathValue, { 
+                              shouldValidate: true, 
+                              shouldDirty: true,
+                              shouldTouch: true
+                            });
+                            
+                            console.log('🔍 DEBUG: Innovator NEW form - setValue called, checking immediate state:', {
+                              setValueWith: pathValue,
+                              newFormImageValue: watch("image"),
+                              formErrors: errors,
+                              imageFieldError: errors.image,
+                              isDirty: formState.isDirty,
+                              dirtyFields: formState.dirtyFields,
+                              timestamp: new Date().toISOString()
+                            });
+                            
+                            // Manual trigger call after setValue
+                            setTimeout(async () => {
+                              console.log('🔍 DEBUG: Innovator NEW form - Manual trigger call for image validation');
+                              const isValid = await trigger("image");
+                              console.log('🔍 DEBUG: Innovator NEW form - Manual trigger result:', {
+                                isValid: isValid,
+                                currentImageValue: watch("image"),
+                                imageFieldError: errors.image,
+                                formIsValid: formState.isValid,
+                                timestamp: new Date().toISOString()
+                              });
+                            }, 100);
+                            
+                          } else if (filePath === null) {
+                            // Handle clearing the image
+                            setValue("image", "", { 
+                              shouldValidate: true, 
+                              shouldDirty: true,
+                              shouldTouch: true
+                            });
                           }
                         }}
-                        placeholder="Upload innovator profile image - any format, any size"
-                        previewClassName="h-48"
-                        enableClientOptimization={true}
-                        enableAutoRetry={true}
+                        placeholder="Upload innovator profile image - bulletproof processing enabled"
+                        className="mb-4"
+                        multiple={false}
                         enableProgressiveUpload={true}
-                        maxFileSize={100} // 100MB for innovator profiles
-                        onUploadComplete={(result) => {
-                          console.log('Innovator image uploaded successfully:', result);
-                        }}
+                        enableAutoRetry={true}
+                        enableClientOptimization={true}
+                        maxFileSize={200} // 200MB for bulletproof system
                         onUploadError={(error) => {
-                          console.error('Innovator image upload error:', error);
+                          console.error('❌ DEBUG: Innovator NEW form - BulletproofImageUpload error:', error);
                         }}
+                        // Enhanced form integration props
+                        onFormValueSet={(filePath) => {
+                          // This is an additional callback, main logic is in onChange
+                          console.log('🔍 DEBUG: Innovator NEW form - BulletproofImageUpload onFormValueSet called:', {
+                            filePath: filePath,
+                            timestamp: new Date().toISOString()
+                          });
+                        }}
+                        retryFormUpdate={true} // Enable retry logic for form value patching
                       />
+                      
                       {errors.image && (
                         <p className="mt-1 text-sm text-red-600">{errors.image.message}</p>
                       )}
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        Bulletproof processing: Any image format will be automatically optimized and converted for web use.
+                        Bulletproof processing: Images will be automatically optimized, chunked for large sizes, and retried on failure.
                       </p>
                     </div>
 
@@ -401,49 +502,15 @@ function NewInnovatorPage() {
                 <h3 className="text-lg font-semibold text-text-dark dark:text-text-light mb-4">
                   Profile Preview
                 </h3>
-                <div className="w-full h-48 bg-gray-50 dark:bg-gray-700 rounded-lg flex items-center justify-center p-4 border-2 border-dashed border-gray-300 dark:border-gray-600">
-                  {imageUrl ? (
-                    <>
-                      {previewImageLoading && (
-                        <div className="flex flex-col items-center space-y-2">
-                          <div className="h-8 w-8 animate-spin rounded-full border-4 border-secondary border-t-transparent"></div>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">Loading preview...</p>
-                        </div>
-                      )}
-                      {previewImageError ? (
-                        <div className="flex flex-col items-center space-y-2 text-amber-600">
-                          <Users className="h-8 w-8" />
-                          <p className="text-sm text-center">Preview not available</p>
-                          <p className="text-xs text-center opacity-75">Image will be processed when form is submitted</p>
-                        </div>
-                      ) : (
-                        <img
-                          src={getImageUrl(imageUrl)}
-                          alt="Innovator profile preview"
-                          className={`max-w-full max-h-full object-cover rounded-lg transition-opacity ${previewImageLoading ? 'opacity-0' : 'opacity-100'}`}
-                          onLoad={() => {
-                            setPreviewImageLoading(false);
-                            setPreviewImageError(false);
-                          }}
-                          onLoadStart={() => {
-                            setPreviewImageLoading(true);
-                            setPreviewImageError(false);
-                          }}
-                          onError={() => {
-                            setPreviewImageLoading(false);
-                            setPreviewImageError(true);
-                          }}
-                          style={{ display: previewImageLoading ? 'none' : 'block' }}
-                        />
-                      )}
-                    </>
-                  ) : (
-                    <div className="text-center text-gray-500 dark:text-gray-400">
-                      <Users className="h-8 w-8 mx-auto mb-2" />
-                      <p className="text-sm">Profile image preview will appear here</p>
-                    </div>
-                  )}
-                </div>
+                
+                <ImagePreview
+                  imagePath={imageUrl}
+                  alt="Innovator profile preview"
+                  className="h-48"
+                  placeholderIcon={Users}
+                  placeholderText="Profile image preview will appear here"
+                  showFileName={true}
+                />
               </div>
             </div>
           </div>

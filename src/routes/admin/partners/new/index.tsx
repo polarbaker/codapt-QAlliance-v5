@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useState } from "react";
+import React from "react";
 import { useUserStore } from "~/stores/userStore";
 import { useTRPC } from "~/trpc/react";
 import { useMutation } from "@tanstack/react-query";
@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { BulletproofImageUpload } from "~/components/ui/BulletproofImageUpload";
-import { getImageUrl } from "~/utils";
+import { ImagePreview } from "~/components/ui/ImagePreview";
 
 type PartnerFormData = z.infer<typeof partnerSchema>;
 
@@ -31,20 +31,20 @@ function NewPartnerPage() {
   
   const trpc = useTRPC();
   
-  const [previewImageLoading, setPreviewImageLoading] = useState(false);
-  const [previewImageError, setPreviewImageError] = useState(false);
-  
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
     watch,
     setValue,
+    trigger,
+    formState,
   } = useForm<PartnerFormData>({
     resolver: zodResolver(partnerSchema),
     defaultValues: {
       visible: true,
       order: 0,
+      logoUrl: "", // Initialize with explicit empty string
     },
   });
 
@@ -72,6 +72,46 @@ function NewPartnerPage() {
 
   const visible = watch("visible");
   const logoUrl = watch("logoUrl");
+
+  // Enhanced logoUrl field validation watcher
+  React.useEffect(() => {
+    console.log('🔍 DEBUG: Partner NEW form - LogoUrl field validation watcher triggered:', {
+      logoUrl: logoUrl,
+      logoUrlType: typeof logoUrl,
+      logoUrlLength: logoUrl?.length,
+      logoUrlTrimmed: logoUrl?.trim(),
+      isEmpty: !logoUrl || logoUrl.trim() === '',
+      formErrors: errors,
+      logoUrlFieldError: errors.logoUrl,
+      hasLogoUrlValidationError: !!errors.logoUrl,
+      formIsValid: formState.isValid,
+      formIsDirty: formState.isDirty,
+      dirtyFields: formState.dirtyFields,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Force re-validation if we have a valid logo but still have an error
+    if (logoUrl && logoUrl.trim() !== '' && errors.logoUrl) {
+      console.log('🔍 DEBUG: Partner NEW form - Detected valid logoUrl with validation error, triggering re-validation');
+      setTimeout(() => {
+        trigger("logoUrl");
+      }, 100);
+    }
+    
+    // Force validation after setValue to ensure form state is updated
+    if (logoUrl && logoUrl.trim() !== '') {
+      setTimeout(async () => {
+        console.log('🔍 DEBUG: Partner NEW form - Forcing validation after logoUrl change');
+        const isValid = await trigger("logoUrl");
+        console.log('🔍 DEBUG: Partner NEW form - Validation result:', {
+          isValid: isValid,
+          currentLogoUrlValue: logoUrl,
+          logoUrlFieldError: errors.logoUrl,
+          timestamp: new Date().toISOString()
+        });
+      }, 200);
+    }
+  }, [logoUrl, errors.logoUrl, formState.isValid, trigger]);
 
   return (
     <div className="min-h-screen bg-background-light dark:bg-background-black">
@@ -131,33 +171,103 @@ function NewPartnerPage() {
                       <label className="block text-sm font-medium text-text-dark dark:text-text-light mb-2">
                         Logo *
                       </label>
+                      
+                      {/* Hidden input for form validation */}
+                      <input
+                        type="hidden"
+                        {...register("logoUrl")}
+                      />
+                      
                       <BulletproofImageUpload
-                        value={watch("logoUrl")}
+                        value={logoUrl}
                         onChange={(filePath) => {
-                          if (filePath) {
-                            setValue("logoUrl", filePath);
-                          } else {
-                            setValue("logoUrl", "");
+                          console.log('🔍 DEBUG: Partner NEW form - BulletproofImageUpload onChange called with:', {
+                            filePath: filePath,
+                            filePathType: typeof filePath,
+                            filePathLength: typeof filePath === 'string' ? filePath?.length : (Array.isArray(filePath) ? filePath.length : 0),
+                            isString: typeof filePath === 'string',
+                            isNonEmptyString: typeof filePath === 'string' && filePath.trim() !== '',
+                            trimmedValue: typeof filePath === 'string' ? filePath.trim() : filePath,
+                            currentFormLogoUrlValue: watch("logoUrl"),
+                            timestamp: new Date().toISOString()
+                          });
+                          
+                          // Ensure filePath is a string before setting
+                          const pathValue = typeof filePath === 'string' ? filePath : null;
+                          
+                          if (pathValue && pathValue.trim() !== '') {
+                            console.log('🔍 DEBUG: Partner NEW form - About to call setValue with valid pathValue:', {
+                              valueToSet: pathValue,
+                              shouldValidate: true, 
+                              shouldDirty: true,
+                              shouldTouch: true,
+                              timestamp: new Date().toISOString()
+                            });
+                            
+                            setValue("logoUrl", pathValue, { 
+                              shouldValidate: true, 
+                              shouldDirty: true,
+                              shouldTouch: true
+                            });
+                            
+                            console.log('🔍 DEBUG: Partner NEW form - setValue called, checking immediate state:', {
+                              setValueWith: pathValue,
+                              newFormLogoUrlValue: watch("logoUrl"),
+                              formErrors: errors,
+                              logoUrlFieldError: errors.logoUrl,
+                              isDirty: formState.isDirty,
+                              dirtyFields: formState.dirtyFields,
+                              timestamp: new Date().toISOString()
+                            });
+                            
+                            // Manual trigger call after setValue
+                            setTimeout(async () => {
+                              console.log('🔍 DEBUG: Partner NEW form - Manual trigger call for logoUrl validation');
+                              const isValid = await trigger("logoUrl");
+                              console.log('🔍 DEBUG: Partner NEW form - Manual trigger result:', {
+                                isValid: isValid,
+                                currentLogoUrlValue: watch("logoUrl"),
+                                logoUrlFieldError: errors.logoUrl,
+                                formIsValid: formState.isValid,
+                                timestamp: new Date().toISOString()
+                              });
+                            }, 100);
+                            
+                          } else if (filePath === null) {
+                            // Handle clearing the logo
+                            setValue("logoUrl", "", { 
+                              shouldValidate: true, 
+                              shouldDirty: true,
+                              shouldTouch: true
+                            });
                           }
                         }}
-                        placeholder="Upload partner logo - any format, optimized automatically"
-                        previewClassName="h-32"
-                        enableClientOptimization={true}
-                        enableAutoRetry={true}
+                        placeholder="Upload partner logo - bulletproof processing enabled"
+                        className="mb-4"
+                        multiple={false}
                         enableProgressiveUpload={true}
-                        maxFileSize={50} // 50MB for partner logos
-                        onUploadComplete={(result) => {
-                          console.log('Partner logo uploaded successfully:', result);
-                        }}
+                        enableAutoRetry={true}
+                        enableClientOptimization={true}
+                        maxFileSize={200} // 200MB for bulletproof system
                         onUploadError={(error) => {
-                          console.error('Partner logo upload error:', error);
+                          console.error('❌ DEBUG: Partner NEW form - BulletproofImageUpload error:', error);
                         }}
+                        // Enhanced form integration props
+                        onFormValueSet={(filePath) => {
+                          // This is an additional callback, main logic is in onChange
+                          console.log('🔍 DEBUG: Partner NEW form - BulletproofImageUpload onFormValueSet called:', {
+                            filePath: filePath,
+                            timestamp: new Date().toISOString()
+                          });
+                        }}
+                        retryFormUpdate={true} // Enable retry logic for form value patching
                       />
+                      
                       {errors.logoUrl && (
                         <p className="mt-1 text-sm text-red-600">{errors.logoUrl.message}</p>
                       )}
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        Bulletproof processing: Logos will be automatically optimized for web display while preserving transparency.
+                        Bulletproof processing: Logos will be automatically optimized, chunked for large sizes, and retried on failure.
                       </p>
                     </div>
 
@@ -251,49 +361,15 @@ function NewPartnerPage() {
                 <h3 className="text-lg font-semibold text-text-dark dark:text-text-light mb-4">
                   Logo Preview
                 </h3>
-                <div className="w-full h-32 bg-gray-50 dark:bg-gray-700 rounded-lg flex items-center justify-center p-4 border-2 border-dashed border-gray-300 dark:border-gray-600">
-                  {logoUrl ? (
-                    <>
-                      {previewImageLoading && (
-                        <div className="flex flex-col items-center space-y-2">
-                          <div className="h-8 w-8 animate-spin rounded-full border-4 border-secondary border-t-transparent"></div>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">Loading preview...</p>
-                        </div>
-                      )}
-                      {previewImageError ? (
-                        <div className="flex flex-col items-center space-y-2 text-amber-600">
-                          <Handshake className="h-8 w-8" />
-                          <p className="text-sm text-center">Preview not available</p>
-                          <p className="text-xs text-center opacity-75">Logo will be processed when form is submitted</p>
-                        </div>
-                      ) : (
-                        <img
-                          src={getImageUrl(logoUrl)}
-                          alt="Partner logo preview"
-                          className={`max-w-full max-h-full object-contain transition-opacity ${previewImageLoading ? 'opacity-0' : 'opacity-100'}`}
-                          onLoad={() => {
-                            setPreviewImageLoading(false);
-                            setPreviewImageError(false);
-                          }}
-                          onLoadStart={() => {
-                            setPreviewImageLoading(true);
-                            setPreviewImageError(false);
-                          }}
-                          onError={() => {
-                            setPreviewImageLoading(false);
-                            setPreviewImageError(true);
-                          }}
-                          style={{ display: previewImageLoading ? 'none' : 'block' }}
-                        />
-                      )}
-                    </>
-                  ) : (
-                    <div className="text-center text-gray-500 dark:text-gray-400">
-                      <Handshake className="h-8 w-8 mx-auto mb-2" />
-                      <p className="text-sm">Logo preview will appear here</p>
-                    </div>
-                  )}
-                </div>
+                
+                <ImagePreview
+                  imagePath={logoUrl}
+                  alt="Partner logo preview"
+                  className="h-32"
+                  placeholderIcon={Handshake}
+                  placeholderText="Logo preview will appear here"
+                  showFileName={true}
+                />
               </div>
             </div>
           </div>

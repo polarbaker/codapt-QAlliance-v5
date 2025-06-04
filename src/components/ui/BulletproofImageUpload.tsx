@@ -42,6 +42,10 @@ interface BulletproofImageUploadProps {
   onUploadProgress?: (progress: number) => void;
   onUploadComplete?: (result: any) => void;
   onUploadError?: (error: any) => void;
+  // Enhanced form integration props
+  onFormValueSet?: (filePath: string | string[] | null) => void;
+  validateImmediately?: boolean;
+  retryFormUpdate?: boolean;
 }
 
 interface UploadProgress {
@@ -84,6 +88,10 @@ export function BulletproofImageUpload({
   onUploadProgress,
   onUploadComplete,
   onUploadError,
+  // Enhanced form integration props
+  onFormValueSet,
+  validateImmediately = true,
+  retryFormUpdate = true,
 }: BulletproofImageUploadProps) {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
@@ -111,6 +119,82 @@ export function BulletproofImageUpload({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { adminToken } = useUserStore();
   const trpc = useTRPC();
+
+  // Enhanced form value patching with retry logic and validation triggering
+  const patchFormValueWithRetry = useCallback(async (
+    filePath: string | string[] | null,
+    retryCount: number = 0,
+    maxRetries: number = 3
+  ): Promise<boolean> => {
+    try {
+      console.log('🔍 DEBUG: BulletproofImageUpload - patchFormValueWithRetry called:', {
+        filePath: filePath,
+        filePathType: typeof filePath,
+        filePathLength: Array.isArray(filePath) ? filePath.length : filePath?.length,
+        retryCount: retryCount,
+        maxRetries: maxRetries,
+        timestamp: new Date().toISOString()
+      });
+
+      // Call the parent onChange handler
+      onChange(filePath);
+      
+      // Additional callback for direct form integration
+      if (onFormValueSet) {
+        onFormValueSet(filePath);
+      }
+      
+      // Wait a brief moment for React state updates to propagate
+      await new Promise(resolve => setTimeout(resolve, 50));
+      
+      // Verify the update was successful by checking if value prop has changed
+      let updateSuccessful = false;
+      
+      if (Array.isArray(filePath)) {
+        updateSuccessful = Array.isArray(value) && 
+                          value.length === filePath.length && 
+                          value.every((v, i) => v === filePath[i]);
+      } else if (filePath === null) {
+        updateSuccessful = !value || value === '' || (Array.isArray(value) && value.length === 0);
+      } else {
+        updateSuccessful = value === filePath;
+      }
+      
+      console.log('🔍 DEBUG: BulletproofImageUpload - Form value update verification:', {
+        expectedValue: filePath,
+        actualValue: value,
+        updateSuccessful: updateSuccessful,
+        retryCount: retryCount,
+        timestamp: new Date().toISOString()
+      });
+      
+      if (updateSuccessful || retryCount >= maxRetries) {
+        if (updateSuccessful) {
+          console.log('✅ DEBUG: BulletproofImageUpload - Form value successfully updated');
+          return true;
+        } else {
+          console.warn('⚠️ DEBUG: BulletproofImageUpload - Form value update failed after max retries');
+          return false;
+        }
+      }
+      
+      // Retry if update wasn't successful
+      console.log('🔄 DEBUG: BulletproofImageUpload - Retrying form value update...');
+      await new Promise(resolve => setTimeout(resolve, 100 * (retryCount + 1))); // Exponential backoff
+      return patchFormValueWithRetry(filePath, retryCount + 1, maxRetries);
+      
+    } catch (error) {
+      console.error('❌ DEBUG: BulletproofImageUpload - Error in patchFormValueWithRetry:', error);
+      
+      if (retryCount < maxRetries) {
+        console.log('🔄 DEBUG: BulletproofImageUpload - Retrying after error...');
+        await new Promise(resolve => setTimeout(resolve, 200 * (retryCount + 1)));
+        return patchFormValueWithRetry(filePath, retryCount + 1, maxRetries);
+      }
+      
+      return false;
+    }
+  }, [onChange, onFormValueSet, value]);
 
   const optimizeImageOnClient = useCallback(async (file: File): Promise<File> => {
     if (!enableClientOptimization) {
@@ -204,7 +288,19 @@ export function BulletproofImageUpload({
   // Single upload mutation with bulletproof processing
   const bulletproofUploadMutation = useMutation(
     trpc.bulletproofSingleUpload.mutationOptions({
-      onSuccess: (data) => {
+      onSuccess: async (data) => {
+        console.log('🔍 DEBUG 4a: BulletproofImageUpload bulletproofUploadMutation onSuccess - EXACT data.filePath value:', {
+          dataFilePath: data.filePath,
+          dataFilePathType: typeof data.filePath,
+          dataFilePathLength: data.filePath?.length,
+          dataFilePathTrimmed: data.filePath?.trim(),
+          isEmptyString: data.filePath === '',
+          isNull: data.filePath === null,
+          isUndefined: data.filePath === undefined,
+          fullDataObject: data,
+          timestamp: new Date().toISOString()
+        });
+        
         setUploadProgress({
           phase: 'complete',
           percentage: 100,
@@ -213,13 +309,49 @@ export function BulletproofImageUpload({
           warnings: data.warnings,
         });
         
-        // Ensure we have a valid filePath before calling onChange
-        if (data.filePath) {
-          console.log('Upload successful, updating form with filePath:', data.filePath);
-          onChange(data.filePath);
+        // Enhanced null/undefined checks for filePath with detailed logging
+        if (data && data.filePath && typeof data.filePath === 'string' && data.filePath.trim() !== '') {
+          console.log('🔍 DEBUG 4b: BulletproofImageUpload - Just before calling enhanced form patching with filePath:', {
+            filePathToPass: data.filePath,
+            filePathType: typeof data.filePath,
+            filePathLength: data.filePath.length,
+            filePathTrimmed: data.filePath.trim(),
+            retryFormUpdate: retryFormUpdate,
+            timestamp: new Date().toISOString()
+          });
+          
+          // Use enhanced form value patching with retry logic
+          const patchSuccess = await patchFormValueWithRetry(data.filePath);
+          
+          if (patchSuccess) {
+            console.log('✅ DEBUG 4b-SUCCESS: BulletproofImageUpload - Enhanced form patching successful for:', {
+              filePath: data.filePath,
+              timestamp: new Date().toISOString()
+            });
+          } else {
+            console.warn('⚠️ DEBUG 4b-FAILED: BulletproofImageUpload - Enhanced form patching failed for:', {
+              filePath: data.filePath,
+              timestamp: new Date().toISOString()
+            });
+            
+            // Fallback: try direct onChange one more time
+            console.log('🔄 DEBUG: BulletproofImageUpload - Attempting fallback direct onChange call');
+            onChange(data.filePath);
+          }
+          
         } else {
-          console.error('Upload succeeded but no filePath returned:', data);
-          toast.error('Upload completed but file path is missing. Please try again.');
+          console.error('❌ DEBUG: BulletproofImageUpload - Invalid filePath in upload response:', {
+            data: data,
+            filePath: data?.filePath,
+            filePathType: typeof data?.filePath,
+            filePathLength: data?.filePath?.length,
+            filePathTrimmed: data?.filePath?.trim?.(),
+            isEmptyAfterTrim: data?.filePath?.trim?.() === '',
+            timestamp: new Date().toISOString()
+          });
+          toast.error('Upload completed but file path is missing or invalid. Please try again.');
+          
+          // Don't update form with invalid data
           return;
         }
         
@@ -295,7 +427,15 @@ export function BulletproofImageUpload({
   // Progressive upload mutation
   const progressiveUploadMutation = useMutation(
     trpc.bulletproofProgressiveUpload.mutationOptions({
-      onSuccess: (data) => {
+      onSuccess: async (data) => {
+        console.log('🔍 DEBUG 4a: BulletproofImageUpload progressiveUploadMutation onSuccess - EXACT data response:', {
+          data: data,
+          dataComplete: data.complete,
+          dataFilePath: data.filePath,
+          dataFilePathType: typeof data.filePath,
+          timestamp: new Date().toISOString()
+        });
+        
         if (data.complete) {
           // Progressive upload completed
           setUploadProgress({
@@ -304,13 +444,37 @@ export function BulletproofImageUpload({
             message: 'Progressive upload completed!',
           });
           
-          // Ensure we have a valid filePath before calling onChange
-          if (data.filePath) {
-            console.log('Progressive upload successful, updating form with filePath:', data.filePath);
-            onChange(data.filePath);
+          // Enhanced null/undefined checks for filePath with detailed logging
+          if (data && data.filePath && typeof data.filePath === 'string' && data.filePath.trim() !== '') {
+            console.log('🔍 DEBUG 4b: BulletproofImageUpload - Progressive upload - Just before calling enhanced form patching:', {
+              filePathToPass: data.filePath,
+              filePathType: typeof data.filePath,
+              filePathLength: data.filePath.length,
+              sessionId: data.sessionId,
+              totalChunks: data.totalChunks,
+              timestamp: new Date().toISOString()
+            });
+            
+            // Use enhanced form value patching with retry logic
+            const patchSuccess = await patchFormValueWithRetry(data.filePath);
+            
+            if (patchSuccess) {
+              console.log('✅ DEBUG 4b-SUCCESS: BulletproofImageUpload - Progressive upload enhanced form patching successful');
+            } else {
+              console.warn('⚠️ DEBUG 4b-FAILED: BulletproofImageUpload - Progressive upload enhanced form patching failed');
+              // Fallback: try direct onChange one more time
+              onChange(data.filePath);
+            }
+            
           } else {
-            console.error('Progressive upload completed but no filePath returned:', data);
-            toast.error('Upload completed but file path is missing. Please try again.');
+            console.error('❌ DEBUG: BulletproofImageUpload - Invalid filePath in progressive upload response:', {
+              data: data,
+              filePath: data?.filePath,
+              filePathType: typeof data?.filePath,
+              complete: data?.complete,
+              timestamp: new Date().toISOString()
+            });
+            toast.error('Progressive upload completed but file path is missing or invalid. Please try again.');
             return;
           }
           
@@ -323,6 +487,13 @@ export function BulletproofImageUpload({
         } else {
           // Update progress
           const percentage = (data.receivedChunks / data.totalChunks) * 100;
+          console.log('🔍 DEBUG: BulletproofImageUpload - Progressive upload progress:', {
+            receivedChunks: data.receivedChunks,
+            totalChunks: data.totalChunks,
+            percentage: percentage.toFixed(1),
+            timestamp: new Date().toISOString()
+          });
+          
           setUploadProgress({
             phase: 'uploading',
             percentage,
@@ -357,7 +528,14 @@ export function BulletproofImageUpload({
   // Bulk upload mutation
   const bulletproofBulkUploadMutation = useMutation(
     trpc.bulletproofBulkUpload.mutationOptions({
-      onSuccess: (data) => {
+      onSuccess: async (data) => {
+        console.log('🔍 DEBUG 4a: BulletproofImageUpload bulletproofBulkUploadMutation onSuccess - EXACT data response:', {
+          data: data,
+          resultsLength: data.results?.length,
+          results: data.results,
+          timestamp: new Date().toISOString()
+        });
+        
         setUploadProgress({
           phase: 'complete',
           percentage: 100,
@@ -366,22 +544,82 @@ export function BulletproofImageUpload({
         
         if (multiple) {
           const successPaths = data.results.filter((r: any) => r.success).map((r: any) => r.filePath);
-          if (successPaths.length > 0) {
-            console.log('Bulk upload successful, updating form with filePaths:', successPaths);
-            onChange(successPaths);
+          const validPaths = successPaths.filter((path: any) => path && typeof path === 'string' && path.trim() !== '');
+          
+          console.log('🔍 DEBUG 4b: BulletproofImageUpload - Bulk upload processing results for multiple:', {
+            totalResults: data.results.length,
+            successCount: successPaths.length,
+            validPathCount: validPaths.length,
+            validPaths: validPaths,
+            successPaths: successPaths,
+            timestamp: new Date().toISOString()
+          });
+          
+          if (validPaths.length > 0) {
+            console.log('🔍 DEBUG 4b: BulletproofImageUpload - Just before calling enhanced form patching with bulk upload paths:', {
+              pathsToPass: validPaths,
+              pathsType: typeof validPaths,
+              pathsLength: validPaths.length,
+              timestamp: new Date().toISOString()
+            });
+            
+            // Use enhanced form value patching with retry logic
+            const patchSuccess = await patchFormValueWithRetry(validPaths);
+            
+            if (patchSuccess) {
+              console.log('✅ DEBUG 4b-SUCCESS: BulletproofImageUpload - Bulk upload enhanced form patching successful');
+            } else {
+              console.warn('⚠️ DEBUG 4b-FAILED: BulletproofImageUpload - Bulk upload enhanced form patching failed');
+              // Fallback: try direct onChange one more time
+              onChange(validPaths);
+            }
+            
           } else {
-            console.error('Bulk upload completed but no valid filePaths returned:', data);
-            toast.error('Upload completed but no valid file paths returned. Please try again.');
+            console.error('❌ DEBUG: BulletproofImageUpload - No valid filePaths in bulk upload results:', {
+              results: data.results,
+              successPaths: successPaths,
+              timestamp: new Date().toISOString()
+            });
+            toast.error('Bulk upload completed but no valid file paths returned. Please try again.');
             return;
           }
         } else if (data.results.length > 0 && data.results[0].success) {
           const filePath = data.results[0].filePath;
-          if (filePath) {
-            console.log('Single upload from bulk successful, updating form with filePath:', filePath);
-            onChange(filePath);
+          
+          console.log('🔍 DEBUG 4a: BulletproofImageUpload - Single upload from bulk processing result:', {
+            result: data.results[0],
+            filePath: filePath,
+            filePathType: typeof filePath,
+            timestamp: new Date().toISOString()
+          });
+          
+          if (filePath && typeof filePath === 'string' && filePath.trim() !== '') {
+            console.log('🔍 DEBUG 4b: BulletproofImageUpload - Just before calling enhanced form patching with bulk single upload:', {
+              filePathToPass: filePath,
+              filePathType: typeof filePath,
+              filePathLength: filePath.length,
+              timestamp: new Date().toISOString()
+            });
+            
+            // Use enhanced form value patching with retry logic
+            const patchSuccess = await patchFormValueWithRetry(filePath);
+            
+            if (patchSuccess) {
+              console.log('✅ DEBUG 4b-SUCCESS: BulletproofImageUpload - Bulk single upload enhanced form patching successful');
+            } else {
+              console.warn('⚠️ DEBUG 4b-FAILED: BulletproofImageUpload - Bulk single upload enhanced form patching failed');
+              // Fallback: try direct onChange one more time
+              onChange(filePath);
+            }
+            
           } else {
-            console.error('Upload completed but no filePath in first result:', data.results[0]);
-            toast.error('Upload completed but file path is missing. Please try again.');
+            console.error('❌ DEBUG: BulletproofImageUpload - Invalid filePath in bulk single upload result:', {
+              result: data.results[0],
+              filePath: filePath,
+              filePathType: typeof filePath,
+              timestamp: new Date().toISOString()
+            });
+            toast.error('Upload completed but file path is missing or invalid. Please try again.');
             return;
           }
         }
@@ -784,9 +1022,31 @@ export function BulletproofImageUpload({
     }
   }, [enableAutoRetry, retryState.canRetry, uploadProgress.phase, handleRetry]);
 
-  const handleRemove = () => {
-    console.log('BulletproofImageUpload: handleRemove called, clearing form value');
-    onChange(null);
+  const handleRemove = async () => {
+    console.log('🔍 DEBUG: BulletproofImageUpload handleRemove called - clearing all state and form value');
+    
+    // Log current state before clearing
+    console.log('🔍 DEBUG: BulletproofImageUpload - Current state before removal:', {
+      selectedFiles: selectedFiles.length,
+      previewUrls: previewUrls.length,
+      currentValue: value,
+      uploadPhase: uploadProgress.phase,
+      timestamp: new Date().toISOString()
+    });
+    
+    console.log('🔍 DEBUG: BulletproofImageUpload - Just before calling enhanced form patching to clear form value');
+    
+    // Use enhanced form value patching to clear the value
+    const patchSuccess = await patchFormValueWithRetry(null);
+    
+    if (patchSuccess) {
+      console.log('✅ DEBUG: BulletproofImageUpload - Enhanced form patching successful for clearing value');
+    } else {
+      console.warn('⚠️ DEBUG: BulletproofImageUpload - Enhanced form patching failed for clearing, using fallback');
+      // Fallback: try direct onChange
+      onChange(null);
+    }
+    
     setSelectedFiles([]);
     setPreviewUrls([]);
     setUploadProgress({ phase: 'preparing', percentage: 0, message: '' });
@@ -797,6 +1057,8 @@ export function BulletproofImageUpload({
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
+    
+    console.log('🔍 DEBUG: BulletproofImageUpload - All state cleared successfully');
   };
 
   const isUploading = bulletproofUploadMutation.isPending || 

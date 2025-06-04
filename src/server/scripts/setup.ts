@@ -36,9 +36,10 @@ async function setup() {
     
     // Initialize Minio bucket for image storage
     console.log("Initializing image storage system...");
+    let minioClient: any;
     try {
       const { Client } = await import('minio');
-      const minioClient = new Client({
+      minioClient = new Client({
         endPoint: 'minio',
         port: 9000,
         useSSL: false,
@@ -81,6 +82,59 @@ async function setup() {
     } catch (minioError) {
       console.error("❌ Failed to initialize image storage system:", minioError);
       console.warn("⚠️ Image upload functionality may not work properly");
+    }
+    
+    // Initialize bulletproof image upload system
+    console.log("Initializing bulletproof image upload system...");
+    try {
+      // Validate environment configuration
+      const { env } = await import("~/server/env");
+      
+      console.log("Upload system configuration:", {
+        maxFileSize: `${(env.UPLOAD_MAX_FILE_SIZE / (1024 * 1024)).toFixed(0)}MB`,
+        chunkSize: `${(env.UPLOAD_CHUNK_SIZE / (1024 * 1024)).toFixed(0)}MB`,
+        maxChunks: env.UPLOAD_MAX_CHUNKS,
+        progressiveThreshold: `${(env.PROGRESSIVE_UPLOAD_THRESHOLD / (1024 * 1024)).toFixed(0)}MB`,
+        memoryLimit: `${env.IMAGE_PROCESSING_MEMORY_LIMIT}MB`,
+        maxConcurrent: env.IMAGE_PROCESSING_MAX_CONCURRENT,
+        monitoringEnabled: env.ENABLE_UPLOAD_MONITORING,
+      });
+      
+      // Test Sharp configuration
+      try {
+        const sharp = await import('sharp');
+        const testBuffer = Buffer.alloc(100);
+        const testInstance = sharp(testBuffer, { create: { width: 10, height: 10, channels: 3, background: { r: 255, g: 255, b: 255 } } });
+        await testInstance.jpeg().toBuffer();
+        testInstance.destroy();
+        console.log("✅ Sharp image processing library initialized successfully");
+      } catch (sharpError) {
+        console.error("❌ Sharp initialization failed:", sharpError);
+        console.warn("⚠️ Image processing may not work properly");
+      }
+      
+      // Initialize temp bucket for progressive uploads
+      if (minioClient) {
+        try {
+          const tempBucketName = 'temp-uploads';
+          const tempBucketExists = await minioClient.bucketExists(tempBucketName);
+          
+          if (!tempBucketExists) {
+            await minioClient.makeBucket(tempBucketName);
+            console.log(`✅ Created temp upload bucket: ${tempBucketName}`);
+          } else {
+            console.log(`✅ Temp upload bucket already exists: ${tempBucketName}`);
+          }
+        } catch (tempBucketError) {
+          console.warn("⚠️ Could not create temp upload bucket:", tempBucketError);
+        }
+      }
+      
+      console.log("✅ Bulletproof image upload system initialized successfully");
+      
+    } catch (uploadSystemError) {
+      console.error("❌ Failed to initialize bulletproof image upload system:", uploadSystemError);
+      console.warn("⚠️ Advanced upload features may not work properly");
     }
     
     console.log("✅ Enhanced memory optimization and image system initialized successfully");
@@ -359,6 +413,48 @@ async function setup() {
       console.warn("⚠️ Memory pressure is elevated after setup. Consider increasing system memory for optimal image processing performance.");
     } else {
       console.log("✅ System memory status is optimal for image processing");
+    }
+
+    // System health validation and recommendations
+    console.log("Performing system health validation...");
+    try {
+      const healthChecks = {
+        memory: finalStats.system.pressure === 'low',
+        heapSize: finalStats.heap.total > 1024, // At least 1GB heap
+        gcAvailable: !!global.gc,
+        nodeVersion: process.version,
+        platform: process.platform,
+        arch: process.arch,
+      };
+      
+      console.log("System health check results:", healthChecks);
+      
+      // Provide recommendations based on health checks
+      const recommendations: string[] = [];
+      
+      if (!healthChecks.memory) {
+        recommendations.push("Consider increasing system memory or reducing concurrent operations");
+      }
+      
+      if (!healthChecks.heapSize) {
+        recommendations.push("Increase Node.js heap size with --max-old-space-size=4096 for better image processing");
+      }
+      
+      if (!healthChecks.gcAvailable) {
+        recommendations.push("Add --expose-gc to NODE_OPTIONS for enhanced memory management");
+      }
+      
+      if (recommendations.length > 0) {
+        console.log("💡 System optimization recommendations:");
+        recommendations.forEach((rec, index) => {
+          console.log(`   ${index + 1}. ${rec}`);
+        });
+      } else {
+        console.log("✅ System configuration is optimal for bulletproof image processing");
+      }
+      
+    } catch (healthError) {
+      console.warn("⚠️ Could not complete system health validation:", healthError);
     }
 
   } catch (error) {

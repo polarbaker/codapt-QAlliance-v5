@@ -9,15 +9,30 @@ import fs from "fs/promises";
 import path from "path";
 import { promisify } from "util";
 import { exec } from "child_process";
+import { env } from "~/server/env";
 const execAsync = promisify(exec);
+
+// Enhanced chunk configuration based on environment
+const getOptimalChunkSize = (availableMemory: number): number => {
+  if (availableMemory < 512) return 0.5 * 1024 * 1024; // 0.5MB for low memory
+  if (availableMemory < 1024) return 1 * 1024 * 1024; // 1MB for medium memory
+  return env.UPLOAD_CHUNK_SIZE; // Default from environment (2MB)
+};
+
+const MAX_CHUNK_SIZE = 5 * 1024 * 1024; // 5MB absolute maximum
+const MIN_CHUNK_SIZE = 0.5 * 1024 * 1024; // 0.5MB minimum
+const MAX_CHUNKS_PER_FILE = env.UPLOAD_MAX_CHUNKS; // From environment (100)
+const CHUNK_TIMEOUT = env.UPLOAD_TIMEOUT; // From environment (5 minutes)
 
 interface BulletproofImageError extends Error {
   code?: string;
-  category?: 'auth' | 'validation' | 'processing' | 'storage' | 'memory' | 'network' | 'format' | 'timeout';
+  category?: 'auth' | 'validation' | 'processing' | 'storage' | 'memory' | 'network' | 'format' | 'timeout' | 'size_limit';
   canRetry?: boolean;
   retryAfter?: number;
   suggestions?: string[];
   severity?: 'low' | 'medium' | 'high' | 'critical';
+  httpStatus?: number;
+  adaptedChunkSize?: number;
 }
 
 interface ProcessingStrategy {
@@ -64,6 +79,15 @@ interface ProgressiveUploadSession {
   chunks: Map<number, Buffer>;
   createdAt: Date;
   lastActivity: Date;
+  // Enhanced error tracking
+  failedChunks: Map<number, { attempts: number; lastError: string; lastAttempt: Date }>;
+  adaptiveChunkSize: number;
+  originalChunkSize: number;
+  memoryPressureAdaptations: number;
+  // Recovery state
+  isRecovering: boolean;
+  recoveryAttempts: number;
+  maxRecoveryAttempts: number;
 }
 
 const minioClient = new Client({
@@ -81,16 +105,31 @@ const TEMP_BUCKET_NAME = 'temp-uploads';
 // Global state for progressive uploads
 const progressiveUploadSessions = new Map<string, ProgressiveUploadSession>();
 
-// Cleanup old sessions every 30 minutes
+// Enhanced session cleanup with better recovery tracking
 setInterval(() => {
   const now = new Date();
+  const sessionTimeout = env.PROGRESSIVE_UPLOAD_SESSION_TIMEOUT;
+  
   for (const [sessionId, session] of progressiveUploadSessions.entries()) {
-    if (now.getTime() - session.lastActivity.getTime() > 30 * 60 * 1000) { // 30 minutes
+    const timeSinceLastActivity = now.getTime() - session.lastActivity.getTime();
+    
+    if (timeSinceLastActivity > sessionTimeout) {
+      console.log(`🧹 Cleaning up expired upload session: ${sessionId}`, {
+        fileName: session.fileName,
+        totalChunks: session.totalChunks,
+        receivedChunks: session.receivedChunks.size,
+        failedChunks: session.failedChunks.size,
+        adaptations: session.memoryPressureAdaptations,
+        timeSinceActivity: `${Math.round(timeSinceLastActivity / 1000)}s`
+      });
+      
       progressiveUploadSessions.delete(sessionId);
-      console.log(`Cleaned up expired upload session: ${sessionId}`);
+    } else if (session.isRecovering && timeSinceLastActivity > 10 * 60 * 1000) { // 10 minutes for recovery
+      console.log(`🔄 Marking stuck recovery session for cleanup: ${sessionId}`);
+      progressiveUploadSessions.delete(sessionId);
     }
   }
-}, 30 * 60 * 1000);
+}, 5 * 60 * 1000); // Check every 5 minutes
 
 const createBulletproofError = (
   message: string, 
@@ -101,6 +140,8 @@ const createBulletproofError = (
     suggestions?: string[];
     severity?: 'low' | 'medium' | 'high' | 'critical';
     code?: string;
+    httpStatus?: number;
+    adaptedChunkSize?: number;
   } = {}
 ): BulletproofImageError => {
   const error = new Error(message) as BulletproofImageError;
@@ -110,7 +151,101 @@ const createBulletproofError = (
   error.suggestions = options.suggestions || [];
   error.severity = options.severity || 'medium';
   error.code = options.code;
+  error.httpStatus = options.httpStatus;
+  error.adaptedChunkSize = options.adaptedChunkSize;
   return error;
+};
+
+const validateChunk = (
+  chunkData: string,
+  chunkIndex: number,
+  totalChunks: number,
+  session?: ProgressiveUploadSession
+): { valid: boolean; error?: BulletproofImageError; adaptedChunkSize?: number } => {
+  try {
+    // Parse chunk data
+    const base64Data = chunkData.includes('base64,') ? chunkData.split('base64,')[1] : chunkData;
+    const chunkBuffer = Buffer.from(base64Data, 'base64');
+    
+    // Check chunk size limits
+    if (chunkBuffer.length > MAX_CHUNK_SIZE) {
+      const chunkSizeMB = (chunkBuffer.length / (1024 * 1024)).toFixed(1);
+      return {
+        valid: false,
+        error: createBulletproofError(
+          `Chunk too large (${chunkSizeMB}MB). Maximum chunk size is ${MAX_CHUNK_SIZE / (1024 * 1024)}MB.`,
+          'size_limit',
+          {
+            httpStatus: 413,
+            suggestions: [
+              'Reduce chunk size and retry',
+              'Use smaller chunks for better reliability',
+              'Check client-side chunking configuration'
+            ],
+            adaptedChunkSize: Math.max(MIN_CHUNK_SIZE, chunkBuffer.length / 2)
+          }
+        )
+      };
+    }
+    
+    if (chunkBuffer.length < 100 && chunkIndex < totalChunks - 1) { // Allow small last chunks
+      return {
+        valid: false,
+        error: createBulletproofError(
+          'Chunk too small or empty',
+          'validation',
+          { canRetry: false }
+        )
+      };
+    }
+    
+    // Check chunk index validity
+    if (chunkIndex < 0 || chunkIndex >= totalChunks) {
+      return {
+        valid: false,
+        error: createBulletproofError(
+          `Invalid chunk index ${chunkIndex} for ${totalChunks} total chunks`,
+          'validation',
+          { canRetry: false }
+        )
+      };
+    }
+    
+    // Memory-based chunk size adaptation
+    const memoryStats = getMemoryStats();
+    if (memoryStats.system.pressure === 'high' && session) {
+      const optimalSize = getOptimalChunkSize(memoryStats.system.available);
+      if (chunkBuffer.length > optimalSize) {
+        return {
+          valid: false,
+          error: createBulletproofError(
+            `Chunk size too large for current memory conditions (${memoryStats.system.pressure} pressure)`,
+            'memory',
+            {
+              retryAfter: 60,
+              suggestions: [
+                'Reduce chunk size due to server memory pressure',
+                'Wait for server resources to free up',
+                'Try uploading during off-peak hours'
+              ]
+            }
+          ),
+          adaptedChunkSize: optimalSize
+        };
+      }
+    }
+    
+    return { valid: true };
+    
+  } catch (error) {
+    return {
+      valid: false,
+      error: createBulletproofError(
+        `Chunk validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        'validation'
+      )
+    };
+  }
 };
 
 const processingStrategies: ProcessingStrategy[] = [
@@ -603,33 +738,71 @@ const ensureBucketExists = async (): Promise<void> => {
 
 const progressiveUploadInputSchema = z.object({
   adminToken: z.string(),
-  chunkId: z.string(),
-  chunkIndex: z.number().min(0),
-  totalChunks: z.number().min(1).max(100), // Limit total chunks
+  chunkId: z.string().min(1).max(100),
+  chunkIndex: z.number().min(0).max(env.UPLOAD_MAX_CHUNKS - 1),
+  totalChunks: z.number().min(1).max(env.UPLOAD_MAX_CHUNKS),
   data: z.string().min(1), // base64 chunk
   fileName: z.string().min(1).max(255),
   fileType: z.string().regex(/^image\//, "File must be an image"),
   sessionId: z.string().optional(),
+  // Enhanced parameters for adaptive chunking
+  originalChunkSize: z.number().optional(),
+  isRetry: z.boolean().default(false),
+  retryAttempt: z.number().min(0).max(5).default(0),
 });
 
 export const bulletproofProgressiveUpload = baseProcedure
   .input(progressiveUploadInputSchema)
   .mutation(async ({ input }) => {
+    const startTime = Date.now();
+    const { chunkId, chunkIndex, totalChunks, data, fileName, fileType, isRetry, retryAttempt } = input;
+    
     try {
       await requireAdminAuth(input.adminToken);
       
-      const { chunkId, chunkIndex, totalChunks, data, fileName, fileType } = input;
+      console.log(`📦 Processing chunk ${chunkIndex + 1}/${totalChunks} for ${fileName}${isRetry ? ` (retry ${retryAttempt})` : ''}`);
       
-      // Generate session ID if not provided
-      const sessionId = input.sessionId || `upload_${randomUUID()}`;
+      // Generate or use existing session ID
+      const sessionId = input.sessionId || `progressive_${Date.now()}_${randomUUID()}`;
       
-      // Parse chunk data
-      const base64Data = data.includes('base64,') ? data.split('base64,')[1] : data;
-      const chunkBuffer = Buffer.from(base64Data, 'base64');
+      // Memory check before processing
+      const memoryStats = getMemoryStats();
+      if (memoryStats.system.pressure === 'critical') {
+        console.warn(`❌ Critical memory pressure during chunk upload for ${fileName}`);
+        throw createBulletproofError(
+          `Server memory critically low (${memoryStats.rss.toFixed(1)}MB). Cannot process chunk safely.`,
+          'memory',
+          {
+            retryAfter: 180, // 3 minutes
+            suggestions: [
+              'Wait for server resources to free up',
+              'Try uploading with smaller chunks',
+              'Upload during off-peak hours'
+            ]
+          }
+        );
+      }
       
-      // Get or create session
+      // Get or create session with enhanced initialization
       let session = progressiveUploadSessions.get(sessionId);
       if (!session) {
+        // Validate total file size before creating session
+        const estimatedFileSize = totalChunks * (input.originalChunkSize || env.UPLOAD_CHUNK_SIZE);
+        if (estimatedFileSize > env.UPLOAD_MAX_FILE_SIZE) {
+          throw createBulletproofError(
+            `Estimated file size (${(estimatedFileSize / (1024 * 1024)).toFixed(1)}MB) exceeds maximum allowed (${(env.UPLOAD_MAX_FILE_SIZE / (1024 * 1024)).toFixed(0)}MB)`,
+            'size_limit',
+            {
+              httpStatus: 413,
+              suggestions: [
+                'Reduce image size before uploading',
+                'Compress the image to reduce file size',
+                'Use progressive upload for smaller chunks'
+              ]
+            }
+          );
+        }
+        
         session = {
           sessionId,
           fileName,
@@ -640,73 +813,351 @@ export const bulletproofProgressiveUpload = baseProcedure
           chunks: new Map(),
           createdAt: new Date(),
           lastActivity: new Date(),
+          failedChunks: new Map(),
+          adaptiveChunkSize: input.originalChunkSize || env.UPLOAD_CHUNK_SIZE,
+          originalChunkSize: input.originalChunkSize || env.UPLOAD_CHUNK_SIZE,
+          memoryPressureAdaptations: 0,
+          isRecovering: false,
+          recoveryAttempts: 0,
+          maxRecoveryAttempts: 3,
         };
+        
         progressiveUploadSessions.set(sessionId, session);
-        console.log(`Created new progressive upload session: ${sessionId}`);
+        console.log(`🆕 Created progressive upload session: ${sessionId} for ${fileName}`);
       }
       
-      // Update session
+      // Update session activity
       session.lastActivity = new Date();
+      
+      // Validate chunk with adaptive sizing
+      const validation = validateChunk(data, chunkIndex, totalChunks, session);
+      if (!validation.valid) {
+        // Handle 413-like errors with adaptive chunk sizing
+        if (validation.error?.category === 'size_limit' || validation.error?.category === 'memory') {
+          session.failedChunks.set(chunkIndex, {
+            attempts: (session.failedChunks.get(chunkIndex)?.attempts || 0) + 1,
+            lastError: validation.error.message,
+            lastAttempt: new Date()
+          });
+          
+          // Suggest adaptive chunk size if available
+          if (validation.adaptedChunkSize) {
+            session.adaptiveChunkSize = validation.adaptedChunkSize;
+            session.memoryPressureAdaptations++;
+            
+            console.log(`🔧 Suggesting adaptive chunk size: ${(validation.adaptedChunkSize / (1024 * 1024)).toFixed(1)}MB for ${fileName}`);
+            
+            return {
+              success: false,
+              complete: false,
+              sessionId,
+              error: validation.error.message,
+              adaptiveChunkSize: validation.adaptedChunkSize,
+              suggestedAction: 'reduce_chunk_size',
+              receivedChunks: session.receivedChunks.size,
+              totalChunks,
+              memoryPressure: memoryStats.system.pressure,
+            };
+          }
+        }
+        
+        throw validation.error;
+      }
+      
+      // Parse and store chunk
+      const base64Data = data.includes('base64,') ? data.split('base64,')[1] : data;
+      const chunkBuffer = Buffer.from(base64Data, 'base64');
+      
+      // Check for duplicate chunks
+      if (session.receivedChunks.has(chunkIndex)) {
+        console.log(`⚠️ Duplicate chunk ${chunkIndex} received for ${fileName}, skipping`);
+        return {
+          success: true,
+          complete: false,
+          sessionId,
+          receivedChunks: session.receivedChunks.size,
+          totalChunks,
+          message: `Chunk ${chunkIndex + 1} already received (duplicate)`,
+        };
+      }
+      
+      // Store chunk and update session
       session.chunks.set(chunkIndex, chunkBuffer);
       session.receivedChunks.add(chunkIndex);
       session.totalSize += chunkBuffer.length;
       
-      console.log(`Received chunk ${chunkIndex + 1}/${totalChunks} for ${fileName} (session: ${sessionId})`);
+      // Remove from failed chunks if it was previously failed
+      if (session.failedChunks.has(chunkIndex)) {
+        session.failedChunks.delete(chunkIndex);
+      }
+      
+      console.log(`✅ Chunk ${chunkIndex + 1}/${totalChunks} received for ${fileName} (${(chunkBuffer.length / 1024).toFixed(1)}KB)`);
       
       // Check if upload is complete
       if (session.receivedChunks.size === totalChunks) {
-        console.log(`All chunks received for ${fileName}, assembling file...`);
+        console.log(`🔄 All chunks received for ${fileName}, assembling file...`);
         
-        // Assemble chunks in order
-        const assembledChunks: Buffer[] = [];
-        for (let i = 0; i < totalChunks; i++) {
-          const chunk = session.chunks.get(i);
-          if (!chunk) {
+        try {
+          // Pre-assembly memory check
+          if (isMemoryUnderPressure()) {
+            console.warn(`Memory pressure detected before assembly of ${fileName}, performing cleanup`);
+            emergencyMemoryCleanup(`before assembly of ${fileName}`);
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          }
+          
+          // Assemble chunks in order with memory management
+          const assembledChunks: Buffer[] = [];
+          let totalAssembledSize = 0;
+          
+          for (let i = 0; i < totalChunks; i++) {
+            const chunk = session.chunks.get(i);
+            if (!chunk) {
+              throw createBulletproofError(
+                `Missing chunk ${i} during assembly of ${fileName}`,
+                'validation',
+                {
+                  canRetry: true,
+                  suggestions: [
+                    'Re-upload the missing chunk',
+                    'Restart the upload with smaller chunks',
+                    'Check network connection stability'
+                  ]
+                }
+              );
+            }
+            
+            assembledChunks.push(chunk);
+            totalAssembledSize += chunk.length;
+            
+            // Memory pressure check during assembly
+            if (i % 10 === 0 && isMemoryUnderPressure()) {
+              console.warn(`Memory pressure during assembly at chunk ${i}, forcing garbage collection`);
+              if (global.gc) global.gc();
+              await new Promise(resolve => setTimeout(resolve, 100));
+            }
+          }
+          
+          console.log(`🔧 Assembling ${totalChunks} chunks into ${(totalAssembledSize / (1024 * 1024)).toFixed(1)}MB file: ${fileName}`);
+          
+          const completeBuffer = Buffer.concat(assembledChunks);
+          
+          // Validate assembled file size
+          if (completeBuffer.length !== totalAssembledSize) {
             throw createBulletproofError(
-              `Missing chunk ${i} during assembly`,
-              'validation',
-              { canRetry: true, suggestions: ['Re-upload the missing chunk'] }
+              `File assembly size mismatch: expected ${totalAssembledSize}, got ${completeBuffer.length}`,
+              'processing'
             );
           }
-          assembledChunks.push(chunk);
+          
+          // Clean up session early to free memory
+          progressiveUploadSessions.delete(sessionId);
+          
+          // Process the complete file using the bulletproof system
+          console.log(`🚀 Processing assembled file: ${fileName}`);
+          const result = await bulletproofSingleUpload.resolver({
+            input: {
+              adminToken: input.adminToken,
+              fileName,
+              fileContent: completeBuffer.toString('base64'),
+              fileType,
+            },
+            ctx: {} as any,
+          });
+          
+          const totalTime = Date.now() - startTime;
+          console.log(`✅ Progressive upload completed: ${fileName} in ${totalTime}ms`);
+          
+          return {
+            success: true,
+            complete: true,
+            sessionId,
+            ...result,
+            progressiveUploadStats: {
+              totalChunks,
+              totalSize: completeBuffer.length,
+              processingTime: totalTime,
+              memoryAdaptations: session.memoryPressureAdaptations,
+              recoveryAttempts: session.recoveryAttempts,
+            },
+          };
+          
+        } catch (assemblyError) {
+          console.error(`❌ Assembly failed for ${fileName}:`, assemblyError);
+          
+          // Mark session for recovery
+          session.isRecovering = true;
+          session.recoveryAttempts++;
+          
+          if (session.recoveryAttempts > session.maxRecoveryAttempts) {
+            progressiveUploadSessions.delete(sessionId);
+            throw createBulletproofError(
+              `Assembly failed after ${session.maxRecoveryAttempts} attempts: ${assemblyError instanceof Error ? assemblyError.message : 'Unknown error'}`,
+              'processing',
+              {
+                suggestions: [
+                  'Restart the upload with smaller chunks',
+                  'Check file integrity and try again',
+                  'Contact support if the problem persists'
+                ]
+              }
+            );
+          }
+          
+          throw assemblyError;
         }
-        
-        const completeBuffer = Buffer.concat(assembledChunks);
-        
-        // Clean up session
-        progressiveUploadSessions.delete(sessionId);
-        
-        // Process the complete file using the bulletproof system
-        const result = await bulletproofSingleUpload.resolver({
-          input: {
-            adminToken: input.adminToken,
-            fileName,
-            fileContent: completeBuffer.toString('base64'),
-            fileType,
-          },
-          ctx: {} as any,
-        });
-        
-        return {
-          success: true,
-          complete: true,
-          sessionId,
-          ...result,
-        };
       }
       
-      // Upload not yet complete
+      // Upload not yet complete - return progress
+      const progressPercentage = (session.receivedChunks.size / totalChunks) * 100;
+      
       return {
         success: true,
         complete: false,
         sessionId,
         receivedChunks: session.receivedChunks.size,
         totalChunks,
-        message: `Received chunk ${chunkIndex + 1}/${totalChunks}`,
+        progress: progressPercentage,
+        message: `Received chunk ${chunkIndex + 1}/${totalChunks} (${progressPercentage.toFixed(1)}%)`,
+        adaptiveChunkSize: session.adaptiveChunkSize !== session.originalChunkSize ? session.adaptiveChunkSize : undefined,
+        memoryPressure: memoryStats.system.pressure,
+        sessionStats: {
+          failedChunks: session.failedChunks.size,
+          memoryAdaptations: session.memoryPressureAdaptations,
+          recoveryAttempts: session.recoveryAttempts,
+        },
       };
       
     } catch (error) {
-      console.error('Progressive upload error:', error);
+      console.error(`❌ Progressive upload error for chunk ${chunkIndex} of ${fileName}:`, error);
+      
+      // Enhanced error handling with specific 413 recovery
+      if (error instanceof Error && (error.message.includes('413') || error.message.includes('too large'))) {
+        const sessionId = input.sessionId || `progressive_${Date.now()}_${randomUUID()}`;
+        const session = progressiveUploadSessions.get(sessionId);
+        
+        if (session) {
+          // Suggest smaller chunk size
+          const newChunkSize = Math.max(MIN_CHUNK_SIZE, session.adaptiveChunkSize / 2);
+          session.adaptiveChunkSize = newChunkSize;
+          session.memoryPressureAdaptations++;
+          
+          console.log(`🔧 413 error detected, suggesting chunk size reduction: ${(newChunkSize / (1024 * 1024)).toFixed(1)}MB`);
+          
+          return {
+            success: false,
+            complete: false,
+            sessionId,
+            error: 'Chunk size too large for server limits',
+            adaptiveChunkSize: newChunkSize,
+            suggestedAction: 'reduce_chunk_size',
+            receivedChunks: session.receivedChunks.size,
+            totalChunks,
+            httpStatus: 413,
+          };
+        }
+      }
+      
+      throw error;
+    }
+  });
+
+// Session recovery procedure for handling stuck uploads
+export const bulletproofRecoverSession = baseProcedure
+  .input(z.object({
+    adminToken: z.string(),
+    sessionId: z.string(),
+  }))
+  .mutation(async ({ input }) => {
+    try {
+      await requireAdminAuth(input.adminToken);
+      
+      const session = progressiveUploadSessions.get(input.sessionId);
+      if (!session) {
+        throw createBulletproofError(
+          'Upload session not found or expired',
+          'validation',
+          { canRetry: false }
+        );
+      }
+      
+      // Reset recovery state
+      session.isRecovering = false;
+      session.lastActivity = new Date();
+      
+      // Identify missing chunks
+      const missingChunks: number[] = [];
+      for (let i = 0; i < session.totalChunks; i++) {
+        if (!session.receivedChunks.has(i)) {
+          missingChunks.push(i);
+        }
+      }
+      
+      console.log(`🔄 Session recovery for ${session.fileName}: ${missingChunks.length} missing chunks`);
+      
+      return {
+        success: true,
+        sessionId: input.sessionId,
+        fileName: session.fileName,
+        totalChunks: session.totalChunks,
+        receivedChunks: session.receivedChunks.size,
+        missingChunks,
+        adaptiveChunkSize: session.adaptiveChunkSize,
+        sessionStats: {
+          failedChunks: session.failedChunks.size,
+          memoryAdaptations: session.memoryPressureAdaptations,
+          recoveryAttempts: session.recoveryAttempts,
+        },
+      };
+      
+    } catch (error) {
+      console.error('Session recovery error:', error);
+      throw error;
+    }
+  });
+
+// Session health check procedure
+export const bulletproofSessionHealth = baseProcedure
+  .input(z.object({
+    adminToken: z.string(),
+    sessionId: z.string(),
+  }))
+  .query(async ({ input }) => {
+    try {
+      await requireAdminAuth(input.adminToken);
+      
+      const session = progressiveUploadSessions.get(input.sessionId);
+      if (!session) {
+        return {
+          exists: false,
+          message: 'Session not found or expired',
+        };
+      }
+      
+      const now = new Date();
+      const timeSinceActivity = now.getTime() - session.lastActivity.getTime();
+      const memoryStats = getMemoryStats();
+      
+      return {
+        exists: true,
+        sessionId: input.sessionId,
+        fileName: session.fileName,
+        totalChunks: session.totalChunks,
+        receivedChunks: session.receivedChunks.size,
+        progress: (session.receivedChunks.size / session.totalChunks) * 100,
+        timeSinceActivity: Math.round(timeSinceActivity / 1000), // seconds
+        isStuck: timeSinceActivity > 5 * 60 * 1000, // 5 minutes
+        adaptiveChunkSize: session.adaptiveChunkSize,
+        memoryPressure: memoryStats.system.pressure,
+        sessionStats: {
+          failedChunks: session.failedChunks.size,
+          memoryAdaptations: session.memoryPressureAdaptations,
+          recoveryAttempts: session.recoveryAttempts,
+          isRecovering: session.isRecovering,
+        },
+      };
+      
+    } catch (error) {
+      console.error('Session health check error:', error);
       throw error;
     }
   });

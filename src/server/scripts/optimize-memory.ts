@@ -19,14 +19,15 @@ export function optimizeMemorySettings(): void {
     sharp.concurrency(concurrency); // Allow multiple threads for better performance
     sharp.simd(false); // Keep disabled for memory predictability
     
-    // Set more reasonable Sharp resource limits for production
-    sharp.limitInputPixels(134217728); // ~16384x8192 max pixels (doubled for better support)
+    // Note: sharp.limitInputPixels() is not available in current Sharp versions
+    // Instead, we'll handle pixel limits in individual processing operations
+    console.log('Note: Input pixel limits will be applied per-operation rather than globally');
     
     console.log('Enhanced Sharp configuration applied:');
     console.log(`- Cache: ${cacheSize}MB memory, 0 files, 100 items`);
     console.log(`- Concurrency: ${concurrency} threads`);
     console.log('- SIMD: disabled for memory predictability');
-    console.log('- Max input pixels: 134,217,728 (~16384x8192)');
+    console.log('- Pixel limits: applied per-operation based on available memory');
     console.log(`- Memory limit: ${maxMemoryMB}MB`);
     
     // Enhanced garbage collection configuration

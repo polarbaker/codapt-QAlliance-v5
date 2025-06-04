@@ -15,7 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
-import { ImageUpload } from "~/components/ui/ImageUpload";
+import { BulletproofImageUpload } from "~/components/ui/BulletproofImageUpload";
 import { getImageUrl } from "~/utils";
 
 export const Route = createFileRoute("/admin/case-studies/new/")({
@@ -164,17 +164,75 @@ function NewCaseStudyPage() {
                       <label className="block text-sm font-medium text-text-dark dark:text-text-light mb-2">
                         Image *
                       </label>
-                      <ImageUpload
+                      <BulletproofImageUpload
                         value={watch("image")}
                         onChange={(filePath) => {
-                          if (filePath) {
-                            setValue("image", filePath);
-                          } else {
-                            setValue("image", "");
+                          console.log('🔍 DEBUG: Case Study NEW form - BulletproofImageUpload onChange called with:', {
+                            filePath: filePath,
+                            filePathType: typeof filePath,
+                            filePathLength: typeof filePath === 'string' ? filePath?.length : (Array.isArray(filePath) ? filePath.length : 0),
+                            isString: typeof filePath === 'string',
+                            isNonEmptyString: typeof filePath === 'string' && filePath.trim() !== '',
+                            trimmedValue: typeof filePath === 'string' ? filePath.trim() : filePath,
+                            currentFormImageValue: watch("image"),
+                            timestamp: new Date().toISOString()
+                          });
+                          
+                          // Ensure filePath is a string before setting
+                          const pathValue = typeof filePath === 'string' ? filePath : null;
+                          
+                          if (pathValue && pathValue.trim() !== '') {
+                            console.log('🔍 DEBUG: Case Study NEW form - About to call setValue with valid pathValue:', {
+                              valueToSet: pathValue,
+                              shouldValidate: true, 
+                              shouldDirty: true,
+                              shouldTouch: true,
+                              timestamp: new Date().toISOString()
+                            });
+                            
+                            setValue("image", pathValue, { 
+                              shouldValidate: true, 
+                              shouldDirty: true,
+                              shouldTouch: true
+                            });
+                            
+                            console.log('🔍 DEBUG: Case Study NEW form - setValue called, checking immediate state:', {
+                              setValueWith: pathValue,
+                              newFormImageValue: watch("image"),
+                              formErrors: errors,
+                              imageFieldError: errors.image,
+                              isDirty: formState.isDirty,
+                              dirtyFields: formState.dirtyFields,
+                              timestamp: new Date().toISOString()
+                            });
+                            
+                          } else if (pathValue === null) {
+                            // Handle clearing the image
+                            setValue("image", "", { 
+                              shouldValidate: true, 
+                              shouldDirty: true,
+                              shouldTouch: true
+                            });
                           }
                         }}
-                        placeholder="Upload case study image"
-                        previewClassName="h-48"
+                        placeholder="Upload case study image - bulletproof processing enabled"
+                        className="mb-4"
+                        multiple={false}
+                        enableProgressiveUpload={true}
+                        enableAutoRetry={true}
+                        enableClientOptimization={true}
+                        maxFileSize={200} // 200MB for bulletproof system
+                        onUploadError={(error) => {
+                          console.error('❌ DEBUG: Case Study NEW form - BulletproofImageUpload error:', error);
+                        }}
+                        // Enhanced form integration props
+                        onFormValueSet={(filePath) => {
+                          console.log('🔍 DEBUG: Case Study NEW form - BulletproofImageUpload onFormValueSet called:', {
+                            filePath: filePath,
+                            timestamp: new Date().toISOString()
+                          });
+                        }}
+                        retryFormUpdate={true} // Enable retry logic for form value patching
                       />
                       {errors.image && (
                         <p className="mt-1 text-sm text-red-600">{errors.image.message}</p>

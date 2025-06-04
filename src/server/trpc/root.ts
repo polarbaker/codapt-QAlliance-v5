@@ -85,6 +85,8 @@ export const appRouter = createTRPCRouter({
   bulletproofSingleUpload: bulletproofImageUploadProcs.bulletproofSingleUpload,
   bulletproofProgressiveUpload: bulletproofImageUploadProcs.bulletproofProgressiveUpload,
   bulletproofBulkUpload: bulletproofImageUploadProcs.bulletproofBulkUpload,
+  bulletproofRecoverSession: bulletproofImageUploadProcs.bulletproofRecoverSession,
+  bulletproofSessionHealth: bulletproofImageUploadProcs.bulletproofSessionHealth,
   
   // Partners procedures
   getPartners: partnersProcs.getPartners,
