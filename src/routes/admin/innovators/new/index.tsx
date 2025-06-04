@@ -6,6 +6,7 @@ import { useTRPC } from "~/trpc/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "react-hot-toast";
 import { useState } from "react";
+import React from "react";
 import * as z from "zod";
 import {
   ArrowLeft,
@@ -16,7 +17,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
-import { ImageUpload } from "~/components/ui/ImageUpload";
+import { BulletproofImageUpload } from "~/components/ui/BulletproofImageUpload";
 import { getImageUrl } from "~/utils";
 
 const innovatorFormSchema = z.object({
@@ -115,6 +116,11 @@ function NewInnovatorPage() {
   const imageUrl = watch("image");
   const hasVideo = watch("hasVideo");
 
+  // Debug logging for image URL changes
+  React.useEffect(() => {
+    console.log('Form image field changed to:', imageUrl);
+  }, [imageUrl]);
+
   return (
     <div className="min-h-screen bg-background-light dark:bg-background-black">
       <div className="container-padding">
@@ -184,26 +190,42 @@ function NewInnovatorPage() {
                       )}
                     </div>
 
-                    {/* Image Upload */}
+                    {/* Profile Image Upload with Bulletproof Processing */}
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-text-dark dark:text-text-light mb-2">
                         Profile Image *
                       </label>
-                      <ImageUpload
+                      <BulletproofImageUpload
                         value={watch("image")}
                         onChange={(filePath) => {
-                          if (filePath) {
-                            setValue("image", filePath);
+                          console.log('BulletproofImageUpload onChange called with:', filePath);
+                          if (filePath && typeof filePath === 'string' && filePath.trim() !== '') {
+                            console.log('Setting image field to:', filePath);
+                            setValue("image", filePath, { shouldValidate: true, shouldDirty: true });
                           } else {
-                            setValue("image", "");
+                            console.log('Clearing image field (received empty/null filePath)');
+                            setValue("image", "", { shouldValidate: true, shouldDirty: true });
                           }
                         }}
-                        placeholder="Upload innovator profile image"
+                        placeholder="Upload innovator profile image - any format, any size"
                         previewClassName="h-48"
+                        enableClientOptimization={true}
+                        enableAutoRetry={true}
+                        enableProgressiveUpload={true}
+                        maxFileSize={100} // 100MB for innovator profiles
+                        onUploadComplete={(result) => {
+                          console.log('Innovator image uploaded successfully:', result);
+                        }}
+                        onUploadError={(error) => {
+                          console.error('Innovator image upload error:', error);
+                        }}
                       />
                       {errors.image && (
                         <p className="mt-1 text-sm text-red-600">{errors.image.message}</p>
                       )}
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        Bulletproof processing: Any image format will be automatically optimized and converted for web use.
+                      </p>
                     </div>
 
                     {/* Social Links */}

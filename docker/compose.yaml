@@ -99,24 +99,34 @@ services:
       - node-modules-cache:/app/node_modules:nocopy
     tmpfs:
       - /app/.pnpm-store:ro,size=1k
-      - /tmp:rw,size=512m,mode=1777  # Temporary files for image processing
+      - /tmp:rw,size=1g,mode=1777  # Increased temp space for image processing
     env_file:
       - ../.env
-    # Memory configuration for image processing
-    shm_size: 1gb  # Shared memory for Sharp image processing
+    # Enhanced memory configuration for robust image processing
+    shm_size: 2gb  # Increased shared memory for Sharp image processing
     deploy:
       resources:
         limits:
-          memory: 4gb  # Total memory limit
+          memory: 6gb  # Increased from 4gb as recommended
         reservations:
-          memory: 2gb  # Reserved memory
+          memory: 3gb  # Increased from 2gb as recommended
     environment:
-      - NODE_OPTIONS=--max-old-space-size=3072 --expose-gc
-      - UV_THREADPOOL_SIZE=4
+      # Enhanced Node.js memory and performance settings
+      - NODE_OPTIONS=--max-old-space-size=4096 --expose-gc --max-semi-space-size=256
+      - UV_THREADPOOL_SIZE=8  # Increased for better I/O performance
       - MALLOC_ARENA_MAX=2
+      # Sharp-specific optimizations
       - SHARP_IGNORE_GLOBAL_LIBVIPS=1
-      - SHARP_CONCURRENCY=1
-      - SHARP_CACHE_SIZE=0
+      - SHARP_CONCURRENCY=2  # Increased from 1 for better performance
+      - SHARP_CACHE_SIZE=50  # Small cache for frequently used operations
+      - SHARP_SIMD=false  # Disabled for memory predictability
+      # Image processing optimizations
+      - IMAGE_PROCESSING_MAX_CONCURRENT=2
+      - IMAGE_PROCESSING_TIMEOUT=300000  # 5 minutes
+      - IMAGE_PROCESSING_MEMORY_LIMIT=2048  # 2GB limit for image operations
+      # Performance monitoring
+      - ENABLE_MEMORY_MONITORING=true
+      - MEMORY_CHECK_INTERVAL=30000  # 30 seconds
 
 volumes:
   postgres-data:

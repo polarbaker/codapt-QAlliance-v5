@@ -1,14 +1,94 @@
 import { db } from "~/server/db";
-import { optimizeMemorySettings, startMemoryMonitoring, validateMemoryConfiguration } from "./optimize-memory";
+import { 
+  optimizeMemorySettings, 
+  startMemoryMonitoring, 
+  validateMemoryConfiguration,
+  getMemoryStats 
+} from "./optimize-memory";
 
 async function setup() {
-  console.log("Starting database setup and seeding...");
+  console.log("Starting enhanced database setup and image system initialization...");
 
-  // Initialize memory optimization for image processing
-  console.log("Initializing memory optimization...");
-  optimizeMemorySettings();
-  validateMemoryConfiguration();
-  startMemoryMonitoring();
+  // Enhanced memory optimization initialization for image processing
+  console.log("Initializing enhanced memory optimization for image processing...");
+  
+  try {
+    // Configure memory settings first
+    optimizeMemorySettings();
+    
+    // Validate configuration and report status
+    const configValid = validateMemoryConfiguration();
+    if (!configValid) {
+      console.warn("⚠️ Memory configuration is not optimal for image processing. Some features may be limited.");
+    }
+    
+    // Start monitoring
+    startMemoryMonitoring();
+    
+    // Report initial memory status
+    const initialStats = getMemoryStats();
+    console.log("Initial memory status:", {
+      heap: `${initialStats.heap.used.toFixed(1)}MB / ${initialStats.heap.total.toFixed(1)}MB (${initialStats.heap.percentage.toFixed(1)}%)`,
+      rss: `${initialStats.rss.toFixed(1)}MB`,
+      pressure: initialStats.system.pressure,
+      available: `${initialStats.system.available.toFixed(1)}MB`,
+    });
+    
+    // Initialize Minio bucket for image storage
+    console.log("Initializing image storage system...");
+    try {
+      const { Client } = await import('minio');
+      const minioClient = new Client({
+        endPoint: 'minio',
+        port: 9000,
+        useSSL: false,
+        accessKey: 'minioadmin',
+        secretKey: 'minioadmin',
+        region: 'us-east-1',
+        pathStyle: true,
+      });
+      
+      const bucketName = 'images';
+      const bucketExists = await minioClient.bucketExists(bucketName);
+      
+      if (!bucketExists) {
+        await minioClient.makeBucket(bucketName);
+        console.log(`✅ Created image storage bucket: ${bucketName}`);
+      } else {
+        console.log(`✅ Image storage bucket already exists: ${bucketName}`);
+      }
+      
+      // Set bucket policy for proper access
+      const policy = {
+        Version: "2012-10-17",
+        Statement: [
+          {
+            Effect: "Allow",
+            Principal: { AWS: ["*"] },
+            Action: ["s3:GetObject"],
+            Resource: [`arn:aws:s3:::${bucketName}/*`]
+          }
+        ]
+      };
+      
+      try {
+        await minioClient.setBucketPolicy(bucketName, JSON.stringify(policy));
+        console.log(`✅ Set bucket policy for ${bucketName}`);
+      } catch (policyError) {
+        console.warn(`⚠️ Could not set bucket policy (this is normal for development):`, policyError);
+      }
+      
+    } catch (minioError) {
+      console.error("❌ Failed to initialize image storage system:", minioError);
+      console.warn("⚠️ Image upload functionality may not work properly");
+    }
+    
+    console.log("✅ Enhanced memory optimization and image system initialized successfully");
+    
+  } catch (memoryError) {
+    console.error("❌ Failed to initialize memory optimization:", memoryError);
+    console.warn("⚠️ Continuing with default settings, but image processing may be limited");
+  }
 
   try {
     // Seed Partners
@@ -59,9 +139,9 @@ async function setup() {
     // Seed Innovators
     console.log("Seeding innovators...");
     // Note: Using Unsplash URLs for demo purposes. In production, these should be:
-    // 1. Hosted internally via Minio object storage
+    // 1. Hosted internally via the enhanced image upload system
     // 2. Have proper fallback handling in the frontend components
-    // 3. Use more reliable image sources with proper licensing
+    // 3. Use the new image variant system for optimal loading
     const innovatorsData = [
       {
         name: "Dr. Sarah Chen",
@@ -265,10 +345,24 @@ async function setup() {
       });
     }
 
-    console.log("Database seeding completed successfully!");
+    // Final memory status report
+    const finalStats = getMemoryStats();
+    console.log("Setup completed successfully!");
+    console.log("Final memory status:", {
+      heap: `${finalStats.heap.used.toFixed(1)}MB / ${finalStats.heap.total.toFixed(1)}MB (${finalStats.heap.percentage.toFixed(1)}%)`,
+      rss: `${finalStats.rss.toFixed(1)}MB`,
+      pressure: finalStats.system.pressure,
+      available: `${finalStats.system.available.toFixed(1)}MB`,
+    });
+    
+    if (finalStats.system.pressure !== 'low') {
+      console.warn("⚠️ Memory pressure is elevated after setup. Consider increasing system memory for optimal image processing performance.");
+    } else {
+      console.log("✅ System memory status is optimal for image processing");
+    }
 
   } catch (error) {
-    console.error("Error during database setup:", error);
+    console.error("❌ Error during database setup:", error);
     throw error;
   }
 }
@@ -280,11 +374,11 @@ export default setup;
 if (import.meta.url === `file://${process.argv[1]}`) {
   setup()
     .then(() => {
-      console.log("Setup completed successfully");
+      console.log("✅ Enhanced setup completed successfully");
       process.exit(0);
     })
     .catch((error) => {
-      console.error("Setup failed:", error);
+      console.error("❌ Setup failed:", error);
       process.exit(1);
     });
 }

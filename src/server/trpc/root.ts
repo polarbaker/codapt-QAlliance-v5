@@ -16,6 +16,7 @@ import * as adminChallengesProcs from "~/server/trpc/procedures/admin-challenges
 import * as adminInnovatorsProcs from "~/server/trpc/procedures/admin-innovators";
 import * as adminGeneralProcs from "~/server/trpc/procedures/admin-general";
 import * as imageUploadProcs from "~/server/trpc/procedures/image-upload";
+import * as bulletproofImageUploadProcs from "~/server/trpc/procedures/bulletproof-image-upload";
 
 export const appRouter = createTRPCRouter({
   // Authentication procedures
@@ -77,11 +78,13 @@ export const appRouter = createTRPCRouter({
   adminUploadImage: imageUploadProcs.adminUploadImage,
   adminBulkUploadImages: imageUploadProcs.adminBulkUploadImages,
   getImage: imageUploadProcs.getImage,
-  getImageVariant: imageUploadProcs.getImageVariant,
   adminDeleteImage: imageUploadProcs.adminDeleteImage,
   adminListImages: imageUploadProcs.adminListImages,
-  adminCreateImageCollection: imageUploadProcs.adminCreateImageCollection,
-  adminListImageCollections: imageUploadProcs.adminListImageCollections,
+  
+  // Bulletproof image upload procedures
+  bulletproofSingleUpload: bulletproofImageUploadProcs.bulletproofSingleUpload,
+  bulletproofProgressiveUpload: bulletproofImageUploadProcs.bulletproofProgressiveUpload,
+  bulletproofBulkUpload: bulletproofImageUploadProcs.bulletproofBulkUpload,
   
   // Partners procedures
   getPartners: partnersProcs.getPartners,

@@ -18,7 +18,7 @@ import {
   Building,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
-import { ImageUpload } from "~/components/ui/ImageUpload";
+import { BulletproofImageUpload } from "~/components/ui/BulletproofImageUpload";
 import { getImageUrl } from "~/utils";
 
 type PartnerFormData = z.infer<typeof partnerSchema>;
@@ -185,12 +185,12 @@ function EditPartnerPage() {
                       )}
                     </div>
 
-                    {/* Logo Upload */}
+                    {/* Logo Upload with Bulletproof Processing */}
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-text-dark dark:text-text-light mb-2">
                         Logo *
                       </label>
-                      <ImageUpload
+                      <BulletproofImageUpload
                         value={watch("logoUrl")}
                         onChange={(filePath) => {
                           if (filePath) {
@@ -199,12 +199,25 @@ function EditPartnerPage() {
                             setValue("logoUrl", "");
                           }
                         }}
-                        placeholder="Upload partner logo"
+                        placeholder="Upload partner logo - any format, optimized automatically"
                         previewClassName="h-32"
+                        enableClientOptimization={true}
+                        enableAutoRetry={true}
+                        enableProgressiveUpload={true}
+                        maxFileSize={50} // 50MB for partner logos
+                        onUploadComplete={(result) => {
+                          console.log('Partner logo uploaded successfully:', result);
+                        }}
+                        onUploadError={(error) => {
+                          console.error('Partner logo upload error:', error);
+                        }}
                       />
                       {errors.logoUrl && (
                         <p className="mt-1 text-sm text-red-600">{errors.logoUrl.message}</p>
                       )}
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        Bulletproof processing: Logos will be automatically optimized for web display while preserving transparency.
+                      </p>
                     </div>
 
                     {/* Alt Text */}
