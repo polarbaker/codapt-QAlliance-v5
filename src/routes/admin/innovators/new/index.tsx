@@ -5,7 +5,7 @@ import { useUserStore } from "~/stores/userStore";
 import { useTRPC } from "~/trpc/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "react-hot-toast";
-import React from "react";
+import { useEffect, useState, useCallback } from "react";
 import * as z from "zod";
 import {
   ArrowLeft,
@@ -48,6 +48,10 @@ function NewInnovatorPage() {
   
   const trpc = useTRPC();
   
+  const [previewKey, setPreviewKey] = useState(0); // Force preview re-render
+  const [lastImageUpdate, setLastImageUpdate] = useState<Date | null>(null);
+  const [debugMode] = useState(true); // Enable debugging
+  
   const {
     register,
     handleSubmit,
@@ -72,6 +76,13 @@ function NewInnovatorPage() {
     name: "achievements",
   });
 
+  // Enhanced logging with timestamps - memoized to prevent re-creation
+  const logWithTimestamp = useCallback((message: string, data?: any) => {
+    if (debugMode) {
+      console.log(`🔍 DEBUG: NewInnovatorForm [${new Date().toISOString()}] - ${message}`, data || '');
+    }
+  }, [debugMode]);
+
   const createMutation = useMutation(
     trpc.adminCreateInnovator.mutationOptions({
       onSuccess: async () => {
@@ -91,7 +102,8 @@ function NewInnovatorPage() {
     })
   );
 
-  const onSubmit = (data: InnovatorFormData) => {
+  // Memoized form submission handler to prevent re-creation on every render
+  const handleFormSubmit = useCallback((data: InnovatorFormData) => {
     const achievements = data.achievements.map(a => a.value).filter(Boolean);
     
     createMutation.mutate({
@@ -110,14 +122,139 @@ function NewInnovatorPage() {
         videoUrl: data.hasVideo && data.videoUrl ? data.videoUrl : undefined,
       },
     });
-  };
+  }, [adminToken, createMutation]);
+
+  // Memoized achievement handlers
+  const handleAddAchievement = useCallback(() => {
+    append({ value: "" });
+  }, [append]);
+
+  const handleRemoveAchievement = useCallback((index: number) => {
+    remove(index);
+  }, [remove]);
 
   const imageUrl = watch("image");
   const hasVideo = watch("hasVideo");
 
-  // Enhanced image field validation watcher
-  React.useEffect(() => {
-    console.log('🔍 DEBUG: Innovator NEW form - Image field validation watcher triggered:', {
+  // Memoized onChange handler to prevent re-creation on every render
+  const handleImageChange = useCallback((filePath: string | string[] | null) => {
+    logWithTimestamp('BulletproofImageUpload onChange called with:', {
+      filePath: filePath,
+      filePathType: typeof filePath,
+      filePathLength: typeof filePath === 'string' ? filePath?.length : (Array.isArray(filePath) ? filePath.length : 0),
+      isString: typeof filePath === 'string',
+      isNonEmptyString: typeof filePath === 'string' && filePath.trim() !== '',
+      trimmedValue: typeof filePath === 'string' ? filePath.trim() : filePath,
+      currentFormImageValue: watch("image"),
+      previewKey: previewKey,
+    });
+    
+    // Ensure filePath is a string before setting
+    const pathValue = typeof filePath === 'string' ? filePath : null;
+    
+    if (pathValue && pathValue.trim() !== '') {
+      logWithTimestamp('About to call setValue with valid pathValue:', {
+        valueToSet: pathValue,
+        shouldValidate: true, 
+        shouldDirty: true,
+        shouldTouch: true,
+      });
+      
+      setValue("image", pathValue, { 
+        shouldValidate: true, 
+        shouldDirty: true,
+        shouldTouch: true
+      });
+      
+      // Force preview update
+      setPreviewKey(prev => prev + 1);
+      setLastImageUpdate(new Date());
+      
+      logWithTimestamp('setValue called, checking immediate state:', {
+        setValueWith: pathValue,
+        newFormImageValue: watch("image"),
+        formErrors: errors,
+        imageFieldError: errors.image,
+        isDirty: formState.isDirty,
+        dirtyFields: formState.dirtyFields,
+        newPreviewKey: previewKey + 1,
+      });
+      
+      // Manual trigger call after setValue
+      const timeoutId = setTimeout(async () => {
+        logWithTimestamp('Manual trigger call for image validation');
+        const isValid = await trigger("image");
+        logWithTimestamp('Manual trigger result:', {
+          isValid: isValid,
+          currentImageValue: watch("image"),
+          imageFieldError: errors.image,
+          formIsValid: formState.isValid,
+        });
+      }, 100);
+      
+    } else if (filePath === null) {
+      // Handle clearing the image
+      setValue("image", "", { 
+        shouldValidate: true, 
+        shouldDirty: true,
+        shouldTouch: true
+      });
+      setPreviewKey(prev => prev + 1);
+    }
+  }, [setValue, trigger, watch, errors, formState, previewKey, logWithTimestamp]);
+
+  // Custom event listener for crosscutting image updates - Fixed dependency array
+  useEffect(() => {
+    const handleImageUpdated = (event: CustomEvent) => {
+      const { filePath: eventFilePath, timestamp, component } = event.detail || {};
+      
+      logWithTimestamp('Received imageUpdated event:', {
+        eventFilePath: eventFilePath,
+        currentImageUrl: imageUrl,
+        eventTimestamp: timestamp,
+        eventComponent: component,
+        shouldUpdate: eventFilePath && (eventFilePath === imageUrl || component === 'BulletproofImageUpload'),
+      });
+      
+      // Check if this event is for our current image or if it's a new upload
+      if (eventFilePath && (eventFilePath === imageUrl || component === 'BulletproofImageUpload')) {
+        logWithTimestamp('Event matches current context - forcing form and preview update');
+        
+        // Update form state if the path is different
+        if (eventFilePath !== imageUrl && eventFilePath.trim() !== '') {
+          logWithTimestamp('Updating form state from event');
+          setValue("image", eventFilePath, { 
+            shouldValidate: true, 
+            shouldDirty: true,
+            shouldTouch: true
+          });
+        }
+        
+        // Force preview update
+        setPreviewKey(prev => prev + 1);
+        setLastImageUpdate(new Date());
+        
+        // Trigger validation
+        const timeoutId = setTimeout(() => {
+          trigger("image");
+        }, 100);
+        
+        return () => clearTimeout(timeoutId);
+      }
+    };
+
+    window.addEventListener('imageUpdated', handleImageUpdated as EventListener);
+    document.addEventListener('imageUpdated', handleImageUpdated as EventListener);
+    
+    return () => {
+      window.removeEventListener('imageUpdated', handleImageUpdated as EventListener);
+      document.removeEventListener('imageUpdated', handleImageUpdated as EventListener);
+    };
+  }, [imageUrl, setValue, trigger, logWithTimestamp]); // Removed state setters to prevent loops
+
+  // Enhanced image field validation watcher - Fixed dependency array
+  useEffect(() => {
+    logWithTimestamp('Innovator NEW form - Image field validation watcher triggered:', {
       imageUrl: imageUrl,
       imageUrlType: typeof imageUrl,
       imageUrlLength: imageUrl?.length,
@@ -129,31 +266,39 @@ function NewInnovatorPage() {
       formIsValid: formState.isValid,
       formIsDirty: formState.isDirty,
       dirtyFields: formState.dirtyFields,
-      timestamp: new Date().toISOString()
+      previewKey: previewKey,
     });
+    
+    // Force preview re-render when image URL changes
+    if (imageUrl && imageUrl.trim() !== '') {
+      logWithTimestamp('Image URL changed - forcing preview update');
+      setPreviewKey(prev => prev + 1);
+      setLastImageUpdate(new Date());
+    }
     
     // Force re-validation if we have a valid image but still have an error
     if (imageUrl && imageUrl.trim() !== '' && errors.image) {
-      console.log('🔍 DEBUG: Innovator NEW form - Detected valid image with validation error, triggering re-validation');
-      setTimeout(() => {
+      logWithTimestamp('Detected valid image with validation error, triggering re-validation');
+      const timeoutId = setTimeout(() => {
         trigger("image");
       }, 100);
+      return () => clearTimeout(timeoutId);
     }
     
     // Force validation after setValue to ensure form state is updated
     if (imageUrl && imageUrl.trim() !== '') {
-      setTimeout(async () => {
-        console.log('🔍 DEBUG: Innovator NEW form - Forcing validation after image change');
+      const timeoutId = setTimeout(async () => {
+        logWithTimestamp('Forcing validation after image change');
         const isValid = await trigger("image");
-        console.log('🔍 DEBUG: Innovator NEW form - Validation result:', {
+        logWithTimestamp('Validation result:', {
           isValid: isValid,
           currentImageValue: imageUrl,
           imageFieldError: errors.image,
-          timestamp: new Date().toISOString()
         });
       }, 200);
+      return () => clearTimeout(timeoutId);
     }
-  }, [imageUrl, errors.image, formState.isValid, trigger]);
+  }, [imageUrl, errors.image, formState.isValid, trigger, logWithTimestamp]); // Fixed: removed previewKey from deps to prevent loop
 
   return (
     <div className="min-h-screen bg-background-light dark:bg-background-black">
@@ -189,7 +334,7 @@ function NewInnovatorPage() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-6xl">
             {/* Form */}
             <div className="lg:col-span-2">
-              <form onSubmit={handleSubmit(onSubmit)}>
+              <form onSubmit={handleSubmit(handleFormSubmit)}>
                 <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-8">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {/* Name */}
@@ -238,68 +383,7 @@ function NewInnovatorPage() {
                       
                       <BulletproofImageUpload
                         value={imageUrl}
-                        onChange={(filePath) => {
-                          console.log('🔍 DEBUG: Innovator NEW form - BulletproofImageUpload onChange called with:', {
-                            filePath: filePath,
-                            filePathType: typeof filePath,
-                            filePathLength: typeof filePath === 'string' ? filePath?.length : (Array.isArray(filePath) ? filePath.length : 0),
-                            isString: typeof filePath === 'string',
-                            isNonEmptyString: typeof filePath === 'string' && filePath.trim() !== '',
-                            trimmedValue: typeof filePath === 'string' ? filePath.trim() : filePath,
-                            currentFormImageValue: watch("image"),
-                            timestamp: new Date().toISOString()
-                          });
-                          
-                          // Ensure filePath is a string before setting
-                          const pathValue = typeof filePath === 'string' ? filePath : null;
-                          
-                          if (pathValue && pathValue.trim() !== '') {
-                            console.log('🔍 DEBUG: Innovator NEW form - About to call setValue with valid pathValue:', {
-                              valueToSet: pathValue,
-                              shouldValidate: true, 
-                              shouldDirty: true,
-                              shouldTouch: true,
-                              timestamp: new Date().toISOString()
-                            });
-                            
-                            setValue("image", pathValue, { 
-                              shouldValidate: true, 
-                              shouldDirty: true,
-                              shouldTouch: true
-                            });
-                            
-                            console.log('🔍 DEBUG: Innovator NEW form - setValue called, checking immediate state:', {
-                              setValueWith: pathValue,
-                              newFormImageValue: watch("image"),
-                              formErrors: errors,
-                              imageFieldError: errors.image,
-                              isDirty: formState.isDirty,
-                              dirtyFields: formState.dirtyFields,
-                              timestamp: new Date().toISOString()
-                            });
-                            
-                            // Manual trigger call after setValue
-                            setTimeout(async () => {
-                              console.log('🔍 DEBUG: Innovator NEW form - Manual trigger call for image validation');
-                              const isValid = await trigger("image");
-                              console.log('🔍 DEBUG: Innovator NEW form - Manual trigger result:', {
-                                isValid: isValid,
-                                currentImageValue: watch("image"),
-                                imageFieldError: errors.image,
-                                formIsValid: formState.isValid,
-                                timestamp: new Date().toISOString()
-                              });
-                            }, 100);
-                            
-                          } else if (filePath === null) {
-                            // Handle clearing the image
-                            setValue("image", "", { 
-                              shouldValidate: true, 
-                              shouldDirty: true,
-                              shouldTouch: true
-                            });
-                          }
-                        }}
+                        onChange={handleImageChange}
                         placeholder="Upload innovator profile image - bulletproof processing enabled"
                         className="mb-4"
                         multiple={false}
@@ -438,7 +522,7 @@ function NewInnovatorPage() {
                             {fields.length > 1 && (
                               <button
                                 type="button"
-                                onClick={() => remove(index)}
+                                onClick={() => handleRemoveAchievement(index)}
                                 className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                               >
                                 <X className="h-4 w-4" />
@@ -453,7 +537,7 @@ function NewInnovatorPage() {
                         )}
                         <button
                           type="button"
-                          onClick={() => append({ value: "" })}
+                          onClick={handleAddAchievement}
                           className="flex items-center space-x-2 px-3 py-2 text-secondary hover:bg-secondary/10 rounded-lg transition-colors"
                         >
                           <Plus className="h-4 w-4" />
@@ -510,7 +594,22 @@ function NewInnovatorPage() {
                   placeholderIcon={Users}
                   placeholderText="Profile image preview will appear here"
                   showFileName={true}
+                  key={previewKey} // Force re-render when previewKey changes
+                  updatedAt={lastImageUpdate} // Cache busting
+                  enableEventListening={true} // Enable event listening
+                  debugMode={debugMode} // Enhanced debugging
                 />
+
+                {/* Debug info panel */}
+                {debugMode && (
+                  <div className="mt-4 p-2 bg-gray-50 dark:bg-gray-700 rounded text-xs">
+                    <div>Image URL: {imageUrl || 'None'}</div>
+                    <div>Preview Key: {previewKey}</div>
+                    <div>Last Update: {lastImageUpdate ? lastImageUpdate.toISOString() : 'None'}</div>
+                    <div>Form Valid: {formState.isValid ? '✅' : '❌'}</div>
+                    <div>Image Error: {errors.image ? '❌' : '✅'}</div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

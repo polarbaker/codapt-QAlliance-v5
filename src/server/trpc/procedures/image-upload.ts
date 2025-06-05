@@ -246,7 +246,7 @@ const processImage = async (buffer: Buffer, fileName: string): Promise<{
     // Pre-processing memory check with emergency cleanup if needed
     if (isMemoryUnderPressure()) {
       console.warn(`Memory pressure detected before processing ${fileName}, performing cleanup`);
-      emergencyMemoryCleanup(`before processing ${fileName}`);
+      await emergencyMemoryCleanup(`before processing ${fileName}`);
       
       // Wait for cleanup to take effect
       await new Promise(resolve => setTimeout(resolve, 2000));
@@ -512,6 +512,57 @@ const uploadToStorage = async (fileName: string, buffer: Buffer, contentType: st
   } catch (error) {
     console.error(`Storage upload failed for ${fileName}:`, error);
     throw createImageError('Failed to save image to storage', 'storage');
+  }
+};
+
+// Helper function to validate image buffer content
+const validateImageBuffer = async (buffer: Buffer, expectedContentType: string): Promise<boolean> => {
+  try {
+    if (buffer.length < 10) {
+      return false;
+    }
+    
+    // Check magic bytes for common image formats
+    const arr = new Uint8Array(buffer);
+    
+    // JPEG
+    if (arr[0] === 0xFF && arr[1] === 0xD8 && arr[2] === 0xFF) {
+      return expectedContentType === 'image/jpeg' || expectedContentType.includes('jpeg');
+    }
+    
+    // PNG
+    if (arr[0] === 0x89 && arr[1] === 0x50 && arr[2] === 0x4E && arr[3] === 0x47) {
+      return expectedContentType === 'image/png';
+    }
+    
+    // GIF
+    if (arr[0] === 0x47 && arr[1] === 0x49 && arr[2] === 0x46) {
+      return expectedContentType === 'image/gif';
+    }
+    
+    // WebP
+    if (arr[0] === 0x52 && arr[1] === 0x49 && arr[2] === 0x46 && arr[3] === 0x46 && 
+        buffer.length >= 12 && arr[8] === 0x57 && arr[9] === 0x45 && arr[10] === 0x42 && arr[11] === 0x50) {
+      return expectedContentType === 'image/webp';
+    }
+    
+    // BMP
+    if (arr[0] === 0x42 && arr[1] === 0x4D) {
+      return expectedContentType === 'image/bmp';
+    }
+    
+    // For other formats or if magic bytes don't match, try Sharp validation
+    try {
+      const metadata = await sharp(buffer).metadata();
+      return metadata.format !== undefined;
+    } catch (sharpError) {
+      console.warn('Sharp validation failed for image buffer:', sharpError);
+      return false;
+    }
+    
+  } catch (error) {
+    console.warn('Image buffer validation error:', error);
+    return false;
   }
 };
 
@@ -845,7 +896,7 @@ export const adminBulkUploadImages = baseProcedure
     }
   });
 
-// Image retrieval (simplified)
+// Enhanced image retrieval with proper binary response, CORS headers, and improved caching
 export const getImage = baseProcedure
   .input(z.object({
     filePath: z.string().min(1, "File path is required"),
@@ -854,56 +905,180 @@ export const getImage = baseProcedure
     const { filePath } = input;
     
     try {
-      // Security check
-      if (filePath.includes('..') || filePath.includes('/') || filePath.includes('\\')) {
-        throw createImageError('Invalid file path', 'validation', { canRetry: false });
+      // Enhanced security check
+      if (filePath.includes('..') || filePath.includes('/') || filePath.includes('\\') || filePath.includes('\0')) {
+        throw createImageError('Invalid file path - security violation detected', 'validation', { canRetry: false });
       }
       
-      // Get from storage
-      const stream = await minioClient.getObject(BUCKET_NAME, filePath);
+      // Validate file path format (should be UUID.extension)
+      const filePathRegex = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.(jpg|jpeg|png|gif|webp|bmp|tiff|svg|avif)$/i;
+      if (!filePathRegex.test(filePath)) {
+        console.warn(`Invalid file path format: ${filePath}`);
+        throw createImageError('Invalid file path format', 'validation', { canRetry: false });
+      }
       
-      // Convert stream to buffer
+      console.log(`📷 Serving image: ${filePath}`);
+      
+      // Get from storage with enhanced error handling
+      let stream;
+      try {
+        stream = await minioClient.getObject(BUCKET_NAME, filePath);
+      } catch (storageError: any) {
+        console.error(`Storage retrieval error for ${filePath}:`, storageError);
+        
+        if (storageError.code === 'NoSuchKey' || storageError.message?.includes('NoSuchKey')) {
+          throw createImageError('Image not found in storage', 'storage', { canRetry: false });
+        }
+        
+        throw createImageError('Storage system temporarily unavailable', 'storage', { canRetry: true, retryAfter: 30 });
+      }
+      
+      // Convert stream to buffer with size limits
       const chunks: Buffer[] = [];
+      let totalSize = 0;
+      const maxImageSize = 100 * 1024 * 1024; // 100MB limit for serving
+      
       for await (const chunk of stream) {
+        totalSize += chunk.length;
+        
+        if (totalSize > maxImageSize) {
+          throw createImageError('Image too large to serve', 'size_limit', { canRetry: false });
+        }
+        
         chunks.push(chunk);
       }
       
       const buffer = Buffer.concat(chunks);
       
       if (buffer.length === 0) {
-        throw createImageError('Empty image file', 'storage', { canRetry: false });
+        throw createImageError('Empty image file in storage', 'storage', { canRetry: false });
       }
       
-      // Get file metadata
-      let contentType = 'image/jpeg';
+      // Get enhanced file metadata including proper MIME type
+      let contentType = 'image/jpeg'; // Default fallback
+      let cacheControl = 'public, max-age=31536000, immutable'; // 1 year cache
+      
       try {
         const stat = await minioClient.statObject(BUCKET_NAME, filePath);
-        contentType = stat.metaData?.['content-type'] || 'image/jpeg';
+        if (stat.metaData?.['content-type']) {
+          contentType = stat.metaData['content-type'];
+        } else {
+          // Detect content type from file extension if not stored
+          const extension = filePath.toLowerCase().split('.').pop();
+          const extensionToMimeType: Record<string, string> = {
+            'jpg': 'image/jpeg',
+            'jpeg': 'image/jpeg',
+            'png': 'image/png',
+            'gif': 'image/gif',
+            'webp': 'image/webp',
+            'bmp': 'image/bmp',
+            'tiff': 'image/tiff',
+            'tif': 'image/tiff',
+            'svg': 'image/svg+xml',
+            'avif': 'image/avif',
+          };
+          
+          if (extension && extensionToMimeType[extension]) {
+            contentType = extensionToMimeType[extension];
+          }
+        }
       } catch (statError) {
-        console.warn(`Failed to get metadata for ${filePath}:`, statError);
+        console.warn(`Failed to get metadata for ${filePath}, using extension-based detection:`, statError);
+        
+        // Fallback: detect from extension
+        const extension = filePath.toLowerCase().split('.').pop();
+        const extensionToMimeType: Record<string, string> = {
+          'jpg': 'image/jpeg',
+          'jpeg': 'image/jpeg',
+          'png': 'image/png',
+          'gif': 'image/gif',
+          'webp': 'image/webp',
+          'bmp': 'image/bmp',
+          'tiff': 'image/tiff',
+          'tif': 'image/tiff',
+          'svg': 'image/svg+xml',
+          'avif': 'image/avif',
+        };
+        
+        if (extension && extensionToMimeType[extension]) {
+          contentType = extensionToMimeType[extension];
+        }
       }
       
-      // Convert to base64 for transmission
-      const base64 = buffer.toString('base64');
+      // Enhanced content type validation
+      if (!contentType.startsWith('image/')) {
+        console.warn(`Invalid content type detected: ${contentType}, forcing to image/jpeg`);
+        contentType = 'image/jpeg';
+      }
       
-      return {
-        success: true,
-        data: `data:${contentType};base64,${base64}`,
-        contentType,
-        size: buffer.length,
-        filePath,
-      };
+      // Validate that the buffer actually contains image data
+      const isValidImage = await validateImageBuffer(buffer, contentType);
+      if (!isValidImage) {
+        console.error(`Invalid image data detected for ${filePath}`);
+        throw createImageError('Corrupted image data in storage', 'storage', { canRetry: false });
+      }
+      
+      console.log(`✅ Successfully serving image: ${filePath} (${(buffer.length / 1024).toFixed(1)}KB, ${contentType})`);
+      
+      // Enhanced headers for better cross-origin support and caching
+      const headers = new Headers({
+        'Content-Type': contentType,
+        'Content-Length': buffer.length.toString(),
+        'Cache-Control': cacheControl,
+        'ETag': `"${filePath}-${buffer.length}"`,
+        'Last-Modified': new Date().toUTCString(),
+        'X-Content-Type-Options': 'nosniff',
+        'X-Image-Path': filePath,
+        'X-Image-Size': buffer.length.toString(),
+        
+        // Enhanced CORS headers for cross-origin image access
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+        'Access-Control-Expose-Headers': 'Content-Type, Content-Length, ETag, Last-Modified, X-Image-Path, X-Image-Size',
+        'Access-Control-Max-Age': '86400', // 24 hours
+        
+        // Additional headers for better browser compatibility
+        'Vary': 'Accept-Encoding, Origin',
+        'X-Robots-Tag': 'noindex', // Prevent search engine indexing of direct image URLs
+        
+        // Security headers
+        'X-Frame-Options': 'SAMEORIGIN',
+        'Referrer-Policy': 'strict-origin-when-cross-origin',
+      });
+      
+      // Return binary data with enhanced headers
+      return new Response(buffer, {
+        status: 200,
+        headers,
+      });
       
     } catch (error) {
-      console.error(`Image retrieval error for ${filePath}:`, error);
+      console.error(`❌ Image serving error for ${filePath}:`, error);
       
-      if (error instanceof Error && error.message.includes('NoSuchKey')) {
-        throw createImageError('Image not found', 'storage', { canRetry: false });
+      // Enhanced error categorization for better client handling
+      if (error instanceof Error && 'category' in error) {
+        throw error; // Re-throw ImageUploadError as-is
+      }
+      
+      if (error instanceof Error) {
+        if (error.message.includes('NoSuchKey') || error.message.includes('not found')) {
+          throw createImageError('Image not found', 'storage', { canRetry: false });
+        }
+        
+        if (error.message.includes('timeout') || error.message.includes('ETIMEDOUT')) {
+          throw createImageError('Storage timeout - please try again', 'storage', { canRetry: true, retryAfter: 10 });
+        }
+        
+        if (error.message.includes('connection') || error.message.includes('ECONNRESET')) {
+          throw createImageError('Storage connection issue - please try again', 'storage', { canRetry: true, retryAfter: 5 });
+        }
       }
       
       throw createImageError(
         error instanceof Error ? error.message : 'Failed to retrieve image',
-        'storage'
+        'storage',
+        { canRetry: true, retryAfter: 30 }
       );
     }
   });

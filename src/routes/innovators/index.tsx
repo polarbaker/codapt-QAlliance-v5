@@ -1,10 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, Fragment, useEffect } from "react";
-import { Search, Filter, Play, X, Award, User, MapPin, Briefcase } from "lucide-react";
+import { useState, Fragment, useEffect, useCallback } from "react";
+import { Search, Filter, Play, X, Award, User, MapPin, Briefcase, RefreshCw, AlertTriangle } from "lucide-react";
 import { useTRPC } from "~/trpc/react";
 import { useQuery } from "@tanstack/react-query";
 import { Dialog, Transition } from "@headlessui/react";
-import { getCacheBustedImageUrl } from "~/utils";
+import { getCacheBustedImageUrl, isValidImagePath, getImageUrlWithFallback, normalizeImageUrl, getAbsoluteImageUrl } from "~/utils";
 
 export const Route = createFileRoute("/innovators/")({
   component: Innovators,
@@ -35,32 +35,62 @@ interface InnovatorModalProps {
 function InnovatorModal({ innovator, isOpen, onClose }: InnovatorModalProps) {
   const [modalImageError, setModalImageError] = useState(false);
   const [modalImageLoading, setModalImageLoading] = useState(true);
+  const [modalRetryCount, setModalRetryCount] = useState(0);
   
   // Reset image states when modal opens with new innovator
   useEffect(() => {
     if (isOpen && innovator) {
       setModalImageError(false);
       setModalImageLoading(true);
+      setModalRetryCount(0);
     }
   }, [isOpen, innovator?.id]);
   
   if (!innovator) return null;
   
-  // Handle modal image loading events
-  const handleModalImageError = () => {
+  // Enhanced image event handlers for modal
+  const handleModalImageError = useCallback(() => {
+    console.warn(`Modal image load failed for ${innovator.name}:`, innovator.avatar);
     setModalImageError(true);
     setModalImageLoading(false);
-  };
+    
+    // Auto-retry logic for modal images
+    if (modalRetryCount < 2) {
+      const retryDelay = Math.pow(2, modalRetryCount) * 1000;
+      setTimeout(() => {
+        setModalRetryCount(prev => prev + 1);
+        setModalImageError(false);
+        setModalImageLoading(true);
+        
+        // Force image reload by updating src
+        const imgElements = document.querySelectorAll(`img[alt*="${innovator.name}"]`);
+        imgElements.forEach(img => {
+          const imgEl = img as HTMLImageElement;
+          if (imgEl.src.includes(innovator.avatar)) {
+            const newSrc = getCacheBustedImageUrl(innovator.avatar, new Date());
+            imgEl.src = newSrc;
+          }
+        });
+      }, retryDelay);
+    }
+  }, [innovator.name, innovator.avatar, modalRetryCount]);
 
-  const handleModalImageLoad = () => {
+  const handleModalImageLoad = useCallback(() => {
     setModalImageError(false);
     setModalImageLoading(false);
-  };
+    setModalRetryCount(0);
+  }, []);
 
-  const handleModalImageLoadStart = () => {
+  const handleModalImageLoadStart = useCallback(() => {
     setModalImageLoading(true);
     setModalImageError(false);
-  };
+  }, []);
+
+  const handleModalRetry = useCallback(() => {
+    setModalRetryCount(prev => prev + 1);
+    setModalImageError(false);
+    setModalImageLoading(true);
+  }, []);
   
   // Parse achievements if they exist
   let achievementsList: string[] = [];
@@ -72,6 +102,17 @@ function InnovatorModal({ innovator, isOpen, onClose }: InnovatorModalProps) {
   } catch (error) {
     console.error("Error parsing achievements:", error);
   }
+
+  // Enhanced image URL generation with validation
+  const getInnovatorImageUrl = useCallback((path: string) => {
+    if (!path || !isValidImagePath(path)) {
+      console.warn('Invalid image path for innovator:', path);
+      return '';
+    }
+    return getCacheBustedImageUrl(path, innovator.updatedAt);
+  }, [innovator.updatedAt]);
+
+  const innovatorImageUrl = getInnovatorImageUrl(innovator.avatar);
 
   return (
     <Transition appear show={isOpen} as={Fragment}>
@@ -130,10 +171,20 @@ function InnovatorModal({ innovator, isOpen, onClose }: InnovatorModalProps) {
                         ></iframe>
                       </div>
                     ) : (
-                      <div className="aspect-video overflow-hidden rounded-lg bg-neutral-dark/20">
+                      <div className="aspect-video overflow-hidden rounded-lg bg-neutral-dark/20 relative">
                         {modalImageError ? (
-                          <div className="h-full w-full flex items-center justify-center">
+                          <div className="h-full w-full flex flex-col items-center justify-center space-y-2">
                             <User className="h-16 w-16 text-text-light/40" />
+                            <p className="text-sm text-text-light/60">Image not available</p>
+                            {modalRetryCount < 3 && (
+                              <button
+                                onClick={handleModalRetry}
+                                className="text-xs text-blue-400 hover:text-blue-300 flex items-center space-x-1"
+                              >
+                                <RefreshCw className="h-3 w-3" />
+                                <span>Retry ({modalRetryCount}/3)</span>
+                              </button>
+                            )}
                           </div>
                         ) : (
                           <div className="relative h-full w-full">
@@ -142,16 +193,18 @@ function InnovatorModal({ innovator, isOpen, onClose }: InnovatorModalProps) {
                                 <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-t-2 border-secondary"></div>
                               </div>
                             )}
-                            <img
-                              src={getCacheBustedImageUrl(innovator.avatar, innovator.updatedAt)}
-                              alt={`${innovator.name} - ${innovator.role}`}
-                              className={`h-full w-full object-cover transition-opacity duration-300 ${
-                                modalImageLoading ? 'opacity-0' : 'opacity-100'
-                              }`}
-                              onError={handleModalImageError}
-                              onLoad={handleModalImageLoad}
-                              onLoadStart={handleModalImageLoadStart}
-                            />
+                            {innovatorImageUrl && (
+                              <img
+                                src={innovatorImageUrl}
+                                alt={`${innovator.name} - ${innovator.role}`}
+                                className={`h-full w-full object-cover transition-opacity duration-300 ${
+                                  modalImageLoading ? 'opacity-0' : 'opacity-100'
+                                }`}
+                                onError={handleModalImageError}
+                                onLoad={handleModalImageLoad}
+                                onLoadStart={handleModalImageLoadStart}
+                              />
+                            )}
                           </div>
                         )}
                       </div>
@@ -160,18 +213,31 @@ function InnovatorModal({ innovator, isOpen, onClose }: InnovatorModalProps) {
                   
                   <div>
                     <div className="mb-4 flex items-center">
-                      <div className="mr-4 h-12 w-12 rounded-full overflow-hidden bg-neutral-dark/20">
+                      <div className="mr-4 h-12 w-12 rounded-full overflow-hidden bg-neutral-dark/20 relative">
                         {modalImageError ? (
                           <div className="h-full w-full flex items-center justify-center">
                             <User className="h-6 w-6 text-text-light/40" />
                           </div>
                         ) : (
-                          <img
-                            src={getCacheBustedImageUrl(innovator.avatar, innovator.updatedAt)}
-                            alt={`${innovator.name} avatar`}
-                            className="h-full w-full object-cover"
-                            onError={handleModalImageError}
-                          />
+                          <>
+                            {modalImageLoading && (
+                              <div className="absolute inset-0 flex items-center justify-center bg-neutral-dark/20 z-10">
+                                <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-t-2 border-secondary"></div>
+                              </div>
+                            )}
+                            {innovatorImageUrl && (
+                              <img
+                                src={innovatorImageUrl}
+                                alt={`${innovator.name} avatar`}
+                                className={`h-full w-full object-cover transition-opacity duration-300 ${
+                                  modalImageLoading ? 'opacity-0' : 'opacity-100'
+                                }`}
+                                onError={handleModalImageError}
+                                onLoad={handleModalImageLoad}
+                                onLoadStart={handleModalImageLoadStart}
+                              />
+                            )}
+                          </>
                         )}
                       </div>
                       <div>
@@ -220,19 +286,60 @@ function Innovators() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [imageErrors, setImageErrors] = useState<Set<number>>(new Set());
   const [imageLoading, setImageLoading] = useState<Set<number>>(new Set());
+  const [imageRetryCount, setImageRetryCount] = useState<Map<number, number>>(new Map());
   const trpc = useTRPC();
   
-  // Handle image loading events
-  const handleImageError = (innovatorId: number) => {
+  // Enhanced image event handlers with retry logic
+  const handleImageError = useCallback((innovatorId: number, imagePath: string) => {
+    console.warn(`Image load failed for innovator ${innovatorId}:`, imagePath);
+    
     setImageErrors(prev => new Set(prev).add(innovatorId));
     setImageLoading(prev => {
       const newSet = new Set(prev);
       newSet.delete(innovatorId);
       return newSet;
     });
-  };
+    
+    // Enhanced auto-retry logic with better URL generation
+    const currentRetryCount = imageRetryCount.get(innovatorId) || 0;
+    if (currentRetryCount < 2) {
+      const retryDelay = Math.pow(2, currentRetryCount) * 1000; // Exponential backoff
+      
+      console.log(`Innovators page - Auto-retry scheduled for innovator ${innovatorId} in ${retryDelay}ms`, {
+        currentRetryCount,
+        imagePath,
+      });
+      
+      setTimeout(() => {
+        setImageRetryCount(prev => new Map(prev).set(innovatorId, currentRetryCount + 1));
+        setImageErrors(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(innovatorId);
+          return newSet;
+        });
+        setImageLoading(prev => new Set(prev).add(innovatorId));
+        
+        // Force image reload by updating src with enhanced cache-busting
+        const imgElement = document.querySelector(`img[data-innovator-id="${innovatorId}"]`) as HTMLImageElement;
+        if (imgElement && imagePath) {
+          const newUrl = getCacheBustedImageUrl(imagePath, new Date());
+          const normalizedUrl = normalizeImageUrl(newUrl);
+          
+          console.log('Innovators page - Forcing image reload with new URL:', {
+            innovatorId,
+            oldSrc: imgElement.src,
+            newUrl: normalizedUrl,
+          });
+          
+          imgElement.src = normalizedUrl;
+        }
+      }, retryDelay);
+    } else {
+      console.log(`Innovators page - Max retry attempts reached for innovator ${innovatorId}`);
+    }
+  }, [imageRetryCount]);
 
-  const handleImageLoad = (innovatorId: number) => {
+  const handleImageLoad = useCallback((innovatorId: number) => {
     setImageErrors(prev => {
       const newSet = new Set(prev);
       newSet.delete(innovatorId);
@@ -243,11 +350,43 @@ function Innovators() {
       newSet.delete(innovatorId);
       return newSet;
     });
-  };
+    setImageRetryCount(prev => {
+      const newMap = new Map(prev);
+      newMap.delete(innovatorId);
+      return newMap;
+    });
+  }, []);
 
-  const handleImageLoadStart = (innovatorId: number) => {
+  const handleImageLoadStart = useCallback((innovatorId: number) => {
     setImageLoading(prev => new Set(prev).add(innovatorId));
-  };
+  }, []);
+
+  const handleManualRetry = useCallback((innovatorId: number, imagePath: string) => {
+    const currentRetryCount = imageRetryCount.get(innovatorId) || 0;
+    console.log(`Innovators page - Manual retry for innovator ${innovatorId}`, { currentRetryCount });
+    
+    setImageRetryCount(prev => new Map(prev).set(innovatorId, currentRetryCount + 1));
+    setImageErrors(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(innovatorId);
+      return newSet;
+    });
+    setImageLoading(prev => new Set(prev).add(innovatorId));
+    
+    // Force image reload with enhanced URL generation
+    const imgElement = document.querySelector(`img[data-innovator-id="${innovatorId}"]`) as HTMLImageElement;
+    if (imgElement) {
+      const newUrl = getCacheBustedImageUrl(imagePath, new Date());
+      const normalizedUrl = normalizeImageUrl(newUrl);
+      
+      console.log('Innovators page - Manual retry with new URL:', {
+        innovatorId,
+        newUrl: normalizedUrl,
+      });
+      
+      imgElement.src = normalizedUrl;
+    }
+  }, [imageRetryCount]);
   
   // Fetch innovators using tRPC
   const innovatorsQuery = useQuery(
@@ -275,6 +414,39 @@ function Innovators() {
   const closeModal = () => {
     setIsModalOpen(false);
   };
+
+  // Enhanced image URL generation with validation and absolute URL support
+  const getInnovatorImageUrl = useCallback((innovator: InnovatorData) => {
+    if (!innovator.avatar || !isValidImagePath(innovator.avatar)) {
+      console.warn('Invalid avatar path for innovator:', innovator.name, innovator.avatar);
+      return '';
+    }
+    
+    try {
+      const url = getCacheBustedImageUrl(innovator.avatar, innovator.updatedAt);
+      const normalizedUrl = normalizeImageUrl(url);
+      
+      console.log('🔍 Innovators page - Generated image URL:', {
+        innovatorName: innovator.name,
+        avatarPath: innovator.avatar,
+        generatedUrl: url,
+        normalizedUrl: normalizedUrl,
+        updatedAt: innovator.updatedAt,
+      });
+      
+      return normalizedUrl;
+    } catch (error) {
+      console.warn('Error generating innovator image URL:', error, { innovator: innovator.name });
+      
+      // Fallback to absolute URL
+      try {
+        return getAbsoluteImageUrl(innovator.avatar);
+      } catch (fallbackError) {
+        console.warn('Fallback URL generation failed for innovator:', innovator.name, fallbackError);
+        return '';
+      }
+    }
+  }, []);
 
   // Sort innovators by order if data is available
   const sortedInnovators = innovatorsQuery.data?.innovators.slice().sort((a, b) => a.order - b.order);
@@ -369,9 +541,16 @@ function Innovators() {
             </div>
           ) : innovatorsQuery.isError ? (
             <div className="text-center py-16">
-              <Filter className="mx-auto h-16 w-16 text-text-dark/40 dark:text-text-light/40 mb-4" />
+              <AlertTriangle className="mx-auto h-16 w-16 text-red-500 mb-4" />
               <h3 className="text-2xl font-bold text-text-dark dark:text-text-light mb-2">Error loading innovators</h3>
               <p className="text-text-dark/60 dark:text-text-light/60">{innovatorsQuery.error.message}</p>
+              <button
+                onClick={() => innovatorsQuery.refetch()}
+                className="mt-4 inline-flex items-center space-x-2 px-4 py-2 bg-secondary text-white rounded-lg hover:bg-secondary-light"
+              >
+                <RefreshCw className="h-4 w-4" />
+                <span>Retry</span>
+              </button>
             </div>
           ) : sortedInnovators?.length === 0 ? (
             <div className="text-center py-16">
@@ -381,74 +560,99 @@ function Innovators() {
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {sortedInnovators?.map((innovator) => (
-                <div 
-                  key={innovator.id}
-                  className="group cursor-pointer overflow-hidden rounded-lg bg-background-light dark:bg-neutral-dark/30 transition-all duration-300 hover:-translate-y-2 hover:shadow-lg"
-                  onClick={() => handleInnovatorClick(innovator)}
-                >
-                  {/* Innovator Image */}
-                  <div className="aspect-[3/4] relative overflow-hidden bg-neutral-light/10 dark:bg-neutral-dark/10">
-                    {imageErrors.has(innovator.id) ? (
-                      <div className="h-full w-full flex items-center justify-center bg-neutral-light/20 dark:bg-neutral-dark/20">
-                        <User className="h-16 w-16 text-text-dark/40 dark:text-text-light/40" />
-                      </div>
-                    ) : (
-                      <div className="relative h-full w-full">
-                        {imageLoading.has(innovator.id) && (
-                          <div className="absolute inset-0 flex items-center justify-center bg-neutral-light/20 dark:bg-neutral-dark/20 z-10">
-                            <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-t-2 border-secondary"></div>
-                          </div>
-                        )}
-                        <img
-                          src={getCacheBustedImageUrl(innovator.avatar, innovator.updatedAt)}
-                          alt={`${innovator.name} - ${innovator.role}`}
-                          className={`h-full w-full object-cover transition-opacity duration-300 ${
-                            imageLoading.has(innovator.id) ? 'opacity-0' : 'opacity-100'
-                          }`}
-                          onError={() => handleImageError(innovator.id)}
-                          onLoad={() => handleImageLoad(innovator.id)}
-                          onLoadStart={() => handleImageLoadStart(innovator.id)}
-                          loading="lazy"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-background-black via-background-black/40 to-transparent"></div>
-                      </div>
-                    )}
-                    
-                    {/* Featured Badge */}
-                    {innovator.featured && (
-                      <div className="absolute top-4 right-4">
-                        <span className="inline-block rounded-full bg-secondary px-3 py-1 text-xs font-medium text-white">
-                          Featured
-                        </span>
-                      </div>
-                    )}
-                    
-                    {/* Play button for videos */}
-                    {innovator.hasVideo && !imageErrors.has(innovator.id) && (
-                      <div className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-300 group-hover:opacity-100">
-                        <button className="flex h-16 w-16 items-center justify-center rounded-full bg-secondary text-white transition-transform hover:scale-110">
-                          <Play size={32} className="ml-1" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                  
-                  {/* Innovator Content */}
-                  <div className="p-6">
-                    <h3 className="mb-2 text-xl font-bold text-text-dark dark:text-text-light group-hover:text-secondary transition-colors">
-                      {innovator.name}
-                    </h3>
-                    <div className="mb-3 flex items-center text-sm text-secondary">
-                      <Briefcase className="mr-1 h-4 w-4" />
-                      <span>{innovator.role}</span>
+              {sortedInnovators?.map((innovator) => {
+                const innovatorImageUrl = getInnovatorImageUrl(innovator);
+                const hasImageError = imageErrors.has(innovator.id);
+                const isImageLoading = imageLoading.has(innovator.id);
+                const retryCount = imageRetryCount.get(innovator.id) || 0;
+                
+                return (
+                  <div 
+                    key={innovator.id}
+                    className="group cursor-pointer overflow-hidden rounded-lg bg-background-light dark:bg-neutral-dark/30 transition-all duration-300 hover:-translate-y-2 hover:shadow-lg"
+                    onClick={() => handleInnovatorClick(innovator)}
+                  >
+                    {/* Innovator Image */}
+                    <div className="aspect-[3/4] relative overflow-hidden bg-neutral-light/10 dark:bg-neutral-dark/10">
+                      {hasImageError ? (
+                        <div className="h-full w-full flex flex-col items-center justify-center bg-neutral-light/20 dark:bg-neutral-dark/20 space-y-2">
+                          <User className="h-16 w-16 text-text-dark/40 dark:text-text-light/40" />
+                          <p className="text-xs text-text-dark/60 dark:text-text-light/60 text-center px-2">
+                            Image not available
+                          </p>
+                          {retryCount < 3 && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleManualRetry(innovator.id, innovator.avatar);
+                              }}
+                              className="text-xs text-blue-600 hover:text-blue-700 flex items-center space-x-1"
+                            >
+                              <RefreshCw className="h-3 w-3" />
+                              <span>Retry ({retryCount}/3)</span>
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="relative h-full w-full">
+                          {isImageLoading && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-neutral-light/20 dark:bg-neutral-dark/20 z-10">
+                              <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-t-2 border-secondary"></div>
+                            </div>
+                          )}
+                          {innovatorImageUrl && (
+                            <img
+                              data-innovator-id={innovator.id}
+                              src={innovatorImageUrl}
+                              alt={`${innovator.name} - ${innovator.role}`}
+                              className={`h-full w-full object-cover transition-opacity duration-300 ${
+                                isImageLoading ? 'opacity-0' : 'opacity-100'
+                              }`}
+                              onError={() => handleImageError(innovator.id, innovator.avatar)}
+                              onLoad={() => handleImageLoad(innovator.id)}
+                              onLoadStart={() => handleImageLoadStart(innovator.id)}
+                              loading="lazy"
+                            />
+                          )}
+                          <div className="absolute inset-0 bg-gradient-to-t from-background-black via-background-black/40 to-transparent"></div>
+                        </div>
+                      )}
+                      
+                      {/* Featured Badge */}
+                      {innovator.featured && (
+                        <div className="absolute top-4 right-4">
+                          <span className="inline-block rounded-full bg-secondary px-3 py-1 text-xs font-medium text-white">
+                            Featured
+                          </span>
+                        </div>
+                      )}
+                      
+                      {/* Play button for videos */}
+                      {innovator.hasVideo && !hasImageError && (
+                        <div className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-300 group-hover:opacity-100">
+                          <button className="flex h-16 w-16 items-center justify-center rounded-full bg-secondary text-white transition-transform hover:scale-110">
+                            <Play size={32} className="ml-1" />
+                          </button>
+                        </div>
+                      )}
                     </div>
-                    <p className="text-sm text-text-dark/80 dark:text-text-light/80 line-clamp-3">
-                      {innovator.impact}
-                    </p>
+                    
+                    {/* Innovator Content */}
+                    <div className="p-6">
+                      <h3 className="mb-2 text-xl font-bold text-text-dark dark:text-text-light group-hover:text-secondary transition-colors">
+                        {innovator.name}
+                      </h3>
+                      <div className="mb-3 flex items-center text-sm text-secondary">
+                        <Briefcase className="mr-1 h-4 w-4" />
+                        <span>{innovator.role}</span>
+                      </div>
+                      <p className="text-sm text-text-dark/80 dark:text-text-light/80 line-clamp-3">
+                        {innovator.impact}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

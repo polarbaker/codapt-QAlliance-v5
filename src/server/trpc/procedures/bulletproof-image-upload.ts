@@ -563,7 +563,7 @@ const processImageWithFallbacks = async (
   // Pre-processing memory check
   if (isMemoryUnderPressure()) {
     console.warn('System under memory pressure, performing cleanup before processing');
-    emergencyMemoryCleanup('pre-processing cleanup');
+    await emergencyMemoryCleanup('pre-processing cleanup');
     
     // Wait a bit for cleanup to take effect
     await new Promise(resolve => setTimeout(resolve, 2000));
@@ -610,7 +610,7 @@ const processImageWithFallbacks = async (
       
       // If this was a memory error, try emergency cleanup
       if (lastError.message.toLowerCase().includes('memory')) {
-        emergencyMemoryCleanup(`after ${strategy.name} failure`);
+        await emergencyMemoryCleanup(`after ${strategy.name} failure`);
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
       
@@ -901,7 +901,7 @@ export const bulletproofProgressiveUpload = baseProcedure
           // Pre-assembly memory check
           if (isMemoryUnderPressure()) {
             console.warn(`Memory pressure detected before assembly of ${fileName}, performing cleanup`);
-            emergencyMemoryCleanup(`before assembly of ${fileName}`);
+            await emergencyMemoryCleanup(`before assembly of ${fileName}`);
             await new Promise(resolve => setTimeout(resolve, 2000));
           }
           
@@ -1269,6 +1269,201 @@ const detectImageTypeEnhanced = async (buffer: Buffer, fileName: string): Promis
   }
 };
 
+// Helper function to resize images for variants
+const resizeImageForVariant = async (buffer: Buffer, variantType: string): Promise<Buffer> => {
+  const variantSizes: Record<string, { width: number; height: number; quality: number }> = {
+    thumbnail: { width: 150, height: 150, quality: 80 },
+    small: { width: 400, height: 400, quality: 85 },
+    medium: { width: 800, height: 600, quality: 85 },
+    large: { width: 1200, height: 900, quality: 90 },
+  };
+  
+  const config = variantSizes[variantType];
+  if (!config) {
+    return buffer; // Return original if variant not recognized
+  }
+  
+  try {
+    const resized = await sharp(buffer)
+      .resize(config.width, config.height, {
+        fit: 'inside',
+        withoutEnlargement: true,
+      })
+      .jpeg({ quality: config.quality, progressive: true })
+      .toBuffer();
+    
+    return resized;
+  } catch (error) {
+    console.warn(`Failed to resize image for variant ${variantType}:`, error);
+    return buffer; // Return original on error
+  }
+};
+
+// Enhanced image variant retrieval for responsive images
+export const getImageVariant = baseProcedure
+  .input(z.object({
+    filePath: z.string().min(1, "File path is required"),
+    variantType: z.enum(['thumbnail', 'small', 'medium', 'large', 'original']).optional(),
+  }))
+  .query(async ({ input }) => {
+    const { filePath, variantType = 'original' } = input;
+    
+    try {
+      // Enhanced security check
+      if (filePath.includes('..') || filePath.includes('/') || filePath.includes('\\') || filePath.includes('\0')) {
+        throw createBulletproofError('Invalid file path - security violation detected', 'validation', { canRetry: false });
+      }
+      
+      // Validate file path format (should be UUID.extension)
+      const filePathRegex = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.(jpg|jpeg|png|gif|webp|bmp|tiff|svg|avif)$/i;
+      if (!filePathRegex.test(filePath)) {
+        console.warn(`Invalid file path format for variant: ${filePath}`);
+        throw createBulletproofError('Invalid file path format', 'validation', { canRetry: false });
+      }
+      
+      console.log(`📷 Serving image variant: ${filePath} (${variantType})`);
+      
+      // For now, serve the original image (variants can be implemented later)
+      // In a full implementation, you would generate/serve different sized versions
+      let targetFilePath = filePath;
+      
+      // If requesting original or no variants exist, serve the original
+      if (variantType === 'original') {
+        targetFilePath = filePath;
+      } else {
+        // For other variants, try to find the variant file or fall back to original
+        // This is where you'd implement actual variant logic
+        // For now, we'll serve the original and resize on-the-fly if needed
+        targetFilePath = filePath;
+      }
+      
+      // Get from storage with enhanced error handling
+      let stream;
+      try {
+        stream = await minioClient.getObject(BUCKET_NAME, targetFilePath);
+      } catch (storageError: any) {
+        console.error(`Storage retrieval error for variant ${targetFilePath}:`, storageError);
+        
+        if (storageError.code === 'NoSuchKey' || storageError.message?.includes('NoSuchKey')) {
+          throw createBulletproofError('Image variant not found in storage', 'storage', { canRetry: false });
+        }
+        
+        throw createBulletproofError('Storage system temporarily unavailable', 'storage', { canRetry: true, retryAfter: 30 });
+      }
+      
+      // Convert stream to buffer with size limits
+      const chunks: Buffer[] = [];
+      let totalSize = 0;
+      const maxImageSize = 100 * 1024 * 1024; // 100MB limit for serving
+      
+      for await (const chunk of stream) {
+        totalSize += chunk.length;
+        
+        if (totalSize > maxImageSize) {
+          throw createBulletproofError('Image variant too large to serve', 'size_limit', { canRetry: false });
+        }
+        
+        chunks.push(chunk);
+      }
+      
+      let buffer = Buffer.concat(chunks);
+      
+      if (buffer.length === 0) {
+        throw createBulletproofError('Empty image variant file in storage', 'storage', { canRetry: false });
+      }
+      
+      // On-the-fly resizing for variants (if not original)
+      if (variantType !== 'original') {
+        try {
+          buffer = await resizeImageForVariant(buffer, variantType);
+        } catch (resizeError) {
+          console.warn(`Failed to resize image for variant ${variantType}, serving original:`, resizeError);
+          // Continue with original buffer if resize fails
+        }
+      }
+      
+      // Get enhanced file metadata including proper MIME type
+      let contentType = 'image/jpeg'; // Default fallback
+      let cacheControl = 'public, max-age=31536000, immutable'; // 1 year cache for variants
+      
+      try {
+        const stat = await minioClient.statObject(BUCKET_NAME, targetFilePath);
+        if (stat.metaData?.['content-type']) {
+          contentType = stat.metaData['content-type'];
+        } else {
+          // Detect content type from file extension if not stored
+          const extension = targetFilePath.toLowerCase().split('.').pop();
+          const extensionToMimeType: Record<string, string> = {
+            'jpg': 'image/jpeg',
+            'jpeg': 'image/jpeg',
+            'png': 'image/png',
+            'gif': 'image/gif',
+            'webp': 'image/webp',
+            'bmp': 'image/bmp',
+            'tiff': 'image/tiff',
+            'tif': 'image/tiff',
+            'svg': 'image/svg+xml',
+            'avif': 'image/avif',
+          };
+          
+          if (extension && extensionToMimeType[extension]) {
+            contentType = extensionToMimeType[extension];
+          }
+        }
+      } catch (statError) {
+        console.warn(`Failed to get metadata for variant ${targetFilePath}:`, statError);
+      }
+      
+      // Enhanced content type validation
+      if (!contentType.startsWith('image/')) {
+        console.warn(`Invalid content type detected for variant: ${contentType}, forcing to image/jpeg`);
+        contentType = 'image/jpeg';
+      }
+      
+      console.log(`✅ Successfully serving image variant: ${filePath} (${variantType}, ${(buffer.length / 1024).toFixed(1)}KB, ${contentType})`);
+      
+      // Return binary data with proper headers
+      return new Response(buffer, {
+        status: 200,
+        headers: {
+          'Content-Type': contentType,
+          'Content-Length': buffer.length.toString(),
+          'Cache-Control': cacheControl,
+          'ETag': `"${filePath}-${variantType}-${buffer.length}"`,
+          'Last-Modified': new Date().toUTCString(),
+          'X-Content-Type-Options': 'nosniff',
+          'X-Image-Path': filePath,
+          'X-Image-Variant': variantType,
+          'X-Image-Size': buffer.length.toString(),
+        },
+      });
+      
+    } catch (error) {
+      console.error(`❌ Image variant serving error for ${filePath} (${variantType}):`, error);
+      
+      // Enhanced error categorization for better client handling
+      if (error instanceof Error && 'category' in error) {
+        throw error; // Re-throw BulletproofImageError as-is
+      }
+      
+      if (error instanceof Error) {
+        if (error.message.includes('NoSuchKey') || error.message.includes('not found')) {
+          throw createBulletproofError('Image variant not found', 'storage', { canRetry: false });
+        }
+        
+        if (error.message.includes('timeout') || error.message.includes('ETIMEDOUT')) {
+          throw createBulletproofError('Storage timeout - please try again', 'storage', { canRetry: true, retryAfter: 10 });
+        }
+      }
+      
+      throw createBulletproofError(
+        error instanceof Error ? error.message : 'Failed to retrieve image variant',
+        'storage',
+        { canRetry: true, retryAfter: 30 }
+      );
+    }
+  });
+
 export const bulletproofSingleUpload = baseProcedure
   .input(z.object({
     adminToken: z.string(),
@@ -1521,7 +1716,7 @@ export const bulletproofBulkUpload = baseProcedure
           const currentMemory = getMemoryStats();
           if (currentMemory.system.pressure === 'high') {
             console.warn('High memory pressure detected, performing cleanup');
-            emergencyMemoryCleanup(`before bulk image ${i + 1}`);
+            await emergencyMemoryCleanup(`before bulk image ${i + 1}`);
             await new Promise(resolve => setTimeout(resolve, 2000));
           }
           

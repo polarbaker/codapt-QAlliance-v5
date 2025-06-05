@@ -19,15 +19,10 @@ export function optimizeMemorySettings(): void {
     sharp.concurrency(concurrency); // Allow multiple threads for better performance
     sharp.simd(false); // Keep disabled for memory predictability
     
-    // Note: sharp.limitInputPixels() is not available in current Sharp versions
-    // Instead, we'll handle pixel limits in individual processing operations
-    console.log('Note: Input pixel limits will be applied per-operation rather than globally');
-    
     console.log('Enhanced Sharp configuration applied:');
     console.log(`- Cache: ${cacheSize}MB memory, 0 files, 100 items`);
     console.log(`- Concurrency: ${concurrency} threads`);
     console.log('- SIMD: disabled for memory predictability');
-    console.log('- Pixel limits: applied per-operation based on available memory');
     console.log(`- Memory limit: ${maxMemoryMB}MB`);
     
     // Enhanced garbage collection configuration
@@ -72,24 +67,6 @@ export function optimizeMemorySettings(): void {
       console.log('Manual garbage collection not available. For optimal performance, run with --expose-gc');
     }
     
-    // Enhanced process monitoring and warnings
-    process.on('warning', (warning) => {
-      if (warning.name === 'MaxListenersExceededWarning') {
-        console.warn('Memory warning detected:', warning.message);
-      }
-    });
-    
-    // Monitor for memory pressure events
-    if (process.memoryUsage.rss) {
-      const initialMemory = process.memoryUsage();
-      console.log('Enhanced memory monitoring initialized:');
-      console.log(`- Initial heap: ${(initialMemory.heapUsed / 1024 / 1024).toFixed(1)}MB / ${(initialMemory.heapTotal / 1024 / 1024).toFixed(1)}MB`);
-      console.log(`- Initial RSS: ${(initialMemory.rss / 1024 / 1024).toFixed(1)}MB`);
-      console.log(`- Initial external: ${(initialMemory.external / 1024 / 1024).toFixed(1)}MB`);
-      console.log(`- Memory limit: ${maxMemoryMB}MB`);
-      console.log(`- GC thresholds: 60% preventive, 75% standard, 90% aggressive`);
-    }
-    
     console.log('Enhanced memory optimization configured successfully');
     
   } catch (error) {
@@ -111,7 +88,7 @@ export function startMemoryMonitoring(): void {
   console.log('Starting enhanced memory monitoring...');
   
   const maxMemoryMB = parseInt(process.env.IMAGE_PROCESSING_MEMORY_LIMIT || '2048');
-  const enableMonitoring = process.env.ENABLE_MEMORY_MONITORING === 'true';
+  const enableMonitoring = process.env.ENABLE_MEMORY_MONITORING !== 'false'; // Default to enabled
   
   if (!enableMonitoring) {
     console.log('Memory monitoring disabled via environment variable');
@@ -122,16 +99,16 @@ export function startMemoryMonitoring(): void {
   let lastAlertTime = 0;
   
   const monitorInterval = setInterval(() => {
-    const memUsage = process.memoryUsage();
-    const heapUsedMB = memUsage.heapUsed / 1024 / 1024;
-    const heapTotalMB = memUsage.heapTotal / 1024 / 1024;
-    const rssMB = memUsage.rss / 1024 / 1024;
-    const externalMB = memUsage.external / 1024 / 1024;
-    const arrayBuffersMB = memUsage.arrayBuffers / 1024 / 1024;
-    const heapPercentage = (heapUsedMB / heapTotalMB) * 100;
-    
-    // Enhanced logging in production with structured data
-    if (process.env.NODE_ENV === 'production') {
+    try {
+      const memUsage = process.memoryUsage();
+      const heapUsedMB = memUsage.heapUsed / 1024 / 1024;
+      const heapTotalMB = memUsage.heapTotal / 1024 / 1024;
+      const rssMB = memUsage.rss / 1024 / 1024;
+      const externalMB = memUsage.external / 1024 / 1024;
+      const arrayBuffersMB = memUsage.arrayBuffers / 1024 / 1024;
+      const heapPercentage = (heapUsedMB / heapTotalMB) * 100;
+      
+      // Enhanced logging with structured data
       const memoryStats = {
         timestamp: new Date().toISOString(),
         heap: { used: heapUsedMB, total: heapTotalMB, percentage: heapPercentage },
@@ -139,7 +116,7 @@ export function startMemoryMonitoring(): void {
         external: externalMB,
         arrayBuffers: arrayBuffersMB,
         limit: maxMemoryMB,
-        status: 'normal'
+        status: 'normal' as 'normal' | 'elevated' | 'high' | 'critical'
       };
       
       if (heapPercentage > 90 || rssMB > maxMemoryMB * 0.9) {
@@ -150,35 +127,39 @@ export function startMemoryMonitoring(): void {
         console.warn('⚠️ HIGH MEMORY USAGE:', JSON.stringify(memoryStats));
       } else if (heapPercentage > 60 || rssMB > maxMemoryMB * 0.6) {
         memoryStats.status = 'elevated';
-        console.log('📊 ELEVATED MEMORY USAGE:', JSON.stringify(memoryStats));
-      } else {
+        if (process.env.ENABLE_DETAILED_LOGGING === 'true') {
+          console.log('📊 ELEVATED MEMORY USAGE:', JSON.stringify(memoryStats));
+        }
+      } else if (process.env.ENABLE_DETAILED_LOGGING === 'true') {
         console.log('📊 Memory stats:', JSON.stringify(memoryStats));
       }
-    }
-    
-    // Enhanced alerting with rate limiting
-    const now = Date.now();
-    if ((heapPercentage > 85 || rssMB > maxMemoryMB * 0.85) && (now - lastAlertTime > 60000)) {
-      alertCount++;
-      lastAlertTime = now;
       
-      console.error(`🚨 Memory Alert #${alertCount}: heap ${heapPercentage.toFixed(1)}% (${heapUsedMB.toFixed(1)}MB), RSS ${rssMB.toFixed(1)}MB, limit ${maxMemoryMB}MB`);
+      // Enhanced alerting with rate limiting
+      const now = Date.now();
+      if ((heapPercentage > 85 || rssMB > maxMemoryMB * 0.85) && (now - lastAlertTime > 60000)) {
+        alertCount++;
+        lastAlertTime = now;
+        
+        console.error(`🚨 Memory Alert #${alertCount}: heap ${heapPercentage.toFixed(1)}% (${heapUsedMB.toFixed(1)}MB), RSS ${rssMB.toFixed(1)}MB, limit ${maxMemoryMB}MB`);
+        
+        // Suggest actions based on memory usage patterns
+        if (externalMB > 512) {
+          console.warn('💡 High external memory detected - consider reducing image batch sizes');
+        }
+        if (arrayBuffersMB > 256) {
+          console.warn('💡 High ArrayBuffer usage detected - image processing may be accumulating');
+        }
+        if (alertCount > 5) {
+          console.error('💡 Frequent memory alerts detected - consider increasing memory limits or reducing concurrent operations');
+        }
+      }
       
-      // Suggest actions based on memory usage patterns
-      if (externalMB > 512) {
-        console.warn('💡 High external memory detected - consider reducing image batch sizes');
+      // Reset alert count periodically
+      if (now - lastAlertTime > 300000) { // 5 minutes
+        alertCount = 0;
       }
-      if (arrayBuffersMB > 256) {
-        console.warn('💡 High ArrayBuffer usage detected - image processing may be accumulating');
-      }
-      if (alertCount > 5) {
-        console.error('💡 Frequent memory alerts detected - consider increasing memory limits or reducing concurrent operations');
-      }
-    }
-    
-    // Reset alert count periodically
-    if (now - lastAlertTime > 300000) { // 5 minutes
-      alertCount = 0;
+    } catch (error) {
+      console.error('Error in memory monitoring:', error);
     }
     
   }, parseInt(process.env.MEMORY_CHECK_INTERVAL || '30000'));
@@ -188,14 +169,18 @@ export function startMemoryMonitoring(): void {
     console.log('Stopping memory monitoring...');
     clearInterval(monitorInterval);
     
-    // Final memory report
-    const finalMemory = process.memoryUsage();
-    console.log('Final memory usage:', {
-      heap: `${(finalMemory.heapUsed / 1024 / 1024).toFixed(1)}MB`,
-      rss: `${(finalMemory.rss / 1024 / 1024).toFixed(1)}MB`,
-      external: `${(finalMemory.external / 1024 / 1024).toFixed(1)}MB`,
-      alerts: alertCount
-    });
+    try {
+      // Final memory report
+      const finalMemory = process.memoryUsage();
+      console.log('Final memory usage:', {
+        heap: `${(finalMemory.heapUsed / 1024 / 1024).toFixed(1)}MB`,
+        rss: `${(finalMemory.rss / 1024 / 1024).toFixed(1)}MB`,
+        external: `${(finalMemory.external / 1024 / 1024).toFixed(1)}MB`,
+        alerts: alertCount
+      });
+    } catch (error) {
+      console.error('Error in cleanup:', error);
+    }
   };
   
   process.on('SIGTERM', cleanup);
@@ -203,8 +188,8 @@ export function startMemoryMonitoring(): void {
   process.on('exit', cleanup);
 }
 
-// Enhanced emergency memory cleanup with more aggressive strategies
-export function emergencyMemoryCleanup(reason?: string): void {
+// Enhanced emergency memory cleanup with proper error handling
+export async function emergencyMemoryCleanup(reason?: string): Promise<void> {
   console.log(`Performing emergency memory cleanup${reason ? ` (${reason})` : ''}...`);
   
   const beforeMemory = process.memoryUsage();
@@ -213,46 +198,38 @@ export function emergencyMemoryCleanup(reason?: string): void {
     // Clear Sharp cache completely
     sharp.cache(false);
     
-    // Force multiple garbage collection cycles with delays
+    // Force multiple garbage collection cycles with proper delays
     if (global.gc) {
       for (let i = 0; i < 5; i++) {
         global.gc();
-        // Small delay between GC cycles
+        // Add delay between GC cycles
         if (i < 4) {
-          require('child_process').spawnSync('sleep', ['0.1']);
+          await new Promise<void>(resolve => setTimeout(resolve, 100));
         }
       }
       console.log('Completed 5 aggressive garbage collection cycles');
     }
     
-    // Clear any Node.js internal caches
-    if (require.cache) {
-      // Clear non-essential modules from cache (be careful here)
-      const modulesToClear = Object.keys(require.cache).filter(key => 
-        key.includes('node_modules') && 
-        !key.includes('sharp') && 
-        !key.includes('express') &&
-        !key.includes('prisma')
-      );
-      
-      modulesToClear.slice(0, 10).forEach(key => {
-        try {
-          delete require.cache[key];
-        } catch (error) {
-          // Ignore errors when clearing cache
-        }
-      });
+    // Additional cleanup cycles
+    if (global.gc) {
+      for (let i = 0; i < 2; i++) {
+        global.gc();
+        await new Promise<void>(resolve => setTimeout(resolve, 50));
+      }
     }
     
     // Restore Sharp cache with minimal settings
-    setTimeout(() => {
-      try {
-        sharp.cache({ memory: 25, files: 0, items: 50 });
-        console.log('Sharp cache restored with minimal settings');
-      } catch (error) {
-        console.warn('Failed to restore Sharp cache:', error);
-      }
-    }, 2000);
+    await new Promise<void>(resolve => {
+      setTimeout(() => {
+        try {
+          sharp.cache({ memory: 25, files: 0, items: 50 });
+          console.log('Sharp cache restored with minimal settings');
+        } catch (error) {
+          console.warn('Failed to restore Sharp cache:', error);
+        }
+        resolve();
+      }, 2000);
+    });
     
     // Log cleanup results
     const afterMemory = process.memoryUsage();
@@ -271,98 +248,103 @@ export function emergencyMemoryCleanup(reason?: string): void {
   }
 }
 
-// Enhanced memory configuration validation with more comprehensive checks
+// Enhanced memory configuration validation
 export function validateMemoryConfiguration(): boolean {
   console.log('Validating enhanced memory configuration...');
   
   const nodeOptions = process.env.NODE_OPTIONS || '';
-  const warnings = [];
-  const recommendations = [];
+  const warnings: string[] = [];
+  const recommendations: string[] = [];
   let score = 100;
   
-  // Check Node.js heap size
-  const heapSizeMatch = nodeOptions.match(/--max-old-space-size=(\d+)/);
-  const heapSize = heapSizeMatch ? parseInt(heapSizeMatch[1]) : 0;
-  
-  if (heapSize < 3072) {
-    warnings.push(`Low heap size: ${heapSize}MB (recommended: 4096MB+)`);
-    recommendations.push('Set NODE_OPTIONS="--max-old-space-size=4096" for optimal image processing');
-    score -= 20;
-  }
-  
-  // Check if garbage collection is exposed
-  if (!global.gc) {
-    warnings.push('Manual garbage collection not available');
-    recommendations.push('Add --expose-gc to NODE_OPTIONS for enhanced memory management');
-    score -= 15;
-  }
-  
-  // Check available memory
-  const totalMemory = process.memoryUsage().heapTotal / 1024 / 1024;
-  if (totalMemory < 2048) {
-    warnings.push(`Low heap memory available: ${totalMemory.toFixed(1)}MB`);
-    recommendations.push('Increase heap size for robust image processing');
-    score -= 25;
-  }
-  
-  // Check Sharp configuration
   try {
-    const sharpStats = sharp.cache();
-    if (!sharpStats || sharpStats.memory === undefined) {
-      warnings.push('Sharp cache configuration not optimal');
-      recommendations.push('Configure Sharp cache for better performance');
+    // Check Node.js heap size
+    const heapSizeMatch = nodeOptions.match(/--max-old-space-size=(\d+)/);
+    const heapSize = heapSizeMatch ? parseInt(heapSizeMatch[1]) : 0;
+    
+    if (heapSize < 3072) {
+      warnings.push(`Low heap size: ${heapSize}MB (recommended: 4096MB+)`);
+      recommendations.push('Set NODE_OPTIONS="--max-old-space-size=4096" for optimal image processing');
+      score -= 20;
+    }
+    
+    // Check if garbage collection is exposed
+    if (!global.gc) {
+      warnings.push('Manual garbage collection not available');
+      recommendations.push('Add --expose-gc to NODE_OPTIONS for enhanced memory management');
+      score -= 15;
+    }
+    
+    // Check available memory
+    const totalMemory = process.memoryUsage().heapTotal / 1024 / 1024;
+    if (totalMemory < 2048) {
+      warnings.push(`Low heap memory available: ${totalMemory.toFixed(1)}MB`);
+      recommendations.push('Increase heap size for robust image processing');
+      score -= 25;
+    }
+    
+    // Check Sharp configuration
+    try {
+      const sharpStats = sharp.cache();
+      if (!sharpStats || sharpStats.memory === undefined) {
+        warnings.push('Sharp cache configuration not optimal');
+        recommendations.push('Configure Sharp cache for better performance');
+        score -= 10;
+      }
+    } catch (error) {
+      warnings.push('Unable to verify Sharp configuration');
+      score -= 5;
+    }
+    
+    // Check environment variables
+    if (!process.env.IMAGE_PROCESSING_MEMORY_LIMIT) {
+      warnings.push('IMAGE_PROCESSING_MEMORY_LIMIT not set');
+      recommendations.push('Set IMAGE_PROCESSING_MEMORY_LIMIT for memory monitoring');
+      score -= 5;
+    }
+    
+    if (!process.env.SHARP_CONCURRENCY) {
+      warnings.push('SHARP_CONCURRENCY not configured');
+      recommendations.push('Set SHARP_CONCURRENCY=2 for optimal performance');
+      score -= 5;
+    }
+    
+    // Check UV_THREADPOOL_SIZE
+    const threadPoolSize = parseInt(process.env.UV_THREADPOOL_SIZE || '4');
+    if (threadPoolSize < 8) {
+      warnings.push(`Low UV_THREADPOOL_SIZE: ${threadPoolSize} (recommended: 8+)`);
+      recommendations.push('Set UV_THREADPOOL_SIZE=8 for better I/O performance');
       score -= 10;
     }
-  } catch (error) {
-    warnings.push('Unable to verify Sharp configuration');
-    score -= 5;
-  }
-  
-  // Check environment variables
-  if (!process.env.IMAGE_PROCESSING_MEMORY_LIMIT) {
-    warnings.push('IMAGE_PROCESSING_MEMORY_LIMIT not set');
-    recommendations.push('Set IMAGE_PROCESSING_MEMORY_LIMIT for memory monitoring');
-    score -= 5;
-  }
-  
-  if (!process.env.SHARP_CONCURRENCY) {
-    warnings.push('SHARP_CONCURRENCY not configured');
-    recommendations.push('Set SHARP_CONCURRENCY=2 for optimal performance');
-    score -= 5;
-  }
-  
-  // Check UV_THREADPOOL_SIZE
-  const threadPoolSize = parseInt(process.env.UV_THREADPOOL_SIZE || '4');
-  if (threadPoolSize < 8) {
-    warnings.push(`Low UV_THREADPOOL_SIZE: ${threadPoolSize} (recommended: 8+)`);
-    recommendations.push('Set UV_THREADPOOL_SIZE=8 for better I/O performance');
-    score -= 10;
-  }
-  
-  // Report results
-  console.log(`Memory configuration score: ${score}/100`);
-  
-  if (warnings.length > 0) {
-    console.warn('Memory configuration warnings:');
-    warnings.forEach(warning => console.warn(`- ${warning}`));
     
-    console.log('Recommendations for optimal performance:');
-    recommendations.forEach(rec => console.log(`- ${rec}`));
-  }
-  
-  if (score >= 80) {
-    console.log('✅ Memory configuration is good for image processing');
-    return true;
-  } else if (score >= 60) {
-    console.log('⚠️ Memory configuration is acceptable but could be improved');
-    return true;
-  } else {
-    console.log('❌ Memory configuration needs improvement for reliable image processing');
+    // Report results
+    console.log(`Memory configuration score: ${score}/100`);
+    
+    if (warnings.length > 0) {
+      console.warn('Memory configuration warnings:');
+      warnings.forEach(warning => console.warn(`- ${warning}`));
+      
+      console.log('Recommendations for optimal performance:');
+      recommendations.forEach(rec => console.log(`- ${rec}`));
+    }
+    
+    if (score >= 80) {
+      console.log('✅ Memory configuration is good for image processing');
+      return true;
+    } else if (score >= 60) {
+      console.log('⚠️ Memory configuration is acceptable but could be improved');
+      return true;
+    } else {
+      console.log('❌ Memory configuration needs improvement for reliable image processing');
+      return false;
+    }
+  } catch (error) {
+    console.error('Error validating memory configuration:', error);
     return false;
   }
 }
 
-// Enhanced memory statistics with more detailed metrics
+// Enhanced memory statistics
 export function getMemoryStats(): {
   heap: { used: number; total: number; percentage: number };
   rss: number;
@@ -423,13 +405,13 @@ export function getMemoryStats(): {
   return stats;
 }
 
-// Memory pressure detection for proactive management
+// Memory pressure detection
 export function isMemoryUnderPressure(): boolean {
   const stats = getMemoryStats();
   return stats.system.pressure === 'high' || stats.system.pressure === 'critical';
 }
 
-// Suggest memory optimization actions based on current state
+// Memory optimization suggestions
 export function getMemoryOptimizationSuggestions(): string[] {
   const stats = getMemoryStats();
   const suggestions: string[] = [];
@@ -455,4 +437,64 @@ export function getMemoryOptimizationSuggestions(): string[] {
   }
   
   return suggestions;
+}
+
+// Async memory check
+export async function performAsyncMemoryCheck(): Promise<{
+  memoryPressure: 'low' | 'medium' | 'high' | 'critical';
+  recommendedAction: string;
+  stats: ReturnType<typeof getMemoryStats>;
+}> {
+  const stats = getMemoryStats();
+  
+  let recommendedAction = 'none';
+  
+  if (stats.system.pressure === 'critical') {
+    recommendedAction = 'emergency_cleanup';
+  } else if (stats.system.pressure === 'high') {
+    recommendedAction = 'standard_gc';
+  } else if (stats.system.pressure === 'medium') {
+    recommendedAction = 'preventive_gc';
+  }
+  
+  // Brief async operation for consistency
+  await new Promise<void>(resolve => setTimeout(resolve, 10));
+  
+  return {
+    memoryPressure: stats.system.pressure,
+    recommendedAction,
+    stats
+  };
+}
+
+// Initialize memory optimization
+export async function initializeMemoryOptimization(): Promise<boolean> {
+  console.log('Initializing enhanced memory optimization...');
+  
+  try {
+    // Configure Sharp
+    optimizeMemorySettings();
+    
+    // Start monitoring
+    startMemoryMonitoring();
+    
+    // Validate configuration
+    const configValid = await new Promise<boolean>(resolve => {
+      setTimeout(() => {
+        resolve(validateMemoryConfiguration());
+      }, 100);
+    });
+    
+    if (!configValid) {
+      console.warn('⚠️ Memory configuration validation failed');
+      return false;
+    }
+    
+    console.log('✅ Memory optimization initialized successfully');
+    return true;
+    
+  } catch (error) {
+    console.error('❌ Failed to initialize memory optimization:', error);
+    return false;
+  }
 }

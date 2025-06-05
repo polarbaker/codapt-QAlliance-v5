@@ -55,71 +55,121 @@ const defaultState = {
   },
 };
 
+// Helper function to safely apply theme
+const applyTheme = (theme: 'light' | 'dark' | 'system') => {
+  if (typeof window === 'undefined') return;
+  
+  try {
+    let shouldUseDark = false;
+    
+    if (theme === 'system') {
+      shouldUseDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    } else {
+      shouldUseDark = theme === 'dark';
+    }
+    
+    document.documentElement.classList.toggle('dark', shouldUseDark);
+  } catch (error) {
+    console.warn('Failed to apply theme:', error);
+  }
+};
+
+// Helper function to safely create Set from array
+const safeCreateSet = (data: unknown): Set<number> => {
+  try {
+    if (Array.isArray(data)) {
+      return new Set(data.filter(item => typeof item === 'number'));
+    }
+    if (data instanceof Set) {
+      return new Set([...data].filter(item => typeof item === 'number'));
+    }
+  } catch (error) {
+    console.warn('Failed to create Set from data:', error);
+  }
+  return new Set<number>();
+};
+
 export const useUserStore = create<UserStore>()(
   persist(
     (set, get) => ({
       ...defaultState,
       
-      // Theme management
+      // Theme management with improved error handling
       setThemePreference: (theme) => {
         set({ themePreference: theme });
-        
-        // Apply theme to document
-        if (theme === 'system') {
-          const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-          document.documentElement.classList.toggle('dark', systemTheme === 'dark');
-        } else {
-          document.documentElement.classList.toggle('dark', theme === 'dark');
-        }
+        applyTheme(theme);
       },
       
       // Profile management
-      setName: (name) => set({ name }),
+      setName: (name) => set({ name: name.trim() }),
       setAvatar: (avatar) => set({ avatar }),
       
-      // Comment interactions
+      // Comment interactions with improved Set handling
       likeComment: (commentId) => {
-        const { likedComments } = get();
-        // Defensive programming: ensure likedComments is a Set
-        let currentLikedComments = likedComments;
-        if (!currentLikedComments || typeof currentLikedComments.has !== 'function') {
-          console.warn('likedComments is not a Set, reinitializing...');
-          currentLikedComments = new Set();
+        if (typeof commentId !== 'number' || !Number.isInteger(commentId)) {
+          console.warn('Invalid commentId provided to likeComment:', commentId);
+          return;
         }
+        
+        const { likedComments } = get();
+        const currentLikedComments = likedComments instanceof Set ? likedComments : safeCreateSet(likedComments);
+        
         const newLikedComments = new Set(currentLikedComments);
         newLikedComments.add(commentId);
         set({ likedComments: newLikedComments });
       },
       
       hasLikedComment: (commentId) => {
-        const { likedComments } = get();
-        // Defensive programming: ensure likedComments is a Set
-        if (!likedComments || typeof likedComments.has !== 'function') {
-          console.warn('likedComments is not a Set, reinitializing...');
-          set({ likedComments: new Set() });
+        if (typeof commentId !== 'number' || !Number.isInteger(commentId)) {
+          console.warn('Invalid commentId provided to hasLikedComment:', commentId);
           return false;
         }
-        return likedComments.has(commentId);
+        
+        const { likedComments } = get();
+        const currentLikedComments = likedComments instanceof Set ? likedComments : safeCreateSet(likedComments);
+        
+        return currentLikedComments.has(commentId);
       },
       
       // Newsletter subscription
-      setNewsletterSubscription: (subscribed) => set({ isSubscribedToNewsletter: subscribed }),
+      setNewsletterSubscription: (subscribed) => set({ isSubscribedToNewsletter: Boolean(subscribed) }),
       
-      // Admin authentication
-      setAdminAuth: (token) => set({ 
-        isAdminLoggedIn: true, 
-        adminToken: token 
-      }),
+      // Admin authentication with validation
+      setAdminAuth: (token) => {
+        if (typeof token !== 'string' || token.trim().length === 0) {
+          console.warn('Invalid token provided to setAdminAuth');
+          return;
+        }
+        
+        set({ 
+          isAdminLoggedIn: true, 
+          adminToken: token.trim() 
+        });
+      },
       
       clearAdminAuth: () => set({ 
         isAdminLoggedIn: false, 
         adminToken: null 
       }),
       
-      // Preferences management
+      // Preferences management with validation
       updatePreferences: (newPreferences) => {
         const { preferences } = get();
-        set({ preferences: { ...preferences, ...newPreferences } });
+        
+        // Validate new preferences
+        const validatedPreferences = { ...preferences };
+        
+        if (typeof newPreferences.showAnimations === 'boolean') {
+          validatedPreferences.showAnimations = newPreferences.showAnimations;
+        }
+        if (typeof newPreferences.emailNotifications === 'boolean') {
+          validatedPreferences.emailNotifications = newPreferences.emailNotifications;
+        }
+        if (typeof newPreferences.pushNotifications === 'boolean') {
+          validatedPreferences.pushNotifications = newPreferences.pushNotifications;
+        }
+        
+        set({ preferences: validatedPreferences });
       },
       
       // Reset functions
@@ -128,58 +178,117 @@ export const useUserStore = create<UserStore>()(
         avatar: defaultState.avatar 
       }),
       
-      resetAll: () => set(defaultState),
+      resetAll: () => {
+        set(defaultState);
+        applyTheme(defaultState.themePreference);
+      },
     }),
     {
       name: 'quantum-alliance-user-store',
-      // Custom serialization to handle Set objects
+      version: 1,
+      
+      // Improved serialization with better error handling
       serialize: (state) => {
-        return JSON.stringify({
-          ...state.state,
-          likedComments: Array.from(state.state.likedComments),
-        });
+        try {
+          const serializedState = {
+            ...state.state,
+            likedComments: Array.from(state.state.likedComments),
+          };
+          return JSON.stringify(serializedState);
+        } catch (error) {
+          console.warn('Failed to serialize user store:', error);
+          return JSON.stringify({ ...defaultState, likedComments: [] });
+        }
       },
+      
+      // Improved deserialization with validation
       deserialize: (str) => {
         try {
           const parsed = JSON.parse(str);
-          return {
-            state: {
-              ...parsed,
-              // Ensure likedComments is always a Set, even if it's undefined, null, or not an array
-              likedComments: new Set(Array.isArray(parsed.likedComments) ? parsed.likedComments : []),
+          
+          // Validate and sanitize the parsed data
+          const sanitizedState = {
+            themePreference: ['light', 'dark', 'system'].includes(parsed.themePreference) 
+              ? parsed.themePreference 
+              : defaultState.themePreference,
+            name: typeof parsed.name === 'string' ? parsed.name : defaultState.name,
+            avatar: typeof parsed.avatar === 'string' ? parsed.avatar : defaultState.avatar,
+            likedComments: safeCreateSet(parsed.likedComments),
+            isSubscribedToNewsletter: Boolean(parsed.isSubscribedToNewsletter),
+            isAdminLoggedIn: Boolean(parsed.isAdminLoggedIn),
+            adminToken: typeof parsed.adminToken === 'string' ? parsed.adminToken : null,
+            preferences: {
+              showAnimations: typeof parsed.preferences?.showAnimations === 'boolean' 
+                ? parsed.preferences.showAnimations 
+                : defaultState.preferences.showAnimations,
+              emailNotifications: typeof parsed.preferences?.emailNotifications === 'boolean' 
+                ? parsed.preferences.emailNotifications 
+                : defaultState.preferences.emailNotifications,
+              pushNotifications: typeof parsed.preferences?.pushNotifications === 'boolean' 
+                ? parsed.preferences.pushNotifications 
+                : defaultState.preferences.pushNotifications,
             },
-            version: parsed.version,
+          };
+          
+          return {
+            state: sanitizedState,
+            version: parsed.version || 1,
           };
         } catch (error) {
           console.warn('Failed to deserialize user store, using default state:', error);
-          // Return default state if deserialization fails
           return {
             state: defaultState,
-            version: 0,
+            version: 1,
           };
         }
+      },
+      
+      // Migration function for version updates
+      migrate: (persistedState: any, version: number) => {
+        if (version === 0) {
+          // Migration from version 0 to 1
+          return {
+            ...persistedState,
+            likedComments: safeCreateSet(persistedState.likedComments),
+          };
+        }
+        return persistedState;
       },
     }
   )
 );
 
-// Initialize theme on app load
+// Initialize theme on app load with improved error handling
 if (typeof window !== 'undefined') {
-  const store = useUserStore.getState();
-  const { themePreference } = store;
-  
-  if (themePreference === 'system') {
-    const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    document.documentElement.classList.toggle('dark', systemTheme === 'dark');
+  try {
+    const store = useUserStore.getState();
+    const { themePreference } = store;
     
-    // Listen for system theme changes
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
-      const currentTheme = useUserStore.getState().themePreference;
-      if (currentTheme === 'system') {
-        document.documentElement.classList.toggle('dark', e.matches);
+    applyTheme(themePreference);
+    
+    // Listen for system theme changes with error handling
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleSystemThemeChange = (e: MediaQueryListEvent) => {
+      try {
+        const currentTheme = useUserStore.getState().themePreference;
+        if (currentTheme === 'system') {
+          applyTheme('system');
+        }
+      } catch (error) {
+        console.warn('Failed to handle system theme change:', error);
       }
-    });
-  } else {
-    document.documentElement.classList.toggle('dark', themePreference === 'dark');
+    };
+    
+    mediaQuery.addEventListener('change', handleSystemThemeChange);
+    
+    // Cleanup function (though it won't be called in this context)
+    const cleanup = () => {
+      mediaQuery.removeEventListener('change', handleSystemThemeChange);
+    };
+    
+    // Store cleanup function for potential future use
+    (window as any).__themeCleanup = cleanup;
+  } catch (error) {
+    console.warn('Failed to initialize theme system:', error);
   }
 }

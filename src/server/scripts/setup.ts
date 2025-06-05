@@ -1,29 +1,41 @@
 import { db } from "~/server/db";
-import { 
-  optimizeMemorySettings, 
-  startMemoryMonitoring, 
-  validateMemoryConfiguration,
-  getMemoryStats 
-} from "./optimize-memory";
 
 async function setup() {
   console.log("Starting enhanced database setup and image system initialization...");
 
-  // Enhanced memory optimization initialization for image processing
+  // Declare minioClient at function scope to be accessible throughout
+  let minioClient: any = null;
+
+  // Enhanced memory optimization initialization with proper async handling
   console.log("Initializing enhanced memory optimization for image processing...");
   
   try {
-    // Configure memory settings first
-    optimizeMemorySettings();
+    // Import memory optimization functions with ES modules
+    const memoryModule = await import("./optimize-memory.js");
+    const { 
+      optimizeMemorySettings, 
+      startMemoryMonitoring, 
+      validateMemoryConfiguration,
+      getMemoryStats,
+      initializeMemoryOptimization 
+    } = memoryModule;
     
-    // Validate configuration and report status
-    const configValid = validateMemoryConfiguration();
-    if (!configValid) {
-      console.warn("⚠️ Memory configuration is not optimal for image processing. Some features may be limited.");
+    // Use the new Promise-based initialization if available
+    if (initializeMemoryOptimization) {
+      const initSuccess = await initializeMemoryOptimization();
+      if (!initSuccess) {
+        console.warn("⚠️ Memory optimization initialization failed, using fallback");
+      }
+    } else {
+      // Fallback to original initialization
+      optimizeMemorySettings();
+      startMemoryMonitoring();
+      
+      const configValid = validateMemoryConfiguration();
+      if (!configValid) {
+        console.warn("⚠️ Memory configuration is not optimal for image processing. Some features may be limited.");
+      }
     }
-    
-    // Start monitoring
-    startMemoryMonitoring();
     
     // Report initial memory status
     const initialStats = getMemoryStats();
@@ -34,11 +46,13 @@ async function setup() {
       available: `${initialStats.system.available.toFixed(1)}MB`,
     });
     
-    // Initialize Minio bucket for image storage
+    // Initialize Minio bucket for image storage with enhanced error handling
     console.log("Initializing image storage system...");
-    let minioClient: any;
     try {
-      const { Client } = await import('minio');
+      // Use dynamic import for better ES module compatibility
+      const minioModule = await import('minio');
+      const { Client } = minioModule;
+      
       minioClient = new Client({
         endPoint: 'minio',
         port: 9000,
@@ -59,7 +73,7 @@ async function setup() {
         console.log(`✅ Image storage bucket already exists: ${bucketName}`);
       }
       
-      // Set bucket policy for proper access
+      // Set bucket policy for proper access with better error handling
       const policy = {
         Version: "2012-10-17",
         Statement: [
@@ -82,6 +96,16 @@ async function setup() {
     } catch (minioError) {
       console.error("❌ Failed to initialize image storage system:", minioError);
       console.warn("⚠️ Image upload functionality may not work properly");
+      
+      // Provide specific troubleshooting for Minio issues
+      if (minioError instanceof Error) {
+        if (minioError.message.includes('ENOTFOUND') || minioError.message.includes('ECONNREFUSED')) {
+          console.error("💡 Minio connection issue detected. Ensure:");
+          console.error("   - Minio service is running");
+          console.error("   - Docker compose services are up");
+          console.error("   - Network connectivity to minio:9000");
+        }
+      }
     }
     
     // Initialize bulletproof image upload system
@@ -100,17 +124,53 @@ async function setup() {
         monitoringEnabled: env.ENABLE_UPLOAD_MONITORING,
       });
       
-      // Test Sharp configuration
+      // Test Sharp configuration with enhanced error handling
       try {
-        const sharp = await import('sharp');
+        // Use dynamic import to ensure proper ES module loading
+        const sharpModule = await import('sharp');
+        const sharp = sharpModule.default || sharpModule;
+        
+        // Verify Sharp is properly imported as a function
+        if (typeof sharp !== 'function') {
+          throw new Error(`Sharp import failed: expected function, got ${typeof sharp}`);
+        }
+        
+        // Test Sharp functionality with a simple operation
         const testBuffer = Buffer.alloc(100);
-        const testInstance = sharp(testBuffer, { create: { width: 10, height: 10, channels: 3, background: { r: 255, g: 255, b: 255 } } });
+        const testInstance = sharp({
+          create: { 
+            width: 10, 
+            height: 10, 
+            channels: 3, 
+            background: { r: 255, g: 255, b: 255 } 
+          }
+        });
+        
         await testInstance.jpeg().toBuffer();
         testInstance.destroy();
+        
         console.log("✅ Sharp image processing library initialized successfully");
       } catch (sharpError) {
         console.error("❌ Sharp initialization failed:", sharpError);
-        console.warn("⚠️ Image processing may not work properly");
+        
+        // Provide specific troubleshooting for common Sharp issues
+        if (sharpError instanceof Error) {
+          if (sharpError.message.includes('not a function')) {
+            console.error("💡 Sharp import issue detected. This may be due to:");
+            console.error("   - Module resolution conflicts between CommonJS and ES modules");
+            console.error("   - Sharp binary compatibility issues");
+            console.error("   - Node.js version compatibility");
+          }
+          
+          if (sharpError.message.includes('ENOENT') || sharpError.message.includes('sharp')) {
+            console.error("💡 Sharp binary not found. Try:");
+            console.error("   - npm rebuild sharp");
+            console.error("   - npm install --platform=linux --arch=x64 sharp (for Docker)");
+          }
+        }
+        
+        console.warn("⚠️ Image processing may not work properly without Sharp");
+        console.warn("⚠️ Consider using alternative image processing or fixing Sharp installation");
       }
       
       // Initialize temp bucket for progressive uploads
@@ -400,6 +460,8 @@ async function setup() {
     }
 
     // Final memory status report
+    const memoryModule = await import("./optimize-memory.js");
+    const { getMemoryStats } = memoryModule;
     const finalStats = getMemoryStats();
     console.log("Setup completed successfully!");
     console.log("Final memory status:", {
@@ -415,7 +477,7 @@ async function setup() {
       console.log("✅ System memory status is optimal for image processing");
     }
 
-    // System health validation and recommendations
+    // System health validation and recommendations with async operations
     console.log("Performing system health validation...");
     try {
       const healthChecks = {
@@ -425,7 +487,20 @@ async function setup() {
         nodeVersion: process.version,
         platform: process.platform,
         arch: process.arch,
+        sharpAvailable: false,
+        minioAvailable: !!minioClient,
       };
+      
+      // Test Sharp availability asynchronously
+      try {
+        const sharpModule = await import('sharp');
+        const sharp = sharpModule.default || sharpModule;
+        if (typeof sharp === 'function') {
+          healthChecks.sharpAvailable = true;
+        }
+      } catch {
+        healthChecks.sharpAvailable = false;
+      }
       
       console.log("System health check results:", healthChecks);
       
@@ -442,6 +517,14 @@ async function setup() {
       
       if (!healthChecks.gcAvailable) {
         recommendations.push("Add --expose-gc to NODE_OPTIONS for enhanced memory management");
+      }
+      
+      if (!healthChecks.sharpAvailable) {
+        recommendations.push("Fix Sharp installation: npm rebuild sharp or npm install --platform=linux --arch=x64 sharp");
+      }
+      
+      if (!healthChecks.minioAvailable) {
+        recommendations.push("Ensure Minio service is running and accessible at minio:9000");
       }
       
       if (recommendations.length > 0) {

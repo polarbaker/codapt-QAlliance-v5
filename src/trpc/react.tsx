@@ -67,33 +67,22 @@ export function useTRPCClient() {
   return client;
 }
 
-// Create the trpc object that provides the expected interface
-export const trpc = new Proxy({} as any, {
-  get(target, procedureName) {
-    if (typeof procedureName === 'string') {
+// Simplified and more robust tRPC hook interface
+export function useTRPC() {
+  const client = useTRPCClient();
+  
+  // Create a proxy that dynamically exposes all procedures
+  return new Proxy({} as any, {
+    get(target, procedureName: string) {
+      // Return an object with queryOptions, mutationOptions, etc.
       return {
         queryOptions: (input?: any, options?: any) => ({
           queryKey: [procedureName, input],
           queryFn: async () => {
-            const client = createTRPCClient<AppRouter>({
-              links: [
-                loggerLink({
-                  enabled: (op) =>
-                    process.env.NODE_ENV === "development" ||
-                    (op.direction === "down" && op.result instanceof Error),
-                }),
-                httpBatchLink({
-                  transformer: SuperJSON,
-                  url: getBaseUrl() + "/trpc",
-                }),
-              ],
-            });
-            
             const procedure = (client as any)[procedureName];
             if (!procedure || typeof procedure.query !== 'function') {
               throw new Error(`tRPC procedure '${procedureName}' not found or is not a query`);
             }
-            
             return procedure.query(input);
           },
           ...options,
@@ -101,40 +90,34 @@ export const trpc = new Proxy({} as any, {
         
         mutationOptions: (options?: any) => ({
           mutationFn: async (input: any) => {
-            const client = createTRPCClient<AppRouter>({
-              links: [
-                loggerLink({
-                  enabled: (op) =>
-                    process.env.NODE_ENV === "development" ||
-                    (op.direction === "down" && op.result instanceof Error),
-                }),
-                httpBatchLink({
-                  transformer: SuperJSON,
-                  url: getBaseUrl() + "/trpc",
-                }),
-              ],
-            });
-            
             const procedure = (client as any)[procedureName];
             if (!procedure || typeof procedure.mutate !== 'function') {
               throw new Error(`tRPC procedure '${procedureName}' not found or is not a mutation`);
             }
-            
             return procedure.mutate(input);
           },
           ...options,
         }),
         
         queryKey: (input?: any) => [procedureName, input],
-        mutationKey: () => [procedureName],
+        
+        // Direct access to the procedure for advanced usage
+        query: async (input?: any) => {
+          const procedure = (client as any)[procedureName];
+          if (!procedure || typeof procedure.query !== 'function') {
+            throw new Error(`tRPC procedure '${procedureName}' not found or is not a query`);
+          }
+          return procedure.query(input);
+        },
+        
+        mutate: async (input?: any) => {
+          const procedure = (client as any)[procedureName];
+          if (!procedure || typeof procedure.mutate !== 'function') {
+            throw new Error(`tRPC procedure '${procedureName}' not found or is not a mutation`);
+          }
+          return procedure.mutate(input);
+        },
       };
-    }
-    return target[procedureName];
-  },
-});
-
-// Keep useTRPC for compatibility
-export function useTRPC() {
-  // Return an object that has all the procedure names as properties
-  return trpc;
+    },
+  });
 }

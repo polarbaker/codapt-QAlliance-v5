@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import React from "react";
+import React, { useCallback, useState } from "react";
 import { useUserStore } from "~/stores/userStore";
 import { useTRPC } from "~/trpc/react";
 import { useMutation } from "@tanstack/react-query";
@@ -31,6 +31,10 @@ function NewPartnerPage() {
   
   const trpc = useTRPC();
   
+  const [previewKey, setPreviewKey] = useState(0); // Force preview re-render
+  const [lastImageUpdate, setLastImageUpdate] = useState<Date | null>(null);
+  const [debugMode] = useState(true); // Enable debugging
+  
   const {
     register,
     handleSubmit,
@@ -47,6 +51,13 @@ function NewPartnerPage() {
       logoUrl: "", // Initialize with explicit empty string
     },
   });
+
+  // Enhanced logging with timestamps - memoized to prevent re-creation
+  const logWithTimestamp = useCallback((message: string, data?: any) => {
+    if (debugMode) {
+      console.log(`🔍 DEBUG: NewPartnerForm [${new Date().toISOString()}] - ${message}`, data || '');
+    }
+  }, [debugMode]);
 
   const createMutation = useMutation(
     trpc.adminCreatePartner.mutationOptions({
@@ -73,9 +84,76 @@ function NewPartnerPage() {
   const visible = watch("visible");
   const logoUrl = watch("logoUrl");
 
-  // Enhanced logoUrl field validation watcher
+  // Memoized onChange handler to prevent re-creation on every render
+  const handleLogoChange = useCallback((filePath: string | string[] | null) => {
+    logWithTimestamp('BulletproofImageUpload onChange called with:', {
+      filePath: filePath,
+      filePathType: typeof filePath,
+      filePathLength: typeof filePath === 'string' ? filePath?.length : (Array.isArray(filePath) ? filePath.length : 0),
+      isString: typeof filePath === 'string',
+      isNonEmptyString: typeof filePath === 'string' && filePath.trim() !== '',
+      trimmedValue: typeof filePath === 'string' ? filePath.trim() : filePath,
+      currentFormLogoUrlValue: watch("logoUrl"),
+      previewKey: previewKey,
+    });
+    
+    // Ensure filePath is a string before setting
+    const pathValue = typeof filePath === 'string' ? filePath : null;
+    
+    if (pathValue && pathValue.trim() !== '') {
+      logWithTimestamp('About to call setValue with valid pathValue:', {
+        valueToSet: pathValue,
+        shouldValidate: true, 
+        shouldDirty: true,
+        shouldTouch: true,
+      });
+      
+      setValue("logoUrl", pathValue, { 
+        shouldValidate: true, 
+        shouldDirty: true,
+        shouldTouch: true
+      });
+      
+      // Force preview update
+      setPreviewKey(prev => prev + 1);
+      setLastImageUpdate(new Date());
+      
+      logWithTimestamp('setValue called, checking immediate state:', {
+        setValueWith: pathValue,
+        newFormLogoUrlValue: watch("logoUrl"),
+        formErrors: errors,
+        logoUrlFieldError: errors.logoUrl,
+        isDirty: formState.isDirty,
+        dirtyFields: formState.dirtyFields,
+        newPreviewKey: previewKey + 1,
+      });
+      
+      // Manual trigger call after setValue
+      const timeoutId = setTimeout(async () => {
+        logWithTimestamp('Manual trigger call for logoUrl validation');
+        const isValid = await trigger("logoUrl");
+        logWithTimestamp('Manual trigger result:', {
+          isValid: isValid,
+          currentLogoUrlValue: watch("logoUrl"),
+          logoUrlFieldError: errors.logoUrl,
+          formIsValid: formState.isValid,
+        });
+      }, 100);
+      
+    } else if (filePath === null) {
+      // Handle clearing the logo
+      setValue("logoUrl", "", { 
+        shouldValidate: true, 
+        shouldDirty: true,
+        shouldTouch: true
+      });
+      setPreviewKey(prev => prev + 1);
+    }
+  }, [setValue, trigger, watch, errors, formState, previewKey, logWithTimestamp]);
+
+  // Enhanced logoUrl field validation watcher - Fixed dependency array
   React.useEffect(() => {
-    console.log('🔍 DEBUG: Partner NEW form - LogoUrl field validation watcher triggered:', {
+    logWithTimestamp('Partner NEW form - LogoUrl field validation watcher triggered:', {
       logoUrl: logoUrl,
       logoUrlType: typeof logoUrl,
       logoUrlLength: logoUrl?.length,
@@ -87,31 +165,88 @@ function NewPartnerPage() {
       formIsValid: formState.isValid,
       formIsDirty: formState.isDirty,
       dirtyFields: formState.dirtyFields,
-      timestamp: new Date().toISOString()
+      previewKey: previewKey,
     });
+    
+    // Force preview re-render when logo URL changes
+    if (logoUrl && logoUrl.trim() !== '') {
+      logWithTimestamp('Logo URL changed - forcing preview update');
+      setPreviewKey(prev => prev + 1);
+      setLastImageUpdate(new Date());
+    }
     
     // Force re-validation if we have a valid logo but still have an error
     if (logoUrl && logoUrl.trim() !== '' && errors.logoUrl) {
-      console.log('🔍 DEBUG: Partner NEW form - Detected valid logoUrl with validation error, triggering re-validation');
-      setTimeout(() => {
+      logWithTimestamp('Detected valid logoUrl with validation error, triggering re-validation');
+      const timeoutId = setTimeout(() => {
         trigger("logoUrl");
       }, 100);
+      return () => clearTimeout(timeoutId);
     }
     
     // Force validation after setValue to ensure form state is updated
     if (logoUrl && logoUrl.trim() !== '') {
-      setTimeout(async () => {
-        console.log('🔍 DEBUG: Partner NEW form - Forcing validation after logoUrl change');
+      const timeoutId = setTimeout(async () => {
+        logWithTimestamp('Forcing validation after logoUrl change');
         const isValid = await trigger("logoUrl");
-        console.log('🔍 DEBUG: Partner NEW form - Validation result:', {
+        logWithTimestamp('Validation result:', {
           isValid: isValid,
           currentLogoUrlValue: logoUrl,
           logoUrlFieldError: errors.logoUrl,
-          timestamp: new Date().toISOString()
         });
       }, 200);
+      return () => clearTimeout(timeoutId);
     }
-  }, [logoUrl, errors.logoUrl, formState.isValid, trigger]);
+  }, [logoUrl, errors.logoUrl, formState.isValid, trigger, logWithTimestamp]); // Fixed: removed previewKey from deps to prevent loop
+
+  // Custom event listener for crosscutting image updates - Fixed dependency array
+  React.useEffect(() => {
+    const handleImageUpdated = (event: CustomEvent) => {
+      const { filePath: eventFilePath, timestamp, component } = event.detail || {};
+      
+      logWithTimestamp('Received imageUpdated event:', {
+        eventFilePath: eventFilePath,
+        currentLogoUrl: logoUrl,
+        eventTimestamp: timestamp,
+        eventComponent: component,
+        shouldUpdate: eventFilePath && (eventFilePath === logoUrl || component === 'BulletproofImageUpload'),
+      });
+      
+      // Check if this event is for our current logo or if it's a new upload
+      if (eventFilePath && (eventFilePath === logoUrl || component === 'BulletproofImageUpload')) {
+        logWithTimestamp('Event matches current context - forcing form and preview update');
+        
+        // Update form state if the path is different
+        if (eventFilePath !== logoUrl && eventFilePath.trim() !== '') {
+          logWithTimestamp('Updating form state from event');
+          setValue("logoUrl", eventFilePath, { 
+            shouldValidate: true, 
+            shouldDirty: true,
+            shouldTouch: true
+          });
+        }
+        
+        // Force preview update
+        setPreviewKey(prev => prev + 1);
+        setLastImageUpdate(new Date());
+        
+        // Trigger validation
+        const timeoutId = setTimeout(() => {
+          trigger("logoUrl");
+        }, 100);
+        
+        return () => clearTimeout(timeoutId);
+      }
+    };
+
+    window.addEventListener('imageUpdated', handleImageUpdated as EventListener);
+    document.addEventListener('imageUpdated', handleImageUpdated as EventListener);
+    
+    return () => {
+      window.removeEventListener('imageUpdated', handleImageUpdated as EventListener);
+      document.removeEventListener('imageUpdated', handleImageUpdated as EventListener);
+    };
+  }, [logoUrl, setValue, trigger, logWithTimestamp]); // Removed state setters to prevent loops
 
   return (
     <div className="min-h-screen bg-background-light dark:bg-background-black">
@@ -180,68 +315,7 @@ function NewPartnerPage() {
                       
                       <BulletproofImageUpload
                         value={logoUrl}
-                        onChange={(filePath) => {
-                          console.log('🔍 DEBUG: Partner NEW form - BulletproofImageUpload onChange called with:', {
-                            filePath: filePath,
-                            filePathType: typeof filePath,
-                            filePathLength: typeof filePath === 'string' ? filePath?.length : (Array.isArray(filePath) ? filePath.length : 0),
-                            isString: typeof filePath === 'string',
-                            isNonEmptyString: typeof filePath === 'string' && filePath.trim() !== '',
-                            trimmedValue: typeof filePath === 'string' ? filePath.trim() : filePath,
-                            currentFormLogoUrlValue: watch("logoUrl"),
-                            timestamp: new Date().toISOString()
-                          });
-                          
-                          // Ensure filePath is a string before setting
-                          const pathValue = typeof filePath === 'string' ? filePath : null;
-                          
-                          if (pathValue && pathValue.trim() !== '') {
-                            console.log('🔍 DEBUG: Partner NEW form - About to call setValue with valid pathValue:', {
-                              valueToSet: pathValue,
-                              shouldValidate: true, 
-                              shouldDirty: true,
-                              shouldTouch: true,
-                              timestamp: new Date().toISOString()
-                            });
-                            
-                            setValue("logoUrl", pathValue, { 
-                              shouldValidate: true, 
-                              shouldDirty: true,
-                              shouldTouch: true
-                            });
-                            
-                            console.log('🔍 DEBUG: Partner NEW form - setValue called, checking immediate state:', {
-                              setValueWith: pathValue,
-                              newFormLogoUrlValue: watch("logoUrl"),
-                              formErrors: errors,
-                              logoUrlFieldError: errors.logoUrl,
-                              isDirty: formState.isDirty,
-                              dirtyFields: formState.dirtyFields,
-                              timestamp: new Date().toISOString()
-                            });
-                            
-                            // Manual trigger call after setValue
-                            setTimeout(async () => {
-                              console.log('🔍 DEBUG: Partner NEW form - Manual trigger call for logoUrl validation');
-                              const isValid = await trigger("logoUrl");
-                              console.log('🔍 DEBUG: Partner NEW form - Manual trigger result:', {
-                                isValid: isValid,
-                                currentLogoUrlValue: watch("logoUrl"),
-                                logoUrlFieldError: errors.logoUrl,
-                                formIsValid: formState.isValid,
-                                timestamp: new Date().toISOString()
-                              });
-                            }, 100);
-                            
-                          } else if (filePath === null) {
-                            // Handle clearing the logo
-                            setValue("logoUrl", "", { 
-                              shouldValidate: true, 
-                              shouldDirty: true,
-                              shouldTouch: true
-                            });
-                          }
-                        }}
+                        onChange={handleLogoChange}
                         placeholder="Upload partner logo - bulletproof processing enabled"
                         className="mb-4"
                         multiple={false}
@@ -369,7 +443,22 @@ function NewPartnerPage() {
                   placeholderIcon={Handshake}
                   placeholderText="Logo preview will appear here"
                   showFileName={true}
+                  key={previewKey} // Force re-render when previewKey changes
+                  updatedAt={lastImageUpdate} // Cache busting
+                  enableEventListening={true} // Enable event listening
+                  debugMode={debugMode} // Enhanced debugging
                 />
+
+                {/* Debug info panel */}
+                {debugMode && (
+                  <div className="mt-4 p-2 bg-gray-50 dark:bg-gray-700 rounded text-xs">
+                    <div>Logo URL: {logoUrl || 'None'}</div>
+                    <div>Preview Key: {previewKey}</div>
+                    <div>Last Update: {lastImageUpdate ? lastImageUpdate.toISOString() : 'None'}</div>
+                    <div>Form Valid: {formState.isValid ? '✅' : '❌'}</div>
+                    <div>Logo Error: {errors.logoUrl ? '❌' : '✅'}</div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

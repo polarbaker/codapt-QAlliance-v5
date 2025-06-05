@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useUserStore } from "~/stores/userStore";
 import { useTRPC } from "~/trpc/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -100,31 +100,31 @@ function AdminInnovatorsPage() {
     })
   );
 
-  const handleSelectAll = () => {
+  const handleSelectAll = useCallback(() => {
     if (selectedInnovators.length === innovatorsQuery.data?.innovators.length) {
       setSelectedInnovators([]);
     } else {
       setSelectedInnovators(innovatorsQuery.data?.innovators.map(i => i.id) || []);
     }
-  };
+  }, [selectedInnovators.length, innovatorsQuery.data?.innovators]);
 
-  const handleSelectInnovator = (id: number) => {
+  const handleSelectInnovator = useCallback((id: number) => {
     setSelectedInnovators(prev => 
       prev.includes(id) 
         ? prev.filter(i => i !== id)
         : [...prev, id]
     );
-  };
+  }, []);
 
-  const handleToggleFeatured = (id: number, currentFeatured: boolean) => {
+  const handleToggleFeatured = useCallback((id: number, currentFeatured: boolean) => {
     toggleFeaturedMutation.mutate({
       adminToken: adminToken || "",
       id,
       data: { featured: !currentFeatured },
     });
-  };
+  }, [toggleFeaturedMutation, adminToken]);
 
-  const handleMoveUp = (index: number) => {
+  const handleMoveUp = useCallback((index: number) => {
     if (index === 0 || !innovatorsQuery.data?.innovators) return;
     
     const innovators = [...innovatorsQuery.data.innovators];
@@ -136,9 +136,9 @@ function AdminInnovatorsPage() {
       adminToken: adminToken || "",
       innovatorIds: reorderedIds,
     });
-  };
+  }, [innovatorsQuery.data?.innovators, reorderMutation, adminToken]);
 
-  const handleMoveDown = (index: number) => {
+  const handleMoveDown = useCallback((index: number) => {
     if (!innovatorsQuery.data?.innovators || index === innovatorsQuery.data.innovators.length - 1) return;
     
     const innovators = [...innovatorsQuery.data.innovators];
@@ -150,9 +150,9 @@ function AdminInnovatorsPage() {
       adminToken: adminToken || "",
       innovatorIds: reorderedIds,
     });
-  };
+  }, [innovatorsQuery.data?.innovators, reorderMutation, adminToken]);
 
-  const handleExportInnovators = () => {
+  const handleExportInnovators = useCallback(() => {
     if (!innovatorsQuery.data?.innovators) return;
     
     const csvData = innovatorsQuery.data.innovators.map(innovator => ({
@@ -182,25 +182,25 @@ function AdminInnovatorsPage() {
     document.body.removeChild(link);
     
     toast.success('Innovators exported successfully');
-  };
+  }, [innovatorsQuery.data?.innovators]);
 
-  const handleDelete = (id: number, name: string) => {
+  const handleDelete = useCallback((id: number, name: string) => {
     if (confirm(`Are you sure you want to delete "${name}"?`)) {
       deleteMutation.mutate({
         adminToken: adminToken || "",
         id,
       });
     }
-  };
+  }, [deleteMutation, adminToken]);
 
-  const parseAchievements = (achievementsString: string | null): string[] => {
+  const parseAchievements = useCallback((achievementsString: string | null): string[] => {
     if (!achievementsString) return [];
     try {
       return JSON.parse(achievementsString);
     } catch {
       return [];
     }
-  };
+  }, []);
 
   return (
     <div className="min-h-screen bg-background-light dark:bg-background-black">

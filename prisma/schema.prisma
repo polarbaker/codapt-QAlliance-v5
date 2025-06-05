@@ -222,6 +222,7 @@ model Image {
   compressionRatio  Float?   // Compression ratio achieved
   format            String?  // Output format (webp, jpeg, png)
   quality           Int?     // Compression quality used
+  processingInfo    String?  // JSON string with detailed processing information
   
   // Organization and metadata
   title             String?  // User-friendly title

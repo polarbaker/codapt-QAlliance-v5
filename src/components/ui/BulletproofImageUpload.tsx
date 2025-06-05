@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, memo, useEffect } from 'react';
 import { useTRPC } from '~/trpc/react';
 import { useMutation } from '@tanstack/react-query';
 import { useUserStore } from '~/stores/userStore';
@@ -9,7 +9,7 @@ import {
   formatFileSize,
   getUploadErrorMessage 
 } from '~/constants/validation';
-import { getImageUrl } from '~/utils';
+import { getImageUrl, formatDate } from '~/utils';
 import { toast } from 'react-hot-toast';
 import {
   Upload,
@@ -71,7 +71,7 @@ interface RetryState {
   lastError?: string;
 }
 
-export function BulletproofImageUpload({
+export const BulletproofImageUpload = memo(function BulletproofImageUpload({
   value,
   onChange,
   placeholder = "Upload any image - bulletproof processing enabled",
@@ -120,6 +120,36 @@ export function BulletproofImageUpload({
   const { adminToken } = useUserStore();
   const trpc = useTRPC();
 
+  // Helper function to dispatch custom imageUpdated event (Fix #3)
+  const dispatchImageUpdatedEvent = useCallback((filePath: string | string[]) => {
+    const eventDetail = {
+      filePath: filePath,
+      timestamp: Date.now(),
+      uploadedAt: new Date().toISOString(),
+      component: 'BulletproofImageUpload'
+    };
+    
+    console.log('🔍 DEBUG: BulletproofImageUpload - Dispatching imageUpdated event:', {
+      eventDetail: eventDetail,
+      timestamp: new Date().toISOString()
+    });
+    
+    const customEvent = new CustomEvent('imageUpdated', { 
+      detail: eventDetail,
+      bubbles: true
+    });
+    
+    window.dispatchEvent(customEvent);
+    
+    // Also dispatch to document for broader coverage
+    document.dispatchEvent(customEvent);
+  }, []);
+
+  // Enhanced logging with timestamps (Fix #4)
+  const logWithTimestamp = useCallback((message: string, data?: any) => {
+    console.log(`🔍 DEBUG: BulletproofImageUpload [${new Date().toISOString()}] - ${message}`, data || '');
+  }, []);
+
   // Enhanced form value patching with retry logic and validation triggering
   const patchFormValueWithRetry = useCallback(async (
     filePath: string | string[] | null,
@@ -127,16 +157,16 @@ export function BulletproofImageUpload({
     maxRetries: number = 3
   ): Promise<boolean> => {
     try {
-      console.log('🔍 DEBUG: BulletproofImageUpload - patchFormValueWithRetry called:', {
+      logWithTimestamp('patchFormValueWithRetry called:', {
         filePath: filePath,
         filePathType: typeof filePath,
         filePathLength: Array.isArray(filePath) ? filePath.length : filePath?.length,
         retryCount: retryCount,
         maxRetries: maxRetries,
-        timestamp: new Date().toISOString()
+        currentValue: value,
       });
 
-      // Call the parent onChange handler
+      // Call the parent onChange handler with enhanced validation flags (Fix #2)
       onChange(filePath);
       
       // Additional callback for direct form integration
@@ -160,41 +190,46 @@ export function BulletproofImageUpload({
         updateSuccessful = value === filePath;
       }
       
-      console.log('🔍 DEBUG: BulletproofImageUpload - Form value update verification:', {
+      logWithTimestamp('Form value update verification:', {
         expectedValue: filePath,
         actualValue: value,
         updateSuccessful: updateSuccessful,
         retryCount: retryCount,
-        timestamp: new Date().toISOString()
       });
       
       if (updateSuccessful || retryCount >= maxRetries) {
         if (updateSuccessful) {
-          console.log('✅ DEBUG: BulletproofImageUpload - Form value successfully updated');
+          logWithTimestamp('Form value successfully updated - dispatching event');
+          
+          // Dispatch custom event for crosscutting updates (Fix #3)
+          if (filePath) {
+            dispatchImageUpdatedEvent(filePath);
+          }
+          
           return true;
         } else {
-          console.warn('⚠️ DEBUG: BulletproofImageUpload - Form value update failed after max retries');
+          logWithTimestamp('Form value update failed after max retries', { filePath, value });
           return false;
         }
       }
       
       // Retry if update wasn't successful
-      console.log('🔄 DEBUG: BulletproofImageUpload - Retrying form value update...');
+      logWithTimestamp('Retrying form value update...', { retryCount: retryCount + 1 });
       await new Promise(resolve => setTimeout(resolve, 100 * (retryCount + 1))); // Exponential backoff
       return patchFormValueWithRetry(filePath, retryCount + 1, maxRetries);
       
     } catch (error) {
-      console.error('❌ DEBUG: BulletproofImageUpload - Error in patchFormValueWithRetry:', error);
+      logWithTimestamp('Error in patchFormValueWithRetry:', error);
       
       if (retryCount < maxRetries) {
-        console.log('🔄 DEBUG: BulletproofImageUpload - Retrying after error...');
+        logWithTimestamp('Retrying after error...', { retryCount: retryCount + 1 });
         await new Promise(resolve => setTimeout(resolve, 200 * (retryCount + 1)));
         return patchFormValueWithRetry(filePath, retryCount + 1, maxRetries);
       }
       
       return false;
     }
-  }, [onChange, onFormValueSet, value]);
+  }, [onChange, onFormValueSet, value, dispatchImageUpdatedEvent, logWithTimestamp]);
 
   const optimizeImageOnClient = useCallback(async (file: File): Promise<File> => {
     if (!enableClientOptimization) {
@@ -289,7 +324,7 @@ export function BulletproofImageUpload({
   const bulletproofUploadMutation = useMutation(
     trpc.bulletproofSingleUpload.mutationOptions({
       onSuccess: async (data) => {
-        console.log('🔍 DEBUG 4a: BulletproofImageUpload bulletproofUploadMutation onSuccess - EXACT data.filePath value:', {
+        logWithTimestamp('bulletproofUploadMutation onSuccess - EXACT data.filePath value:', {
           dataFilePath: data.filePath,
           dataFilePathType: typeof data.filePath,
           dataFilePathLength: data.filePath?.length,
@@ -298,7 +333,6 @@ export function BulletproofImageUpload({
           isNull: data.filePath === null,
           isUndefined: data.filePath === undefined,
           fullDataObject: data,
-          timestamp: new Date().toISOString()
         });
         
         setUploadProgress({
@@ -311,47 +345,40 @@ export function BulletproofImageUpload({
         
         // Enhanced null/undefined checks for filePath with detailed logging
         if (data && data.filePath && typeof data.filePath === 'string' && data.filePath.trim() !== '') {
-          console.log('🔍 DEBUG 4b: BulletproofImageUpload - Just before calling enhanced form patching with filePath:', {
+          logWithTimestamp('Just before calling enhanced form patching with filePath:', {
             filePathToPass: data.filePath,
             filePathType: typeof data.filePath,
             filePathLength: data.filePath.length,
             filePathTrimmed: data.filePath.trim(),
             retryFormUpdate: retryFormUpdate,
-            timestamp: new Date().toISOString()
           });
           
-          // Use enhanced form value patching with retry logic
+          // Use enhanced form value patching with retry logic (Fix #2)
           const patchSuccess = await patchFormValueWithRetry(data.filePath);
           
           if (patchSuccess) {
-            console.log('✅ DEBUG 4b-SUCCESS: BulletproofImageUpload - Enhanced form patching successful for:', {
-              filePath: data.filePath,
-              timestamp: new Date().toISOString()
-            });
+            logWithTimestamp('Enhanced form patching successful for:', { filePath: data.filePath });
           } else {
-            console.warn('⚠️ DEBUG 4b-FAILED: BulletproofImageUpload - Enhanced form patching failed for:', {
-              filePath: data.filePath,
-              timestamp: new Date().toISOString()
-            });
+            logWithTimestamp('Enhanced form patching failed for:', { filePath: data.filePath });
             
             // Fallback: try direct onChange one more time
-            console.log('🔄 DEBUG: BulletproofImageUpload - Attempting fallback direct onChange call');
+            logWithTimestamp('Attempting fallback direct onChange call');
             onChange(data.filePath);
+            
+            // Still dispatch event even if form update failed
+            dispatchImageUpdatedEvent(data.filePath);
           }
           
         } else {
-          console.error('❌ DEBUG: BulletproofImageUpload - Invalid filePath in upload response:', {
+          logWithTimestamp('Invalid filePath in upload response:', {
             data: data,
             filePath: data?.filePath,
             filePathType: typeof data?.filePath,
             filePathLength: data?.filePath?.length,
             filePathTrimmed: data?.filePath?.trim?.(),
             isEmptyAfterTrim: data?.filePath?.trim?.() === '',
-            timestamp: new Date().toISOString()
           });
           toast.error('Upload completed but file path is missing or invalid. Please try again.');
-          
-          // Don't update form with invalid data
           return;
         }
         
@@ -390,7 +417,7 @@ export function BulletproofImageUpload({
         onUploadComplete?.(data);
       },
       onError: (error) => {
-        console.error('Bulletproof upload error:', error);
+        logWithTimestamp('Bulletproof upload error:', error);
         
         setUploadProgress({
           phase: 'error',
@@ -428,12 +455,11 @@ export function BulletproofImageUpload({
   const progressiveUploadMutation = useMutation(
     trpc.bulletproofProgressiveUpload.mutationOptions({
       onSuccess: async (data) => {
-        console.log('🔍 DEBUG 4a: BulletproofImageUpload progressiveUploadMutation onSuccess - EXACT data response:', {
+        logWithTimestamp('progressiveUploadMutation onSuccess - EXACT data response:', {
           data: data,
           dataComplete: data.complete,
           dataFilePath: data.filePath,
           dataFilePathType: typeof data.filePath,
-          timestamp: new Date().toISOString()
         });
         
         if (data.complete) {
@@ -446,33 +472,33 @@ export function BulletproofImageUpload({
           
           // Enhanced null/undefined checks for filePath with detailed logging
           if (data && data.filePath && typeof data.filePath === 'string' && data.filePath.trim() !== '') {
-            console.log('🔍 DEBUG 4b: BulletproofImageUpload - Progressive upload - Just before calling enhanced form patching:', {
+            logWithTimestamp('Progressive upload - Just before calling enhanced form patching:', {
               filePathToPass: data.filePath,
               filePathType: typeof data.filePath,
               filePathLength: data.filePath.length,
               sessionId: data.sessionId,
               totalChunks: data.totalChunks,
-              timestamp: new Date().toISOString()
             });
             
-            // Use enhanced form value patching with retry logic
+            // Use enhanced form value patching with retry logic (Fix #2)
             const patchSuccess = await patchFormValueWithRetry(data.filePath);
             
             if (patchSuccess) {
-              console.log('✅ DEBUG 4b-SUCCESS: BulletproofImageUpload - Progressive upload enhanced form patching successful');
+              logWithTimestamp('Progressive upload enhanced form patching successful');
             } else {
-              console.warn('⚠️ DEBUG 4b-FAILED: BulletproofImageUpload - Progressive upload enhanced form patching failed');
+              logWithTimestamp('Progressive upload enhanced form patching failed');
               // Fallback: try direct onChange one more time
               onChange(data.filePath);
+              // Still dispatch event
+              dispatchImageUpdatedEvent(data.filePath);
             }
             
           } else {
-            console.error('❌ DEBUG: BulletproofImageUpload - Invalid filePath in progressive upload response:', {
+            logWithTimestamp('Invalid filePath in progressive upload response:', {
               data: data,
               filePath: data?.filePath,
               filePathType: typeof data?.filePath,
               complete: data?.complete,
-              timestamp: new Date().toISOString()
             });
             toast.error('Progressive upload completed but file path is missing or invalid. Please try again.');
             return;
@@ -487,11 +513,10 @@ export function BulletproofImageUpload({
         } else {
           // Update progress
           const percentage = (data.receivedChunks / data.totalChunks) * 100;
-          console.log('🔍 DEBUG: BulletproofImageUpload - Progressive upload progress:', {
+          logWithTimestamp('Progressive upload progress:', {
             receivedChunks: data.receivedChunks,
             totalChunks: data.totalChunks,
             percentage: percentage.toFixed(1),
-            timestamp: new Date().toISOString()
           });
           
           setUploadProgress({
@@ -507,7 +532,7 @@ export function BulletproofImageUpload({
         }
       },
       onError: (error) => {
-        console.error('Progressive upload error:', error);
+        logWithTimestamp('Progressive upload error:', error);
         
         setUploadProgress({
           phase: 'error',
@@ -529,11 +554,10 @@ export function BulletproofImageUpload({
   const bulletproofBulkUploadMutation = useMutation(
     trpc.bulletproofBulkUpload.mutationOptions({
       onSuccess: async (data) => {
-        console.log('🔍 DEBUG 4a: BulletproofImageUpload bulletproofBulkUploadMutation onSuccess - EXACT data response:', {
+        logWithTimestamp('bulletproofBulkUploadMutation onSuccess - EXACT data response:', {
           data: data,
           resultsLength: data.results?.length,
           results: data.results,
-          timestamp: new Date().toISOString()
         });
         
         setUploadProgress({
@@ -546,39 +570,38 @@ export function BulletproofImageUpload({
           const successPaths = data.results.filter((r: any) => r.success).map((r: any) => r.filePath);
           const validPaths = successPaths.filter((path: any) => path && typeof path === 'string' && path.trim() !== '');
           
-          console.log('🔍 DEBUG 4b: BulletproofImageUpload - Bulk upload processing results for multiple:', {
+          logWithTimestamp('Bulk upload processing results for multiple:', {
             totalResults: data.results.length,
             successCount: successPaths.length,
             validPathCount: validPaths.length,
             validPaths: validPaths,
             successPaths: successPaths,
-            timestamp: new Date().toISOString()
           });
           
           if (validPaths.length > 0) {
-            console.log('🔍 DEBUG 4b: BulletproofImageUpload - Just before calling enhanced form patching with bulk upload paths:', {
+            logWithTimestamp('Just before calling enhanced form patching with bulk upload paths:', {
               pathsToPass: validPaths,
               pathsType: typeof validPaths,
               pathsLength: validPaths.length,
-              timestamp: new Date().toISOString()
             });
             
-            // Use enhanced form value patching with retry logic
+            // Use enhanced form value patching with retry logic (Fix #2)
             const patchSuccess = await patchFormValueWithRetry(validPaths);
             
             if (patchSuccess) {
-              console.log('✅ DEBUG 4b-SUCCESS: BulletproofImageUpload - Bulk upload enhanced form patching successful');
+              logWithTimestamp('Bulk upload enhanced form patching successful');
             } else {
-              console.warn('⚠️ DEBUG 4b-FAILED: BulletproofImageUpload - Bulk upload enhanced form patching failed');
+              logWithTimestamp('Bulk upload enhanced form patching failed');
               // Fallback: try direct onChange one more time
               onChange(validPaths);
+              // Still dispatch event
+              dispatchImageUpdatedEvent(validPaths);
             }
             
           } else {
-            console.error('❌ DEBUG: BulletproofImageUpload - No valid filePaths in bulk upload results:', {
+            logWithTimestamp('No valid filePaths in bulk upload results:', {
               results: data.results,
               successPaths: successPaths,
-              timestamp: new Date().toISOString()
             });
             toast.error('Bulk upload completed but no valid file paths returned. Please try again.');
             return;
@@ -586,38 +609,37 @@ export function BulletproofImageUpload({
         } else if (data.results.length > 0 && data.results[0].success) {
           const filePath = data.results[0].filePath;
           
-          console.log('🔍 DEBUG 4a: BulletproofImageUpload - Single upload from bulk processing result:', {
+          logWithTimestamp('Single upload from bulk processing result:', {
             result: data.results[0],
             filePath: filePath,
             filePathType: typeof filePath,
-            timestamp: new Date().toISOString()
           });
           
           if (filePath && typeof filePath === 'string' && filePath.trim() !== '') {
-            console.log('🔍 DEBUG 4b: BulletproofImageUpload - Just before calling enhanced form patching with bulk single upload:', {
+            logWithTimestamp('Just before calling enhanced form patching with bulk single upload:', {
               filePathToPass: filePath,
               filePathType: typeof filePath,
               filePathLength: filePath.length,
-              timestamp: new Date().toISOString()
             });
             
-            // Use enhanced form value patching with retry logic
+            // Use enhanced form value patching with retry logic (Fix #2)
             const patchSuccess = await patchFormValueWithRetry(filePath);
             
             if (patchSuccess) {
-              console.log('✅ DEBUG 4b-SUCCESS: BulletproofImageUpload - Bulk single upload enhanced form patching successful');
+              logWithTimestamp('Bulk single upload enhanced form patching successful');
             } else {
-              console.warn('⚠️ DEBUG 4b-FAILED: BulletproofImageUpload - Bulk single upload enhanced form patching failed');
+              logWithTimestamp('Bulk single upload enhanced form patching failed');
               // Fallback: try direct onChange one more time
               onChange(filePath);
+              // Still dispatch event
+              dispatchImageUpdatedEvent(filePath);
             }
             
           } else {
-            console.error('❌ DEBUG: BulletproofImageUpload - Invalid filePath in bulk single upload result:', {
+            logWithTimestamp('Invalid filePath in bulk single upload result:', {
               result: data.results[0],
               filePath: filePath,
               filePathType: typeof filePath,
-              timestamp: new Date().toISOString()
             });
             toast.error('Upload completed but file path is missing or invalid. Please try again.');
             return;
@@ -649,7 +671,7 @@ export function BulletproofImageUpload({
         onUploadComplete?.(data);
       },
       onError: (error) => {
-        console.error('Bulletproof bulk upload error:', error);
+        logWithTimestamp('Bulletproof bulk upload error:', error);
         
         setUploadProgress({
           phase: 'error',
@@ -665,7 +687,7 @@ export function BulletproofImageUpload({
     })
   );
 
-  const handleFileSelect = async (files: FileList | File[]) => {
+  const handleFileSelect = useCallback(async (files: FileList | File[]) => {
     const fileArray = Array.from(files);
     
     // Check limits
@@ -795,9 +817,13 @@ export function BulletproofImageUpload({
         altText: '',
       })));
       
-      // Auto-upload if metadata not required
+      // Auto-upload will be handled by the effect
       if (!showMetadata) {
-        setTimeout(() => handleUpload(), 500);
+        setUploadProgress({
+          phase: 'preparing',
+          percentage: 100,
+          message: 'Ready to upload',
+        });
       } else {
         setUploadProgress({
           phase: 'preparing',
@@ -817,9 +843,9 @@ export function BulletproofImageUpload({
         message: 'Preview creation failed',
       });
     }
-  };
+  }, [multiple, maxImages, enableClientOptimization, showMetadata, optimizeImageOnClient]);
 
-  const handleUpload = async () => {
+  const handleUpload = useCallback(async () => {
     if (selectedFiles.length === 0 || !adminToken) {
       if (!adminToken) {
         toast.error('Authentication required. Please log in and try again.');
@@ -856,7 +882,7 @@ export function BulletproofImageUpload({
         message: 'Upload failed',
       });
     }
-  };
+  }, [selectedFiles, adminToken, shouldUseProgressiveUpload]);
 
   const handleSingleUpload = async (file: File) => {
     setUploadProgress({
@@ -1007,45 +1033,32 @@ export function BulletproofImageUpload({
     handleUpload();
   }, [retryState, selectedFiles, handleUpload]);
 
-  // Auto-retry effect
-  React.useEffect(() => {
-    if (enableAutoRetry && retryState.canRetry && uploadProgress.phase === 'error') {
-      const retryDelay = Math.pow(2, retryState.attempts) * 2000; // Exponential backoff
-      
-      toast(`⏰ Auto-retry in ${retryDelay / 1000} seconds...`, {
-        duration: retryDelay - 500,
-        style: { background: '#dbeafe', color: '#1e40af' }
-      });
-      
-      const timer = setTimeout(handleRetry, retryDelay);
-      return () => clearTimeout(timer);
-    }
-  }, [enableAutoRetry, retryState.canRetry, uploadProgress.phase, handleRetry]);
-
-  const handleRemove = async () => {
-    console.log('🔍 DEBUG: BulletproofImageUpload handleRemove called - clearing all state and form value');
+  const handleRemove = useCallback(async () => {
+    logWithTimestamp('handleRemove called - clearing all state and form value');
     
     // Log current state before clearing
-    console.log('🔍 DEBUG: BulletproofImageUpload - Current state before removal:', {
+    logWithTimestamp('Current state before removal:', {
       selectedFiles: selectedFiles.length,
       previewUrls: previewUrls.length,
       currentValue: value,
       uploadPhase: uploadProgress.phase,
-      timestamp: new Date().toISOString()
     });
     
-    console.log('🔍 DEBUG: BulletproofImageUpload - Just before calling enhanced form patching to clear form value');
+    logWithTimestamp('Just before calling enhanced form patching to clear form value');
     
     // Use enhanced form value patching to clear the value
     const patchSuccess = await patchFormValueWithRetry(null);
     
     if (patchSuccess) {
-      console.log('✅ DEBUG: BulletproofImageUpload - Enhanced form patching successful for clearing value');
+      logWithTimestamp('Enhanced form patching successful for clearing value');
     } else {
-      console.warn('⚠️ DEBUG: BulletproofImageUpload - Enhanced form patching failed for clearing, using fallback');
+      logWithTimestamp('Enhanced form patching failed for clearing, using fallback');
       // Fallback: try direct onChange
       onChange(null);
     }
+    
+    // Dispatch event for removal as well
+    dispatchImageUpdatedEvent('');
     
     setSelectedFiles([]);
     setPreviewUrls([]);
@@ -1058,8 +1071,75 @@ export function BulletproofImageUpload({
       fileInputRef.current.value = '';
     }
     
-    console.log('🔍 DEBUG: BulletproofImageUpload - All state cleared successfully');
-  };
+    logWithTimestamp('All state cleared successfully');
+  }, [selectedFiles.length, previewUrls.length, value, uploadProgress.phase, patchFormValueWithRetry, onChange, dispatchImageUpdatedEvent, logWithTimestamp]);
+
+  // Memoized event handlers to prevent re-creation
+  const handleDragOver = useCallback((e: React.DragEvent) => { 
+    e.preventDefault(); 
+    setDragOver(true); 
+  }, []);
+  
+  const handleDragLeave = useCallback((e: React.DragEvent) => { 
+    e.preventDefault(); 
+    setDragOver(false); 
+  }, []);
+  
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) handleFileSelect(files);
+  }, [handleFileSelect]);
+
+  const handleFileInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files) handleFileSelect(files);
+  }, [handleFileSelect]);
+
+  const handleUploadAreaClick = useCallback(() => {
+    if (!disabled && fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  }, [disabled]);
+
+  const handleRetryClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    handleRetry();
+  }, [handleRetry]);
+
+  const handleRemoveClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    handleRemove();
+  }, [handleRemove]);
+
+  const handleClearAllClick = useCallback(() => {
+    handleRemove();
+  }, [handleRemove]);
+
+  // Auto-upload effect with proper dependency management to prevent loops
+  useEffect(() => {
+    if (selectedFiles.length > 0 && !showMetadata && !uploadProgress.phase.includes('uploading') && !uploadProgress.phase.includes('processing')) {
+      logWithTimestamp('Auto-upload triggered for selected files');
+      const timeoutId = setTimeout(() => handleUpload(), 500);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [selectedFiles.length, showMetadata, uploadProgress.phase, handleUpload, logWithTimestamp]);
+
+  // Auto-retry effect
+  useEffect(() => {
+    if (enableAutoRetry && retryState.canRetry && uploadProgress.phase === 'error') {
+      const retryDelay = Math.pow(2, retryState.attempts) * 2000; // Exponential backoff
+      
+      toast(`⏰ Auto-retry in ${retryDelay / 1000} seconds...`, {
+        duration: retryDelay - 500,
+        style: { background: '#dbeafe', color: '#1e40af' }
+      });
+      
+      const timer = setTimeout(handleRetry, retryDelay);
+      return () => clearTimeout(timer);
+    }
+  }, [enableAutoRetry, retryState.canRetry, uploadProgress.phase, handleRetry]);
 
   const isUploading = bulletproofUploadMutation.isPending || 
                      progressiveUploadMutation.isPending || 
@@ -1078,15 +1158,10 @@ export function BulletproofImageUpload({
             ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/10 scale-[1.02]'
             : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
         } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-        onDragLeave={(e) => { e.preventDefault(); setDragOver(false); }}
-        onDrop={(e) => {
-          e.preventDefault();
-          setDragOver(false);
-          const files = Array.from(e.dataTransfer.files);
-          if (files.length > 0) handleFileSelect(files);
-        }}
-        onClick={() => !disabled && fileInputRef.current?.click()}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        onClick={handleUploadAreaClick}
       >
         <input
           ref={fileInputRef}
@@ -1095,10 +1170,7 @@ export function BulletproofImageUpload({
           multiple={multiple}
           className="hidden"
           disabled={disabled}
-          onChange={(e) => {
-            const files = e.target.files;
-            if (files) handleFileSelect(files);
-          }}
+          onChange={handleFileInputChange}
         />
         
         {isUploading ? (
@@ -1193,7 +1265,7 @@ export function BulletproofImageUpload({
               {retryState.canRetry && (
                 <div className="mt-3 flex items-center space-x-3">
                   <button
-                    onClick={handleRetry}
+                    onClick={handleRetryClick}
                     className="inline-flex items-center space-x-1 px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700"
                   >
                     <RefreshCw className="h-3 w-3" />
@@ -1249,7 +1321,7 @@ export function BulletproofImageUpload({
               Selected Files ({previewUrls.length})
             </h4>
             <button
-              onClick={handleRemove}
+              onClick={handleClearAllClick}
               className="text-xs text-red-600 hover:text-red-700"
             >
               Clear All
@@ -1304,7 +1376,7 @@ export function BulletproofImageUpload({
               Current Images
             </h4>
             <button
-              onClick={handleRemove}
+              onClick={handleClearAllClick}
               className="text-xs text-red-600 hover:text-red-700"
             >
               Remove All
@@ -1340,4 +1412,7 @@ export function BulletproofImageUpload({
       )}
     </div>
   );
-}
+});
+
+// Add display name for debugging
+BulletproofImageUpload.displayName = 'BulletproofImageUpload';

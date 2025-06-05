@@ -1,3 +1,19 @@
+// Enhanced base URL detection that works on both client and server
+function getBaseUrl(): string {
+  if (typeof window !== "undefined") {
+    // Browser: use current origin
+    return window.location.origin;
+  }
+  
+  // Server: check for BASE_URL environment variable first
+  if (process.env.BASE_URL) {
+    return process.env.BASE_URL;
+  }
+  
+  // Fallback for server-side internal calls (within Docker network)
+  return `http://localhost:3000`;
+}
+
 // Debounce function to limit how often a function can be called
 export function debounce<T extends (...args: any[]) => any>(
   func: T,
@@ -14,9 +30,53 @@ export function debounce<T extends (...args: any[]) => any>(
   };
 }
 
+// Enhanced validation for image paths
+export function isValidImagePath(filePath: string): boolean {
+  if (!filePath || typeof filePath !== 'string') {
+    return false;
+  }
+  
+  // Check for data URLs
+  if (filePath.startsWith('data:')) {
+    return filePath.includes('image/') && filePath.includes('base64');
+  }
+  
+  // Check for external URLs
+  if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+    try {
+      new URL(filePath);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  
+  // Check for stored image paths (UUID.extension format)
+  const storedImageRegex = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.(jpg|jpeg|png|gif|webp|bmp|tiff|svg|avif)$/i;
+  return storedImageRegex.test(filePath.trim());
+}
+
+// Enhanced error handling for image URLs
+export function getImageUrlWithFallback(filePath: string, fallbackUrl?: string): string {
+  if (!filePath || !isValidImagePath(filePath)) {
+    return fallbackUrl || '';
+  }
+  
+  return getImageUrl(filePath);
+}
+
 // Generate URLs for images stored in our system with variant support
 export function getImageUrl(filePath: string, variantType?: string): string {
-  if (!filePath) return '';
+  if (!filePath) {
+    console.warn('getImageUrl called with empty filePath');
+    return '';
+  }
+  
+  // Enhanced validation
+  if (!isValidImagePath(filePath)) {
+    console.warn('getImageUrl called with invalid filePath:', filePath);
+    return '';
+  }
   
   // If it's already a full URL (for backwards compatibility), return as-is
   if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
@@ -30,27 +90,51 @@ export function getImageUrl(filePath: string, variantType?: string): string {
   
   // Generate URL for our image serving endpoint with proper tRPC structure
   const input = variantType 
-    ? { filePath, variantType }
-    : { filePath };
+    ? { filePath: filePath.trim(), variantType }
+    : { filePath: filePath.trim() };
   
   const endpoint = variantType ? 'getImageVariant' : 'getImage';
-  const encodedInput = encodeURIComponent(JSON.stringify(input));
   
-  return `/api/trpc/${endpoint}?input=${encodedInput}`;
+  try {
+    const encodedInput = encodeURIComponent(JSON.stringify(input));
+    
+    // Use the proper base URL function
+    const baseUrl = getBaseUrl().replace(/\/$/, ''); // Remove trailing slash
+    
+    return `${baseUrl}/api/trpc/${endpoint}?input=${encodedInput}`;
+  } catch (error) {
+    console.error('Error encoding image URL input:', error, { filePath, variantType });
+    // Fallback: simple URL construction with relative path
+    return `/api/trpc/${endpoint}?input=${encodeURIComponent(JSON.stringify({ filePath: filePath.trim() }))}`;
+  }
 }
 
 // Generate cache-busted image URLs with variant support
 export function getCacheBustedImageUrl(filePath: string, updatedAt?: Date | string, variantType?: string): string {
-  if (!filePath) return '';
+  if (!filePath) {
+    console.warn('getCacheBustedImageUrl called with empty filePath');
+    return '';
+  }
+  
+  // Enhanced validation
+  if (!isValidImagePath(filePath)) {
+    console.warn('getCacheBustedImageUrl called with invalid filePath:', filePath);
+    return '';
+  }
   
   // If it's already a full URL (for backwards compatibility), use original function
   if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
     if (!updatedAt) return filePath;
     
-    const timestamp = typeof updatedAt === 'string' ? new Date(updatedAt) : updatedAt;
-    const cacheBuster = timestamp.getTime();
-    const separator = filePath.includes('?') ? '&' : '?';
-    return `${filePath}${separator}v=${cacheBuster}`;
+    try {
+      const timestamp = typeof updatedAt === 'string' ? new Date(updatedAt) : updatedAt;
+      const cacheBuster = timestamp.getTime();
+      const separator = filePath.includes('?') ? '&' : '?';
+      return `${filePath}${separator}v=${cacheBuster}`;
+    } catch (error) {
+      console.warn('Error creating cache buster for external URL:', error);
+      return filePath;
+    }
   }
   
   // If it's a data URL (base64), return as-is
@@ -60,21 +144,78 @@ export function getCacheBustedImageUrl(filePath: string, updatedAt?: Date | stri
   
   // For our stored images, add cache buster to the tRPC endpoint
   const input = variantType 
-    ? { filePath, variantType }
-    : { filePath };
+    ? { filePath: filePath.trim(), variantType }
+    : { filePath: filePath.trim() };
   
   const endpoint = variantType ? 'getImageVariant' : 'getImage';
-  const encodedInput = encodeURIComponent(JSON.stringify(input));
   
-  let url = `/api/trpc/${endpoint}?input=${encodedInput}`;
+  try {
+    const encodedInput = encodeURIComponent(JSON.stringify(input));
+    
+    // Use the proper base URL function
+    const baseUrl = getBaseUrl().replace(/\/$/, ''); // Remove trailing slash
+    
+    let url = `${baseUrl}/api/trpc/${endpoint}?input=${encodedInput}`;
+    
+    // Enhanced cache busting logic
+    let cacheBuster: number;
+    if (updatedAt) {
+      const timestamp = typeof updatedAt === 'string' ? new Date(updatedAt) : updatedAt;
+      cacheBuster = timestamp.getTime();
+    } else {
+      // Add current timestamp as fallback to prevent stale cache
+      cacheBuster = Date.now();
+    }
+    
+    // Add random component to ensure fresh loading even with same timestamp
+    const randomComponent = Math.floor(Math.random() * 1000);
+    url += `&v=${cacheBuster}&r=${randomComponent}`;
+    
+    return url;
+  } catch (error) {
+    console.error('Error creating cache-busted URL:', error, { filePath, updatedAt, variantType });
+    // Fallback: basic URL without cache busting
+    return getImageUrl(filePath, variantType);
+  }
+}
+
+// Get absolute image URL for debugging purposes
+export function getAbsoluteImageUrl(filePath: string, variantType?: string): string {
+  const url = getImageUrl(filePath, variantType);
   
-  if (updatedAt) {
-    const timestamp = typeof updatedAt === 'string' ? new Date(updatedAt) : updatedAt;
-    const cacheBuster = timestamp.getTime();
-    url += `&v=${cacheBuster}`;
+  // If already absolute, return as-is
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
   }
   
-  return url;
+  // Make relative URL absolute using the proper base URL function
+  const baseUrl = getBaseUrl();
+  return `${baseUrl}${url}`;
+}
+
+// Validate and normalize image URLs for consistent handling
+export function normalizeImageUrl(url: string): string {
+  if (!url) return '';
+  
+  try {
+    // If it's a relative URL starting with /api/trpc, make it absolute
+    if (url.startsWith('/api/trpc/')) {
+      const baseUrl = getBaseUrl();
+      return `${baseUrl}${url}`;
+    }
+    
+    // If it's already absolute or a data URL, return as-is
+    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
+      return url;
+    }
+    
+    // For other relative URLs, make them absolute
+    const baseUrl = getBaseUrl();
+    return new URL(url, baseUrl).toString();
+  } catch (error) {
+    console.warn('Error normalizing image URL:', error, { url });
+    return url;
+  }
 }
 
 // Get responsive image URLs for different screen sizes

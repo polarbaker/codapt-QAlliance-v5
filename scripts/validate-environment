@@ -1,0 +1,221 @@
+#!/bin/bash
+
+# Environment Validation Script
+# Validates that the Codapt application environment is properly configured
+
+set -e
+
+echo "🌍 Codapt Environment Validation Script"
+echo "======================================="
+echo ""
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Counters
+CHECKS_PASSED=0
+CHECKS_FAILED=0
+WARNINGS=0
+
+# Helper functions
+check_pass() {
+    echo -e "${GREEN}✅ $1${NC}"
+    ((CHECKS_PASSED++))
+}
+
+check_fail() {
+    echo -e "${RED}❌ $1${NC}"
+    ((CHECKS_FAILED++))
+}
+
+check_warn() {
+    echo -e "${YELLOW}⚠️  $1${NC}"
+    ((WARNINGS++))
+}
+
+check_info() {
+    echo -e "${BLUE}ℹ️  $1${NC}"
+}
+
+echo "🔍 Checking environment files..."
+echo "--------------------------------"
+
+# Check if .env file exists
+if [ -f ".env" ]; then
+    check_pass ".env file exists"
+else
+    check_fail ".env file missing"
+    echo "   💡 Run: cp .env.example .env"
+    echo ""
+fi
+
+# Check if .env.example exists and is comprehensive
+if [ -f ".env.example" ]; then
+    check_pass ".env.example file exists"
+    
+    # Check if .env.example has comprehensive documentation
+    if grep -q "CODAPT APPLICATION ENVIRONMENT CONFIGURATION" .env.example; then
+        check_pass ".env.example has comprehensive documentation"
+    else
+        check_warn ".env.example may need documentation updates"
+    fi
+else
+    check_fail ".env.example file missing"
+fi
+
+echo ""
+echo "🔧 Checking required environment variables..."
+echo "--------------------------------------------"
+
+# Source .env file if it exists
+if [ -f ".env" ]; then
+    set -a
+    source .env
+    set +a
+    
+    # Check required variables
+    required_vars=("BASE_URL" "ADMIN_PASSWORD" "JWT_SECRET" "DATABASE_URL")
+    
+    for var in "${required_vars[@]}"; do
+        if [ -n "${!var}" ]; then
+            check_pass "$var is set"
+            
+            # Additional validation for specific variables
+            case $var in
+                "BASE_URL")
+                    if [[ ${!var} =~ ^https?:// ]]; then
+                        check_pass "$var has valid protocol"
+                    else
+                        check_fail "$var must include http:// or https://"
+                    fi
+                    ;;
+                "JWT_SECRET")
+                    if [ ${#JWT_SECRET} -ge 32 ]; then
+                        check_pass "$var is at least 32 characters"
+                    else
+                        check_fail "$var must be at least 32 characters long"
+                        echo "   💡 Generate with: openssl rand -base64 32"
+                    fi
+                    ;;
+                "DATABASE_URL")
+                    if [[ ${!var} =~ ^postgresql:// ]]; then
+                        check_pass "$var has valid PostgreSQL format"
+                    else
+                        check_warn "$var should use postgresql:// format"
+                    fi
+                    ;;
+            esac
+        else
+            check_fail "$var is not set"
+        fi
+    done
+else
+    check_fail "Cannot check variables - .env file missing"
+fi
+
+echo ""
+echo "🔒 Security checks..."
+echo "--------------------"
+
+if [ -n "$JWT_SECRET" ]; then
+    # Check for default/insecure JWT secrets
+    if [[ "$JWT_SECRET" == *"change-in-production"* ]] || [[ "$JWT_SECRET" == *"default"* ]]; then
+        check_fail "JWT_SECRET appears to use default value"
+        echo "   💡 Generate a unique secret: openssl rand -base64 32"
+    else
+        check_pass "JWT_SECRET appears to be customized"
+    fi
+fi
+
+if [ -n "$NODE_ENV" ] && [ "$NODE_ENV" = "production" ]; then
+    check_info "Production environment detected"
+    
+    if [ -n "$BASE_URL" ] && [[ "$BASE_URL" =~ ^https:// ]]; then
+        check_pass "BASE_URL uses HTTPS in production"
+    else
+        check_warn "BASE_URL should use HTTPS in production"
+    fi
+    
+    if [ -n "$ADMIN_PASSWORD" ] && [ ${#ADMIN_PASSWORD} -ge 8 ]; then
+        check_pass "ADMIN_PASSWORD is at least 8 characters"
+    else
+        check_warn "ADMIN_PASSWORD should be at least 8 characters for production"
+    fi
+else
+    check_info "Development environment detected"
+fi
+
+echo ""
+echo "📁 Checking file structure..."
+echo "-----------------------------"
+
+# Check critical files exist
+critical_files=(
+    "src/server/env.ts"
+    "app.config.ts"
+    "src/server/scripts/setup.ts"
+    "src/routes/__root.tsx"
+    "package.json"
+)
+
+for file in "${critical_files[@]}"; do
+    if [ -f "$file" ]; then
+        check_pass "$file exists"
+    else
+        check_fail "$file is missing"
+    fi
+done
+
+echo ""
+echo "🔍 Checking for common issues..."
+echo "-------------------------------"
+
+# Check if app.config.ts has the server import issue
+if [ -f "app.config.ts" ]; then
+    if grep -q 'import.*env.*from.*src/server/env' app.config.ts; then
+        check_fail "app.config.ts imports server-side env (browser compatibility issue)"
+        echo "   💡 Use process.env.BASE_URL directly instead"
+    else
+        check_pass "app.config.ts doesn't import server-side env"
+    fi
+fi
+
+# Check if __root.tsx has process.env access
+if [ -f "src/routes/__root.tsx" ]; then
+    if grep -q 'process\.env\.NODE_ENV' src/routes/__root.tsx; then
+        check_fail "__root.tsx accesses process.env in browser code"
+        echo "   💡 Use import.meta.env.DEV instead"
+    else
+        check_pass "__root.tsx uses proper client-side env access"
+    fi
+fi
+
+echo ""
+echo "📊 Validation Summary"
+echo "===================="
+echo -e "${GREEN}Checks Passed: $CHECKS_PASSED${NC}"
+echo -e "${RED}Checks Failed: $CHECKS_FAILED${NC}"
+echo -e "${YELLOW}Warnings: $WARNINGS${NC}"
+echo ""
+
+# Overall status
+if [ $CHECKS_FAILED -eq 0 ]; then
+    if [ $WARNINGS -eq 0 ]; then
+        echo -e "${GREEN}🎉 Environment validation passed! Your setup looks great.${NC}"
+        exit 0
+    else
+        echo -e "${YELLOW}⚠️  Environment validation passed with warnings. Consider addressing them.${NC}"
+        exit 0
+    fi
+else
+    echo -e "${RED}❌ Environment validation failed. Please fix the issues above before starting the application.${NC}"
+    echo ""
+    echo "📖 For help, see:"
+    echo "   - .env.example for configuration examples"
+    echo "   - ENVIRONMENT_FIXES_SUMMARY.md for detailed troubleshooting"
+    exit 1
+fi
