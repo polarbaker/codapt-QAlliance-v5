@@ -1,6 +1,24 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+// Upload state tracking for recovery and persistence
+interface UploadState {
+  id: string;
+  fileName: string;
+  filePath?: string;
+  status: 'uploading' | 'processing' | 'verifying' | 'verified' | 'failed';
+  progress: number;
+  timestamp: number;
+  error?: string;
+  retryCount: number;
+  verificationAttempts?: number;
+}
+
+interface RecentUploadsState {
+  uploads: UploadState[];
+  maxUploads: number;
+}
+
 interface UserStore {
   // Theme preferences
   themePreference: 'light' | 'dark' | 'system';
@@ -35,6 +53,15 @@ interface UserStore {
   };
   updatePreferences: (preferences: Partial<UserStore['preferences']>) => void;
   
+  // Recent uploads tracking
+  recentUploads: RecentUploadsState;
+  addUpload: (upload: Omit<UploadState, 'id' | 'timestamp'>) => string;
+  updateUpload: (id: string, updates: Partial<UploadState>) => void;
+  removeUpload: (id: string) => void;
+  clearOldUploads: () => void;
+  getUploadById: (id: string) => UploadState | undefined;
+  getUploadsByStatus: (status: UploadState['status']) => UploadState[];
+  
   // Reset functions
   resetProfile: () => void;
   resetAll: () => void;
@@ -53,6 +80,10 @@ const defaultState = {
     emailNotifications: true,
     pushNotifications: false,
   },
+  recentUploads: {
+    uploads: [],
+    maxUploads: 10,
+  } as RecentUploadsState,
 };
 
 // Helper function to safely apply theme
@@ -172,6 +203,90 @@ export const useUserStore = create<UserStore>()(
         set({ preferences: validatedPreferences });
       },
       
+      // Recent uploads management
+      addUpload: (upload) => {
+        const id = `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const newUpload: UploadState = {
+          ...upload,
+          id,
+          timestamp: Date.now(),
+          retryCount: upload.retryCount || 0,
+        };
+        
+        set((state) => {
+          const uploads = [...state.recentUploads.uploads, newUpload];
+          
+          // Keep only the most recent uploads
+          if (uploads.length > state.recentUploads.maxUploads) {
+            uploads.splice(0, uploads.length - state.recentUploads.maxUploads);
+          }
+          
+          return {
+            recentUploads: {
+              ...state.recentUploads,
+              uploads,
+            },
+          };
+        });
+        
+        return id;
+      },
+
+      updateUpload: (id, updates) => {
+        set((state) => {
+          const uploads = state.recentUploads.uploads.map(upload =>
+            upload.id === id ? { ...upload, ...updates } : upload
+          );
+          
+          return {
+            recentUploads: {
+              ...state.recentUploads,
+              uploads,
+            },
+          };
+        });
+      },
+
+      removeUpload: (id) => {
+        set((state) => {
+          const uploads = state.recentUploads.uploads.filter(upload => upload.id !== id);
+          
+          return {
+            recentUploads: {
+              ...state.recentUploads,
+              uploads,
+            },
+          };
+        });
+      },
+
+      clearOldUploads: () => {
+        const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000; // 24 hours
+        
+        set((state) => {
+          const uploads = state.recentUploads.uploads.filter(
+            upload => upload.timestamp > oneDayAgo
+          );
+          
+          return {
+            recentUploads: {
+              ...state.recentUploads,
+              uploads,
+            },
+          };
+        });
+      },
+
+      getUploadById: (id) => {
+        const { recentUploads } = get();
+        return recentUploads.uploads.find(upload => upload.id === id);
+      },
+
+      getUploadsByStatus: (status) => {
+        const { recentUploads } = get();
+        return recentUploads.uploads.filter(upload => upload.status === status);
+      },
+      
       // Reset functions
       resetProfile: () => set({ 
         name: defaultState.name, 
@@ -193,11 +308,19 @@ export const useUserStore = create<UserStore>()(
           const serializedState = {
             ...state.state,
             likedComments: Array.from(state.state.likedComments),
+            recentUploads: {
+              ...state.state.recentUploads,
+              uploads: state.state.recentUploads.uploads || [],
+            },
           };
           return JSON.stringify(serializedState);
         } catch (error) {
           console.warn('Failed to serialize user store:', error);
-          return JSON.stringify({ ...defaultState, likedComments: [] });
+          return JSON.stringify({ 
+            ...defaultState, 
+            likedComments: [],
+            recentUploads: defaultState.recentUploads,
+          });
         }
       },
       
@@ -227,6 +350,20 @@ export const useUserStore = create<UserStore>()(
               pushNotifications: typeof parsed.preferences?.pushNotifications === 'boolean' 
                 ? parsed.preferences.pushNotifications 
                 : defaultState.preferences.pushNotifications,
+            },
+            recentUploads: {
+              uploads: Array.isArray(parsed.recentUploads?.uploads) 
+                ? parsed.recentUploads.uploads.filter((upload: any) => 
+                    upload && typeof upload === 'object' && 
+                    typeof upload.id === 'string' &&
+                    typeof upload.fileName === 'string' &&
+                    typeof upload.status === 'string' &&
+                    typeof upload.timestamp === 'number'
+                  )
+                : [],
+              maxUploads: typeof parsed.recentUploads?.maxUploads === 'number' 
+                ? parsed.recentUploads.maxUploads 
+                : defaultState.recentUploads.maxUploads,
             },
           };
           

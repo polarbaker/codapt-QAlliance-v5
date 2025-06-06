@@ -2,7 +2,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useUserStore } from "~/stores/userStore";
 import { useTRPC } from "~/trpc/react";
-import { useQuery, useMutation } from "@tanstack/react-query";
 import { toast } from "react-hot-toast";
 import { getImageUrl } from "~/utils";
 import {
@@ -81,50 +80,42 @@ function AdminImagesPage() {
   const trpc = useTRPC();
   
   // Fetch images with enhanced filtering
-  const imagesQuery = useQuery(
-    trpc.adminListImages.queryOptions({
-      adminToken: adminToken || "",
-      ...filters,
-      includeVariants: true,
-    })
-  );
+  const imagesQuery = trpc.adminListImages.useQuery({
+    adminToken: adminToken || "",
+    ...filters,
+    includeVariants: true,
+  });
   
   // Fetch collections
-  const collectionsQuery = useQuery(
-    trpc.adminListImageCollections.queryOptions({
-      adminToken: adminToken || "",
-      includeImages: false,
-    })
-  );
+  const collectionsQuery = trpc.adminListImageCollections.useQuery({
+    adminToken: adminToken || "",
+    includeImages: false,
+  });
   
   // Delete image mutation
-  const deleteMutation = useMutation(
-    trpc.adminDeleteImage.mutationOptions({
-      onSuccess: () => {
-        imagesQuery.refetch();
-        toast.success("Image deleted successfully");
-        setSelectedImages(prev => prev.filter(id => !selectedImages.includes(id)));
-      },
-      onError: (error) => {
-        toast.error(error.message || "Failed to delete image");
-      },
-    })
-  );
+  const deleteMutation = trpc.adminDeleteImage.useMutation({
+    onSuccess: () => {
+      imagesQuery.refetch();
+      toast.success("Image deleted successfully");
+      setSelectedImages(prev => prev.filter(id => !selectedImages.includes(id)));
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to delete image");
+    },
+  });
   
   // Create collection mutation
-  const createCollectionMutation = useMutation(
-    trpc.adminCreateImageCollection.mutationOptions({
-      onSuccess: () => {
-        collectionsQuery.refetch();
-        toast.success("Collection created successfully");
-        setShowCollectionCreator(false);
-        setSelectedImages([]);
-      },
-      onError: (error) => {
-        toast.error(error.message || "Failed to create collection");
-      },
-    })
-  );
+  const createCollectionMutation = trpc.adminCreateImageCollection.useMutation({
+    onSuccess: () => {
+      collectionsQuery.refetch();
+      toast.success("Collection created successfully");
+      setShowCollectionCreator(false);
+      setSelectedImages([]);
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to create collection");
+    },
+  });
   
   const images: ImageData[] = imagesQuery.data?.images.map(img => ({
     ...img,

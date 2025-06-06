@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState, useCallback } from "react";
 import { useUserStore } from "~/stores/userStore";
 import { useTRPC } from "~/trpc/react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { DebouncedSearchInput } from "~/components/ui/DebouncedSearchInput";
 import { Badge } from "~/components/ui/Badge";
 import { InnovatorBulkActions } from "~/components/admin/InnovatorBulkActions";
@@ -38,67 +38,59 @@ function AdminInnovatorsPage() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   
-  // Use the correct pattern for queries
-  const innovatorsQuery = useQuery(
-    trpc.adminGetInnovators.queryOptions({
-      adminToken: adminToken || "",
-      search: searchQuery || undefined,
-      featured: featuredFilter === "all" ? undefined : featuredFilter === "featured",
-      limit: 20,
-    })
-  );
+  // Use the direct tRPC hook pattern
+  const innovatorsQuery = trpc.adminGetInnovators.useQuery({
+    adminToken: adminToken || "",
+    search: searchQuery || undefined,
+    featured: featuredFilter === "all" ? undefined : featuredFilter === "featured",
+    limit: 20,
+  });
   
-  // Use the correct pattern for mutations with proper invalidation
-  const deleteMutation = useMutation(
-    trpc.adminDeleteInnovator.mutationOptions({
-      onSuccess: async () => {
-        // Invalidate all relevant queries to ensure immediate updates
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['adminGetInnovators'] }),
-          queryClient.invalidateQueries({ queryKey: ['getInnovators'] }),
-          queryClient.invalidateQueries({ queryKey: ['getFeaturedInnovators'] }),
-        ]);
-        toast.success("Innovator deleted successfully");
-      },
-      onError: (error) => {
-        toast.error(error.message);
-      },
-    })
-  );
+  // Use the direct tRPC hook pattern for mutations
+  const deleteMutation = trpc.adminDeleteInnovator.useMutation({
+    onSuccess: async () => {
+      // Invalidate all relevant queries to ensure immediate updates
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['adminGetInnovators'] }),
+        queryClient.invalidateQueries({ queryKey: ['getInnovators'] }),
+        queryClient.invalidateQueries({ queryKey: ['getFeaturedInnovators'] }),
+      ]);
+      toast.success("Innovator deleted successfully");
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
 
-  const toggleFeaturedMutation = useMutation(
-    trpc.adminUpdateInnovator.mutationOptions({
-      onSuccess: async () => {
-        // Invalidate all relevant queries to ensure immediate updates
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['adminGetInnovators'] }),
-          queryClient.invalidateQueries({ queryKey: ['getInnovators'] }),
-          queryClient.invalidateQueries({ queryKey: ['getFeaturedInnovators'] }),
-        ]);
-        toast.success("Featured status updated");
-      },
-      onError: (error) => {
-        toast.error(error.message);
-      },
-    })
-  );
+  const toggleFeaturedMutation = trpc.adminUpdateInnovator.useMutation({
+    onSuccess: async () => {
+      // Invalidate all relevant queries to ensure immediate updates
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['adminGetInnovators'] }),
+        queryClient.invalidateQueries({ queryKey: ['getInnovators'] }),
+        queryClient.invalidateQueries({ queryKey: ['getFeaturedInnovators'] }),
+      ]);
+      toast.success("Featured status updated");
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
 
-  const reorderMutation = useMutation(
-    trpc.adminReorderInnovators.mutationOptions({
-      onSuccess: async () => {
-        // Invalidate all relevant queries to ensure immediate updates
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['adminGetInnovators'] }),
-          queryClient.invalidateQueries({ queryKey: ['getInnovators'] }),
-          queryClient.invalidateQueries({ queryKey: ['getFeaturedInnovators'] }),
-        ]);
-        toast.success("Innovator order updated");
-      },
-      onError: (error) => {
-        toast.error(error.message);
-      },
-    })
-  );
+  const reorderMutation = trpc.adminReorderInnovators.useMutation({
+    onSuccess: async () => {
+      // Invalidate all relevant queries to ensure immediate updates
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['adminGetInnovators'] }),
+        queryClient.invalidateQueries({ queryKey: ['getInnovators'] }),
+        queryClient.invalidateQueries({ queryKey: ['getFeaturedInnovators'] }),
+      ]);
+      toast.success("Innovator order updated");
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
 
   const handleSelectAll = useCallback(() => {
     if (selectedInnovators.length === innovatorsQuery.data?.innovators.length) {

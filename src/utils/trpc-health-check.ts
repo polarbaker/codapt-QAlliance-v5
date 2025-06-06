@@ -25,6 +25,7 @@ const CRITICAL_PROCEDURES = [
   'adminCreateInnovator',
   'adminUpdateInnovator',
   'adminDeleteInnovator',
+  'storageHealthCheck', // Add storage health check to critical procedures
 ];
 
 export function useTRPCHealthCheck(): TRPCHealthCheckResult {

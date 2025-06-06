@@ -168,14 +168,14 @@ function NewPartnerPage() {
       previewKey: previewKey,
     });
     
-    // Force preview re-render when logo URL changes
+    // Conditional guard: Force preview re-render when logo URL changes
     if (logoUrl && logoUrl.trim() !== '') {
       logWithTimestamp('Logo URL changed - forcing preview update');
       setPreviewKey(prev => prev + 1);
       setLastImageUpdate(new Date());
     }
     
-    // Force re-validation if we have a valid logo but still have an error
+    // Conditional guard: Force re-validation if we have a valid logo but still have an error
     if (logoUrl && logoUrl.trim() !== '' && errors.logoUrl) {
       logWithTimestamp('Detected valid logoUrl with validation error, triggering re-validation');
       const timeoutId = setTimeout(() => {
@@ -184,7 +184,7 @@ function NewPartnerPage() {
       return () => clearTimeout(timeoutId);
     }
     
-    // Force validation after setValue to ensure form state is updated
+    // Conditional guard: Force validation after setValue to ensure form state is updated
     if (logoUrl && logoUrl.trim() !== '') {
       const timeoutId = setTimeout(async () => {
         logWithTimestamp('Forcing validation after logoUrl change');
@@ -197,7 +197,7 @@ function NewPartnerPage() {
       }, 200);
       return () => clearTimeout(timeoutId);
     }
-  }, [logoUrl, errors.logoUrl, formState.isValid, trigger, logWithTimestamp]); // Fixed: removed previewKey from deps to prevent loop
+  }, [logoUrl, errors.logoUrl, formState.isValid, trigger, logWithTimestamp]); // Fixed: removed previewKey and state setters from deps to prevent loop
 
   // Custom event listener for crosscutting image updates - Fixed dependency array
   React.useEffect(() => {
@@ -212,11 +212,11 @@ function NewPartnerPage() {
         shouldUpdate: eventFilePath && (eventFilePath === logoUrl || component === 'BulletproofImageUpload'),
       });
       
-      // Check if this event is for our current logo or if it's a new upload
+      // Conditional guard: Check if this event is for our current logo or if it's a new upload
       if (eventFilePath && (eventFilePath === logoUrl || component === 'BulletproofImageUpload')) {
         logWithTimestamp('Event matches current context - forcing form and preview update');
         
-        // Update form state if the path is different
+        // Conditional guard: Update form state if the path is different
         if (eventFilePath !== logoUrl && eventFilePath.trim() !== '') {
           logWithTimestamp('Updating form state from event');
           setValue("logoUrl", eventFilePath, { 
@@ -246,7 +246,7 @@ function NewPartnerPage() {
       window.removeEventListener('imageUpdated', handleImageUpdated as EventListener);
       document.removeEventListener('imageUpdated', handleImageUpdated as EventListener);
     };
-  }, [logoUrl, setValue, trigger, logWithTimestamp]); // Removed state setters to prevent loops
+  }, [logoUrl, setValue, trigger, logWithTimestamp]); // Fixed: removed state setters to prevent loops
 
   return (
     <div className="min-h-screen bg-background-light dark:bg-background-black">

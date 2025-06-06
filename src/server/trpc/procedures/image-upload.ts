@@ -566,7 +566,144 @@ const validateImageBuffer = async (buffer: Buffer, expectedContentType: string):
   }
 };
 
-// Enhanced single image upload with comprehensive error handling and logging
+// Enhanced server-side file verification after storage upload
+const verifyFileExistsInStorage = async (
+  fileName: string,
+  expectedSize?: number,
+  maxRetries: number = 3
+): Promise<{ exists: boolean; actualSize?: number; error?: string; metadata?: any }> => {
+  console.log(`🔍 SERVER VERIFICATION: Starting file existence check for ${fileName}`);
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`🔍 SERVER VERIFICATION: Attempt ${attempt}/${maxRetries} for ${fileName}`);
+      
+      // Check if file exists in storage
+      const stat = await minioClient.statObject(BUCKET_NAME, fileName);
+      
+      if (!stat) {
+        console.error(`❌ SERVER VERIFICATION: No stat object returned for ${fileName} on attempt ${attempt}`);
+        continue;
+      }
+      
+      const actualSize = stat.size;
+      const lastModified = stat.lastModified;
+      const etag = stat.etag;
+      const contentType = stat.metaData?.['content-type'];
+      
+      console.log(`✅ SERVER VERIFICATION: File exists in storage:`, {
+        fileName,
+        actualSize,
+        expectedSize,
+        lastModified,
+        etag,
+        contentType,
+        attempt,
+        bucket: BUCKET_NAME,
+      });
+      
+      // Verify file size if expected size is provided
+      if (expectedSize && actualSize !== expectedSize) {
+        console.warn(`⚠️ SERVER VERIFICATION: Size mismatch for ${fileName}:`, {
+          expectedSize,
+          actualSize,
+          difference: Math.abs(actualSize - expectedSize),
+        });
+        
+        // Allow small differences (up to 1KB) due to metadata
+        if (Math.abs(actualSize - expectedSize) > 1024) {
+          return {
+            exists: false,
+            actualSize,
+            error: `File size mismatch: expected ${expectedSize}, got ${actualSize}`,
+          };
+        }
+      }
+      
+      // Try to actually read a small portion of the file to ensure it's not corrupted
+      try {
+        const stream = await minioClient.getObject(BUCKET_NAME, fileName);
+        let readBytes = 0;
+        const maxReadBytes = 1024; // Read first 1KB to verify accessibility
+        
+        for await (const chunk of stream) {
+          readBytes += chunk.length;
+          if (readBytes >= maxReadBytes) {
+            break; // We've read enough to verify the file is accessible
+          }
+        }
+        
+        console.log(`✅ SERVER VERIFICATION: File is readable, verified ${readBytes} bytes for ${fileName}`);
+        
+        return {
+          exists: true,
+          actualSize,
+          metadata: {
+            lastModified,
+            etag,
+            contentType,
+            verifiedBytes: readBytes,
+            verificationAttempt: attempt,
+          },
+        };
+        
+      } catch (readError) {
+        console.error(`❌ SERVER VERIFICATION: File exists but cannot be read on attempt ${attempt}:`, {
+          fileName,
+          error: readError instanceof Error ? readError.message : 'Unknown read error',
+        });
+        
+        if (attempt === maxRetries) {
+          return {
+            exists: false,
+            actualSize,
+            error: `File exists but cannot be read: ${readError instanceof Error ? readError.message : 'Unknown error'}`,
+          };
+        }
+        
+        // Wait before retry
+        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+      }
+      
+    } catch (statError: any) {
+      console.error(`❌ SERVER VERIFICATION: Stat error for ${fileName} on attempt ${attempt}:`, {
+        error: statError instanceof Error ? statError.message : 'Unknown stat error',
+        code: statError?.code,
+        statusCode: statError?.statusCode,
+      });
+      
+      if (statError?.code === 'NoSuchKey' || statError?.statusCode === 404) {
+        if (attempt === maxRetries) {
+          return {
+            exists: false,
+            error: `File not found in storage after ${maxRetries} attempts`,
+          };
+        }
+        
+        // Wait before retry for file to propagate
+        console.log(`⏳ SERVER VERIFICATION: File not found, waiting before retry ${attempt + 1}...`);
+        await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
+      } else {
+        if (attempt === maxRetries) {
+          return {
+            exists: false,
+            error: `Storage error: ${statError instanceof Error ? statError.message : 'Unknown error'}`,
+          };
+        }
+        
+        // Wait before retry for transient errors
+        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+      }
+    }
+  }
+  
+  return {
+    exists: false,
+    error: `File verification failed after ${maxRetries} attempts`,
+  };
+};
+
+// Enhanced single image upload with comprehensive error handling, logging, and server-side verification
 export const adminUploadImage = baseProcedure
   .input(z.object({
     adminToken: z.string(),
@@ -580,23 +717,101 @@ export const adminUploadImage = baseProcedure
   .mutation(async ({ input }) => {
     const startTime = Date.now();
     const uploadId = `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
     // Enhanced logging for debugging
-    console.log(`🚀 Starting enhanced upload: ${input.fileName} (ID: ${uploadId})`);
+    console.log(`🚀 ENHANCED UPLOAD: Starting upload for ${input.fileName} (ID: ${uploadId}, Request: ${requestId})`);
+    console.log(`📊 REQUEST DETAILS:`, {
+      uploadId,
+      requestId,
+      fileName: input.fileName,
+      fileType: input.fileType,
+      adminTokenPresent: !!input.adminToken,
+      adminTokenLength: input.adminToken?.length || 0,
+      adminTokenPrefix: input.adminToken ? input.adminToken.substring(0, 10) + '...' : 'none',
+      fileContentLength: input.fileContent?.length || 0,
+      fileContentPrefix: input.fileContent ? input.fileContent.substring(0, 50) + '...' : 'none',
+      hasTitle: !!input.title,
+      hasDescription: !!input.description,
+      hasAltText: !!input.altText,
+      timestamp: new Date().toISOString(),
+      userAgent: 'server-side',
+      memoryUsage: process.memoryUsage(),
+    });
     
     let imageRecord: any = null;
     let uploadedFileName: string | null = null;
     let processingDetails: Record<string, any> = {
       uploadId,
+      requestId,
       fileName: input.fileName,
       fileType: input.fileType,
       startTime,
     };
     
     try {
-      // Authenticate
-      await requireAdminAuth(input.adminToken);
-      processingDetails.authenticated = true;
+      // Enhanced authentication with detailed logging
+      console.log(`🔐 AUTHENTICATION CHECK: Verifying admin token for ${input.fileName} (${requestId})`);
+      
+      if (!input.adminToken || input.adminToken.trim() === '') {
+        console.error(`❌ AUTHENTICATION FAILED: Missing or empty admin token for ${input.fileName} (${requestId})`);
+        throw createImageError(
+          'Authentication token is required',
+          'auth',
+          {
+            canRetry: false,
+            suggestions: ['Please log in again', 'Refresh the page and try again'],
+            details: { uploadId, requestId, reason: 'missing_token' }
+          }
+        );
+      }
+      
+      if (input.adminToken.length < 10) {
+        console.error(`❌ AUTHENTICATION FAILED: Token too short for ${input.fileName} (${requestId}):`, {
+          tokenLength: input.adminToken.length,
+          tokenPrefix: input.adminToken.substring(0, 5)
+        });
+        throw createImageError(
+          'Invalid authentication token format',
+          'auth',
+          {
+            canRetry: false,
+            suggestions: ['Please log in again', 'Clear browser cache and try again'],
+            details: { uploadId, requestId, reason: 'invalid_token_format' }
+          }
+        );
+      }
+      
+      try {
+        await requireAdminAuth(input.adminToken);
+        console.log(`✅ AUTHENTICATION SUCCESS: Token verified for ${input.fileName} (${requestId})`);
+        processingDetails.authenticated = true;
+      } catch (authError) {
+        console.error(`❌ AUTHENTICATION FAILED: Token verification failed for ${input.fileName} (${requestId}):`, {
+          error: authError instanceof Error ? authError.message : 'Unknown auth error',
+          tokenLength: input.adminToken.length,
+          tokenPrefix: input.adminToken.substring(0, 10)
+        });
+        
+        throw createImageError(
+          'Authentication failed - please log in again',
+          'auth',
+          {
+            canRetry: false,
+            suggestions: [
+              'Log out and log in again',
+              'Clear browser cache and cookies',
+              'Check if your session has expired'
+            ],
+            details: { 
+              uploadId, 
+              requestId, 
+              reason: 'auth_verification_failed',
+              authError: authError instanceof Error ? authError.message : 'Unknown'
+            }
+          }
+        );
+      }
       
       // Ensure bucket exists
       await ensureBucket();
@@ -605,21 +820,48 @@ export const adminUploadImage = baseProcedure
       // Parse and validate buffer with enhanced error handling
       let buffer: Buffer;
       try {
+        console.log(`📊 PARSING FILE DATA: Processing base64 content for ${input.fileName} (${requestId})`);
+        
         const base64Data = input.fileContent.includes('base64,') 
           ? input.fileContent.split('base64,')[1]
           : input.fileContent;
+        
+        if (!base64Data || base64Data.trim() === '') {
+          throw new Error('Empty base64 data after parsing');
+        }
+        
+        console.log(`📊 BASE64 PARSING: Decoded data details for ${input.fileName} (${requestId}):`, {
+          originalLength: input.fileContent.length,
+          base64Length: base64Data.length,
+          hasDataPrefix: input.fileContent.includes('base64,'),
+          estimatedFileSize: Math.round(base64Data.length * 0.75), // Approximate decoded size
+        });
         
         buffer = Buffer.from(base64Data, 'base64');
         processingDetails.bufferSize = buffer.length;
         
         if (buffer.length === 0) {
-          throw new Error('Empty image data');
+          throw new Error('Empty buffer after base64 decoding');
+        }
+        
+        if (buffer.length < 100) {
+          throw new Error('Buffer too small - likely corrupted data');
         }
 
-        console.log(`📊 Parsed image data: ${(buffer.length / (1024 * 1024)).toFixed(1)}MB (ID: ${uploadId})`);
+        console.log(`✅ FILE PARSING SUCCESS: Buffer created for ${input.fileName} (${requestId}):`, {
+          bufferSize: buffer.length,
+          bufferSizeMB: (buffer.length / (1024 * 1024)).toFixed(2),
+          base64ToBufferRatio: (buffer.length / base64Data.length).toFixed(3),
+        });
         
       } catch (parseError) {
-        console.error(`❌ Base64 parsing error for ${input.fileName} (ID: ${uploadId}):`, parseError);
+        console.error(`❌ FILE PARSING FAILED: Base64 parsing error for ${input.fileName} (${requestId}):`, {
+          error: parseError instanceof Error ? parseError.message : 'Unknown error',
+          fileContentLength: input.fileContent?.length || 0,
+          fileContentPrefix: input.fileContent ? input.fileContent.substring(0, 100) : 'none',
+          hasBase64Prefix: input.fileContent?.includes('base64,') || false,
+        });
+        
         throw createImageError(
           'Invalid image data - upload may be corrupted or incomplete',
           'validation',
@@ -630,7 +872,12 @@ export const adminUploadImage = baseProcedure
               'Try a different browser',
               'Ensure the file is not corrupted'
             ],
-            details: { uploadId, parseError: parseError instanceof Error ? parseError.message : 'Unknown' }
+            details: { 
+              uploadId, 
+              requestId, 
+              parseError: parseError instanceof Error ? parseError.message : 'Unknown',
+              fileContentLength: input.fileContent?.length || 0
+            }
           }
         );
       }
@@ -640,19 +887,19 @@ export const adminUploadImage = baseProcedure
       processingDetails.validation = validation.details;
       
       if (!validation.valid) {
-        console.error(`❌ Validation failed for ${input.fileName} (ID: ${uploadId}):`, validation.error?.message);
+        console.error(`❌ ENHANCED UPLOAD: Validation failed for ${input.fileName} (ID: ${uploadId}):`, validation.error?.message);
         throw validation.error;
       }
       
       // Log warnings if any
       if (validation.warnings) {
         validation.warnings.forEach(warning => {
-          console.warn(`⚠️ ${input.fileName} (ID: ${uploadId}): ${warning}`);
+          console.warn(`⚠️ ENHANCED UPLOAD: ${input.fileName} (ID: ${uploadId}): ${warning}`);
         });
       }
       
       // Process image with enhanced error handling
-      console.log(`🔧 Processing image: ${input.fileName} (ID: ${uploadId})`);
+      console.log(`🔧 ENHANCED UPLOAD: Processing image ${input.fileName} (ID: ${uploadId})`);
       const processed = await processImage(buffer, input.fileName);
       processingDetails.processing = processed.processingDetails;
       
@@ -661,12 +908,60 @@ export const adminUploadImage = baseProcedure
       uploadedFileName = uniqueFileName;
       processingDetails.uniqueFileName = uniqueFileName;
       
+      console.log(`📤 ENHANCED UPLOAD: Generated unique filename: ${uniqueFileName} for original: ${input.fileName} (ID: ${uploadId})`);
+      console.log(`📤 ENHANCED UPLOAD: File details:`, {
+        uploadId,
+        originalName: input.fileName,
+        uniqueName: uniqueFileName,
+        originalSize: buffer.length,
+        processedSize: processed.processedBuffer.length,
+        contentType: processed.contentType,
+        bucket: BUCKET_NAME,
+        strategy: processed.processingDetails.strategy,
+      });
+      
       // Upload to storage with retry logic
-      console.log(`📤 Uploading to storage: ${uniqueFileName} (ID: ${uploadId})`);
+      console.log(`📤 ENHANCED UPLOAD: Uploading to storage: ${uniqueFileName} (ID: ${uploadId})`);
       await uploadToStorage(uniqueFileName, processed.processedBuffer, processed.contentType);
       processingDetails.uploadedToStorage = true;
       
-      // Save to database with comprehensive metadata
+      // CRITICAL: Server-side verification before completing transaction
+      console.log(`🔍 ENHANCED UPLOAD: Starting server-side verification for ${uniqueFileName} (ID: ${uploadId})`);
+      const verification = await verifyFileExistsInStorage(uniqueFileName, processed.processedBuffer.length);
+      
+      if (!verification.exists) {
+        console.error(`❌ ENHANCED UPLOAD: Server-side verification failed for ${uniqueFileName} (ID: ${uploadId}):`, verification.error);
+        
+        // Clean up uploaded file on verification failure
+        try {
+          await minioClient.removeObject(BUCKET_NAME, uniqueFileName);
+          console.log(`🧹 ENHANCED UPLOAD: Cleaned up failed upload: ${uniqueFileName} (ID: ${uploadId})`);
+        } catch (cleanupError) {
+          console.error(`❌ ENHANCED UPLOAD: Failed to cleanup after verification failure (ID: ${uploadId}):`, cleanupError);
+        }
+        
+        throw createImageError(
+          `Upload completed but server verification failed: ${verification.error || 'File not accessible'}`,
+          'storage',
+          {
+            retryAfter: 30,
+            suggestions: [
+              'Try uploading again - this may be a temporary storage issue',
+              'Check server storage system status',
+              'Contact support if the problem persists',
+            ],
+            details: { uploadId, verificationError: verification.error }
+          }
+        );
+      }
+      
+      console.log(`✅ ENHANCED UPLOAD: Server-side verification successful for ${uniqueFileName} (ID: ${uploadId}):`, {
+        actualSize: verification.actualSize,
+        expectedSize: processed.processedBuffer.length,
+        metadata: verification.metadata,
+      });
+      
+      // Save to database with comprehensive metadata (only after verification)
       try {
         const { db } = await import("~/server/db");
         
@@ -691,26 +986,31 @@ export const adminUploadImage = baseProcedure
               processingDetails: processed.processingDetails,
               validation: validation.details,
               serverMemoryAtUpload: getMemoryStats(),
+              serverVerification: {
+                verified: true,
+                actualSize: verification.actualSize,
+                verificationMetadata: verification.metadata,
+              },
             }),
           },
         });
         
         processingDetails.databaseRecordId = imageRecord.id;
-        console.log(`💾 Database record created: ${imageRecord.id} (ID: ${uploadId})`);
+        console.log(`💾 ENHANCED UPLOAD: Database record created with ID: ${imageRecord.id} for ${uniqueFileName} (ID: ${uploadId})`);
         
       } catch (dbError) {
-        console.error(`❌ Database error for ${input.fileName} (ID: ${uploadId}):`, dbError);
+        console.error(`❌ ENHANCED UPLOAD: Database error for ${input.fileName} (ID: ${uploadId}):`, dbError);
         
-        // Clean up uploaded file on database error
+        // Clean up uploaded file on database error (even though verification passed)
         try {
           await minioClient.removeObject(BUCKET_NAME, uniqueFileName);
-          console.log(`🧹 Cleaned up uploaded file after database error: ${uniqueFileName} (ID: ${uploadId})`);
+          console.log(`🧹 ENHANCED UPLOAD: Cleaned up uploaded file after database error: ${uniqueFileName} (ID: ${uploadId})`);
         } catch (cleanupError) {
-          console.error(`❌ Failed to cleanup after database error (ID: ${uploadId}):`, cleanupError);
+          console.error(`❌ ENHANCED UPLOAD: Failed to cleanup after database error (ID: ${uploadId}):`, cleanupError);
         }
         
         throw createImageError(
-          'Failed to save image metadata to database. Please try again.',
+          'File uploaded and verified successfully but failed to save metadata to database',
           'storage',
           {
             retryAfter: 30,
@@ -726,26 +1026,30 @@ export const adminUploadImage = baseProcedure
       const totalTime = Date.now() - startTime;
       processingDetails.totalTime = totalTime;
       
-      console.log(`✅ Enhanced upload completed: ${input.fileName} (ID: ${uploadId}) in ${totalTime}ms`);
+      console.log(`✅ ENHANCED UPLOAD: Upload completed successfully for ${input.fileName} -> ${uniqueFileName} (${uploadId}, ${requestId}) in ${totalTime}ms`);
       
       // Log success metrics
       const originalMB = (buffer.length / (1024 * 1024)).toFixed(1);
       const processedMB = (processed.processedBuffer.length / (1024 * 1024)).toFixed(1);
       const compressionRatio = (buffer.length / processed.processedBuffer.length).toFixed(2);
       
-      console.log(`📊 Upload metrics (ID: ${uploadId}):`, {
+      console.log(`📊 ENHANCED UPLOAD: Success metrics (${uploadId}, ${requestId}):`, {
         originalSize: `${originalMB}MB`,
         processedSize: `${processedMB}MB`,
         compressionRatio: `${compressionRatio}x`,
         processingTime: `${totalTime}ms`,
-        strategy: processed.processingDetails.strategy
+        strategy: processed.processingDetails.strategy,
+        serverVerification: 'passed',
+        databaseRecordId: imageRecord.id,
+        finalFilePath: uniqueFileName,
       });
       
-      return {
+      // Enhanced response object with comprehensive metadata
+      const responseData = {
         success: true,
         filePath: uniqueFileName,
         imageId: imageRecord.id,
-        message: 'Image uploaded successfully with enhanced processing',
+        message: 'Image uploaded successfully with enhanced processing and server verification',
         metadata: {
           originalSize: buffer.length,
           processedSize: processed.processedBuffer.length,
@@ -755,9 +1059,27 @@ export const adminUploadImage = baseProcedure
           compressionRatio: buffer.length / processed.processedBuffer.length,
           strategy: processed.processingDetails.strategy,
           uploadId,
+          requestId,
+          serverVerification: {
+            verified: true,
+            actualSize: verification.actualSize,
+            verificationTime: verification.metadata?.verificationTime || 0,
+          },
+          timestamp: new Date().toISOString(),
         },
         warnings: validation.warnings,
       };
+      
+      console.log(`📤 RESPONSE SENT: Sending success response for ${input.fileName} (${uploadId}, ${requestId}):`, {
+        responseSize: JSON.stringify(responseData).length,
+        filePath: responseData.filePath,
+        filePathLength: responseData.filePath.length,
+        success: responseData.success,
+        hasMetadata: !!responseData.metadata,
+        hasWarnings: !!(responseData.warnings && responseData.warnings.length > 0),
+      });
+      
+      return responseData;
       
     } catch (error) {
       const totalTime = Date.now() - startTime;
@@ -765,20 +1087,26 @@ export const adminUploadImage = baseProcedure
       processingDetails.failed = true;
       processingDetails.error = error instanceof Error ? error.message : 'Unknown error';
       
-      console.error(`❌ Enhanced upload failed for ${input.fileName} (ID: ${uploadId}) after ${totalTime}ms:`, {
+      console.error(`❌ ENHANCED UPLOAD: Upload failed for ${input.fileName} (${uploadId}, ${requestId}) after ${totalTime}ms:`, {
         error: processingDetails.error,
         category: (error as ImageUploadError)?.category,
         canRetry: (error as ImageUploadError)?.canRetry,
-        processingDetails
+        httpStatus: (error as ImageUploadError)?.httpStatus,
+        processingDetails,
+        errorStack: error instanceof Error ? error.stack : 'No stack trace',
+        memoryUsage: process.memoryUsage(),
       });
       
       // Enhanced cleanup on failure
       if (uploadedFileName) {
         try {
           await minioClient.removeObject(BUCKET_NAME, uploadedFileName);
-          console.log(`🧹 Cleaned up failed upload: ${uploadedFileName} (ID: ${uploadId})`);
+          console.log(`🧹 ENHANCED UPLOAD: Cleaned up failed upload: ${uploadedFileName} (${uploadId}, ${requestId})`);
         } catch (cleanupError) {
-          console.error(`❌ Failed to cleanup failed upload (ID: ${uploadId}):`, cleanupError);
+          console.error(`❌ ENHANCED UPLOAD: Failed to cleanup failed upload (${uploadId}, ${requestId}):`, {
+            error: cleanupError instanceof Error ? cleanupError.message : 'Unknown cleanup error',
+            fileName: uploadedFileName,
+          });
         }
       }
       
@@ -795,14 +1123,24 @@ export const adminUploadImage = baseProcedure
         uploadError.details = {
           ...uploadError.details,
           uploadId,
+          requestId,
           processingDetails,
+          timestamp: new Date().toISOString(),
         };
+        
+        console.error(`📤 ERROR RESPONSE: Sending error response for ${input.fileName} (${uploadId}, ${requestId}):`, {
+          errorMessage: uploadError.message,
+          errorCategory: uploadError.category,
+          canRetry: uploadError.canRetry,
+          httpStatus: uploadError.httpStatus,
+          suggestions: uploadError.suggestions,
+        });
         
         throw uploadError;
       }
       
       // Wrap unexpected errors
-      throw createImageError(
+      const wrappedError = createImageError(
         error instanceof Error ? error.message : 'Upload failed unexpectedly',
         'processing',
         {
@@ -812,7 +1150,138 @@ export const adminUploadImage = baseProcedure
             'Reduce the image file size',
             'Contact support if the problem persists'
           ],
-          details: { uploadId, processingDetails }
+          details: { uploadId, requestId, processingDetails }
+        }
+      );
+      
+      console.error(`📤 ERROR RESPONSE: Sending wrapped error response for ${input.fileName} (${uploadId}, ${requestId}):`, {
+        errorMessage: wrappedError.message,
+        errorCategory: wrappedError.category,
+        originalError: error instanceof Error ? error.message : 'Unknown',
+      });
+      
+      throw wrappedError;
+    }
+  });
+
+// Emergency basic upload endpoint with minimal processing
+export const emergencyUploadImage = baseProcedure
+  .input(z.object({
+    adminToken: z.string(),
+    fileName: z.string().min(1).max(255),
+    fileContent: z.string().min(1),
+    fileType: z.string().regex(/^image\//, "File must be an image"),
+  }))
+  .mutation(async ({ input }) => {
+    const startTime = Date.now();
+    const emergencyId = `emergency_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    console.log(`🚨 EMERGENCY UPLOAD: Starting emergency upload for ${input.fileName} (ID: ${emergencyId})`);
+    
+    try {
+      // Basic authentication check
+      await requireAdminAuth(input.adminToken);
+      
+      // Minimal file processing - just parse and store
+      const base64Data = input.fileContent.includes('base64,') 
+        ? input.fileContent.split('base64,')[1]
+        : input.fileContent;
+      
+      const buffer = Buffer.from(base64Data, 'base64');
+      
+      console.log(`🚨 EMERGENCY UPLOAD: Basic processing for ${input.fileName} (${emergencyId}):`, {
+        bufferSize: buffer.length,
+        bufferSizeMB: (buffer.length / (1024 * 1024)).toFixed(2),
+      });
+      
+      // Skip complex processing - just basic validation
+      if (buffer.length === 0) {
+        throw new Error('Empty file data');
+      }
+      
+      if (buffer.length > 50 * 1024 * 1024) { // 50MB emergency limit
+        throw new Error('File too large for emergency upload (max 50MB)');
+      }
+      
+      // Generate simple filename
+      const timestamp = Date.now();
+      const randomSuffix = Math.random().toString(36).substr(2, 6);
+      const extension = input.fileName.split('.').pop() || 'jpg';
+      const emergencyFileName = `emergency_${timestamp}_${randomSuffix}.${extension}`;
+      
+      // Direct upload to storage without processing
+      await ensureBucket();
+      
+      console.log(`🚨 EMERGENCY UPLOAD: Uploading to storage: ${emergencyFileName} (${emergencyId})`);
+      
+      await minioClient.putObject(BUCKET_NAME, emergencyFileName, buffer, buffer.length, {
+        'Content-Type': input.fileType,
+        'X-Emergency-Upload': 'true',
+        'X-Upload-Timestamp': new Date().toISOString(),
+        'X-Emergency-ID': emergencyId,
+      });
+      
+      // Basic database record
+      const { db } = await import("~/server/db");
+      
+      const imageRecord = await db.image.create({
+        data: {
+          fileName: input.fileName,
+          filePath: emergencyFileName,
+          fileSize: buffer.length,
+          mimeType: input.fileType,
+          width: null, // Skip dimension detection for emergency
+          height: null,
+          originalSize: buffer.length,
+          uploadedBy: 'admin',
+          processingInfo: JSON.stringify({
+            emergencyUpload: true,
+            emergencyId,
+            originalFileName: input.fileName,
+            uploadTime: Date.now() - startTime,
+            processingStrategy: 'emergency-minimal',
+          }),
+        },
+      });
+      
+      const totalTime = Date.now() - startTime;
+      
+      console.log(`✅ EMERGENCY UPLOAD: Completed successfully for ${input.fileName} -> ${emergencyFileName} (${emergencyId}) in ${totalTime}ms`);
+      
+      return {
+        success: true,
+        filePath: emergencyFileName,
+        imageId: imageRecord.id,
+        message: 'Emergency upload completed with minimal processing',
+        metadata: {
+          emergencyUpload: true,
+          emergencyId,
+          originalSize: buffer.length,
+          processedSize: buffer.length,
+          processingTime: totalTime,
+          strategy: 'emergency-minimal',
+        },
+        warnings: ['This was an emergency upload with minimal processing and validation'],
+      };
+      
+    } catch (error) {
+      const totalTime = Date.now() - startTime;
+      
+      console.error(`❌ EMERGENCY UPLOAD: Failed for ${input.fileName} (${emergencyId}) after ${totalTime}ms:`, {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : 'No stack trace',
+      });
+      
+      throw createImageError(
+        `Emergency upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        'processing',
+        {
+          suggestions: [
+            'Try the normal upload process',
+            'Reduce file size and try again',
+            'Contact support if the problem persists'
+          ],
+          details: { emergencyId, processingTime: totalTime }
         }
       );
     }

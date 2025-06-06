@@ -1,4 +1,3 @@
-import { useQuery } from "@tanstack/react-query";
 import { useTRPC } from "~/trpc/react";
 import { useUserStore } from "~/stores/userStore";
 import { StatCard } from "~/components/ui/StatCard";
@@ -8,12 +7,10 @@ export function PartnerStats() {
   const { adminToken } = useUserStore();
   const trpc = useTRPC();
 
-  const partnersQuery = useQuery(
-    trpc.adminGetPartners.queryOptions({
-      adminToken: adminToken || "",
-      limit: 100, // Get all partners for stats
-    })
-  );
+  const partnersQuery = trpc.adminGetPartners.useQuery({
+    adminToken: adminToken || "",
+    limit: 100, // Get all partners for stats
+  });
 
   const partners = partnersQuery.data?.partners || [];
   const totalPartners = partners.length;

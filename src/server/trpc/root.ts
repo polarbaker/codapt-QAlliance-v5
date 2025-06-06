@@ -16,6 +16,7 @@ import * as adminChallengesProcs from "~/server/trpc/procedures/admin-challenges
 import * as adminInnovatorsProcs from "~/server/trpc/procedures/admin-innovators";
 import * as adminGeneralProcs from "~/server/trpc/procedures/admin-general";
 import * as imageUploadProcs from "~/server/trpc/procedures/image-upload";
+import * as simpleImageStorageProcs from "~/server/trpc/procedures/simple-image-storage";
 import * as bulletproofImageUploadProcs from "~/server/trpc/procedures/bulletproof-image-upload";
 
 export const appRouter = createTRPCRouter({
@@ -74,19 +75,21 @@ export const appRouter = createTRPCRouter({
   adminGetContactMessages: adminGeneralProcs.adminGetContactMessages,
   adminUpdateContactMessageStatus: adminGeneralProcs.adminUpdateContactMessageStatus,
   
-  // Enhanced image upload procedures
+  // Enhanced image upload procedures (keeping general image procedures)
   adminUploadImage: imageUploadProcs.adminUploadImage,
   adminBulkUploadImages: imageUploadProcs.adminBulkUploadImages,
   getImage: imageUploadProcs.getImage,
   adminDeleteImage: imageUploadProcs.adminDeleteImage,
   adminListImages: imageUploadProcs.adminListImages,
   
-  // Bulletproof image upload procedures
-  bulletproofSingleUpload: bulletproofImageUploadProcs.bulletproofSingleUpload,
-  bulletproofProgressiveUpload: bulletproofImageUploadProcs.bulletproofProgressiveUpload,
-  bulletproofBulkUpload: bulletproofImageUploadProcs.bulletproofBulkUpload,
-  bulletproofRecoverSession: bulletproofImageUploadProcs.bulletproofRecoverSession,
-  bulletproofSessionHealth: bulletproofImageUploadProcs.bulletproofSessionHealth,
+  // Simple base64 image storage (primary method for innovators)
+  uploadSimpleInnovatorImage: simpleImageStorageProcs.uploadSimpleInnovatorImage,
+  getSimpleInnovatorImage: simpleImageStorageProcs.getSimpleInnovatorImage,
+  removeSimpleInnovatorImage: simpleImageStorageProcs.removeSimpleInnovatorImage,
+  listInnovatorsWithImageStatus: simpleImageStorageProcs.listInnovatorsWithImageStatus,
+  
+  // Storage health check procedure
+  storageHealthCheck: bulletproofImageUploadProcs.storageHealthCheck,
   
   // Partners procedures
   getPartners: partnersProcs.getPartners,

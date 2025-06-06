@@ -132,7 +132,7 @@ export const adminUpdateInnovator = baseProcedure
       name: z.string().min(1).max(100).optional(),
       title: z.string().min(1).max(150).optional(), // Frontend sends 'title', maps to 'role'
       bio: z.string().min(1).optional(),
-      image: z.string().min(1).optional(), // Changed from .url() to accept file paths
+      image: z.string().min(1).optional(), // Enhanced to handle both file paths and simple upload markers
       achievements: z.array(z.string()).optional(),
       linkedinUrl: z.string().url().optional().or(z.literal("")),
       twitterUrl: z.string().url().optional().or(z.literal("")),
@@ -148,6 +148,13 @@ export const adminUpdateInnovator = baseProcedure
     
     const { id, data } = input;
     
+    console.log(`🔄 ADMIN UPDATE: Starting innovator update for ID ${id}:`, {
+      hasImage: !!data.image,
+      imageValue: data.image,
+      imageLength: data.image?.length,
+      imageType: typeof data.image,
+    });
+    
     const updateData: any = {};
     
     if (data.name !== undefined) updateData.name = data.name;
@@ -156,16 +163,123 @@ export const adminUpdateInnovator = baseProcedure
       updateData.impact = data.bio; // Map bio to impact
       updateData.bio = data.bio; // Also store as bio
     }
-    if (data.image !== undefined) updateData.avatar = data.image; // Map image to avatar
     if (data.achievements !== undefined) updateData.achievements = JSON.stringify(data.achievements);
     if (data.featured !== undefined) updateData.featured = data.featured;
     if (data.hasVideo !== undefined) updateData.hasVideo = data.hasVideo;
     if (data.videoUrl !== undefined) updateData.videoUrl = data.videoUrl || null;
     if (data.order !== undefined) updateData.order = data.order;
     
+    // Enhanced image handling for both upload methods
+    if (data.image !== undefined) {
+      try {
+        console.log(`🖼️ ADMIN UPDATE: Processing image update:`, {
+          imageValue: data.image,
+          imageLength: data.image.length,
+          startsWithSimple: data.image.startsWith('simple-upload-'),
+          containsDot: data.image.includes('.'),
+          isUUID: /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.(jpg|jpeg|png|gif|webp|bmp|tiff|svg|avif)$/i.test(data.image),
+        });
+        
+        // Check if this is a simple upload marker
+        if (data.image.startsWith('simple-upload-')) {
+          console.log(`📝 ADMIN UPDATE: Simple upload detected - preserving existing avatar data`);
+          
+          // For simple upload, the actual image data is already stored in the avatar field
+          // We don't need to update the avatar field, just preserve it
+          // The simple upload component handles the avatar field directly
+          
+          // Verify that the innovator actually has image data
+          const existingInnovator = await db.innovator.findUnique({
+            where: { id },
+            select: { avatar: true, name: true },
+          });
+          
+          if (!existingInnovator) {
+            throw new Error(`Innovator with ID ${id} not found`);
+          }
+          
+          if (!existingInnovator.avatar || existingInnovator.avatar.trim() === '') {
+            console.warn(`⚠️ ADMIN UPDATE: Simple upload marker provided but no avatar data found for innovator ${id}`);
+            throw new Error('Simple upload marker provided but no image data found. Please upload an image first.');
+          }
+          
+          // Validate that the avatar is base64 data (simple upload format)
+          const isBase64Avatar = existingInnovator.avatar.startsWith('data:image/');
+          
+          if (!isBase64Avatar) {
+            console.warn(`⚠️ ADMIN UPDATE: Simple upload marker provided but avatar is not base64 format:`, {
+              avatarStart: existingInnovator.avatar.substring(0, 50),
+              isBase64: isBase64Avatar,
+            });
+          }
+          
+          console.log(`✅ ADMIN UPDATE: Simple upload validation passed for innovator ${id}:`, {
+            hasAvatar: !!existingInnovator.avatar,
+            isBase64: isBase64Avatar,
+            avatarSize: existingInnovator.avatar.length,
+          });
+          
+          // Don't update the avatar field - it's already set by the simple upload component
+          // The simple upload marker just confirms that the form should accept the existing data
+          
+        } else if (data.image.includes('.') && data.image.length > 10) {
+          // This looks like a file path from advanced upload (bulletproof system)
+          console.log(`🗃️ ADMIN UPDATE: Advanced upload file path detected:`, {
+            filePath: data.image,
+          });
+          
+          // Validate file path format (should be UUID.extension)
+          const filePathRegex = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.(jpg|jpeg|png|gif|webp|bmp|tiff|svg|avif)$/i;
+          
+          if (!filePathRegex.test(data.image)) {
+            console.warn(`⚠️ ADMIN UPDATE: Invalid file path format:`, {
+              filePath: data.image,
+              expectedFormat: 'UUID.extension',
+            });
+            throw new Error(`Invalid file path format: ${data.image}. Expected format: UUID.extension`);
+          }
+          
+          // For advanced upload, store the file path in the avatar field
+          updateData.avatar = data.image;
+          
+          console.log(`✅ ADMIN UPDATE: Advanced upload file path validation passed:`, {
+            filePath: data.image,
+          });
+          
+        } else {
+          // Invalid image format
+          console.error(`❌ ADMIN UPDATE: Invalid image format:`, {
+            imageValue: data.image,
+            imageLength: data.image.length,
+            startsWithSimple: data.image.startsWith('simple-upload-'),
+            containsDot: data.image.includes('.'),
+          });
+          
+          throw new Error(`Invalid image format. Expected either a file path from advanced upload or a simple upload marker, got: ${data.image.substring(0, 50)}...`);
+        }
+        
+      } catch (imageError) {
+        console.error(`❌ ADMIN UPDATE: Image processing failed for innovator ${id}:`, imageError);
+        throw new Error(`Image update failed: ${imageError instanceof Error ? imageError.message : 'Unknown error'}`);
+      }
+    }
+    
+    console.log(`💾 ADMIN UPDATE: Executing database update for innovator ${id}:`, {
+      updateFields: Object.keys(updateData),
+      hasAvatarUpdate: 'avatar' in updateData,
+      avatarValue: updateData.avatar ? updateData.avatar.substring(0, 50) + '...' : 'No change',
+    });
+    
     const innovator = await db.innovator.update({
       where: { id },
       data: updateData,
+    });
+    
+    console.log(`✅ ADMIN UPDATE: Successfully updated innovator ${id}:`, {
+      innovatorId: innovator.id,
+      innovatorName: innovator.name,
+      hasAvatar: !!innovator.avatar,
+      avatarType: innovator.avatar ? (innovator.avatar.startsWith('data:image/') ? 'base64' : 'file_path') : 'none',
     });
     
     return {

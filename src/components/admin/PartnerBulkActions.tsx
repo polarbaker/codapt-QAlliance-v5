@@ -1,4 +1,3 @@
-import { useMutation } from "@tanstack/react-query";
 import { useTRPC } from "~/trpc/react";
 import { useUserStore } from "~/stores/userStore";
 import { toast } from "react-hot-toast";
@@ -20,32 +19,28 @@ export function PartnerBulkActions({
   const { adminToken } = useUserStore();
   const trpc = useTRPC();
 
-  const bulkDeleteMutation = useMutation(
-    trpc.adminBulkDeletePartners.mutationOptions({
-      onSuccess: () => {
-        onRefresh();
-        onClearSelection();
-        toast.success("Selected partners deleted successfully");
-      },
-      onError: (error) => {
-        toast.error(error.message);
-      },
-    })
-  );
+  const bulkDeleteMutation = trpc.adminBulkDeletePartners.useMutation({
+    onSuccess: () => {
+      onRefresh();
+      onClearSelection();
+      toast.success("Selected partners deleted successfully");
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
 
-  const bulkUpdateMutation = useMutation(
-    trpc.adminBulkUpdatePartners.mutationOptions({
-      onSuccess: (_, variables) => {
-        onRefresh();
-        onClearSelection();
-        const action = variables.data.visible ? "shown" : "hidden";
-        toast.success(`Selected partners ${action} successfully`);
-      },
-      onError: (error) => {
-        toast.error(error.message);
-      },
-    })
-  );
+  const bulkUpdateMutation = trpc.adminBulkUpdatePartners.useMutation({
+    onSuccess: (_, variables) => {
+      onRefresh();
+      onClearSelection();
+      const action = variables.data.visible ? "shown" : "hidden";
+      toast.success(`Selected partners ${action} successfully`);
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
 
   const handleBulkDelete = () => {
     if (selectedPartners.length === 0) return;

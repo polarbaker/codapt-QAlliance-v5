@@ -13,30 +13,18 @@ import {
   Plus,
   X,
   Loader2,
+  AlertCircle,
+  XCircle,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState, useCallback } from "react";
-import { BulletproofImageUpload } from "~/components/ui/BulletproofImageUpload";
+import { SimpleInnovatorImageUpload } from "~/components/ui/SimpleInnovatorImageUpload";
 import { ImagePreview } from "~/components/ui/ImagePreview";
-import { getCacheBustedImageUrl, formatDate } from "~/utils";
+import { getCacheBustedImageUrl } from "~/utils";
+import { innovatorFormSchema, type InnovatorFormSchemaData } from "~/constants/validation";
+import ErrorBoundary from "~/components/ErrorBoundary";
 
-const innovatorFormSchema = z.object({
-  name: z.string().min(1, "Name is required").max(100, "Name must be less than 100 characters"),
-  title: z.string().min(1, "Title is required").max(150, "Title must be less than 150 characters"),
-  bio: z.string().min(1, "Bio is required"),
-  image: z.string().min(1, "Image is required"), // Now expects file path, not URL
-  achievements: z.array(z.object({
-    value: z.string().min(1, "Achievement cannot be empty")
-  })).min(1, "At least one achievement is required"),
-  linkedinUrl: z.string().url("Please enter a valid LinkedIn URL").optional().or(z.literal("")),
-  twitterUrl: z.string().url("Please enter a valid Twitter URL").optional().or(z.literal("")),
-  websiteUrl: z.string().url("Please enter a valid website URL").optional().or(z.literal("")),
-  featured: z.boolean().default(false),
-  hasVideo: z.boolean().default(false),
-  videoUrl: z.string().url("Please enter a valid video URL").optional().or(z.literal("")),
-});
-
-type InnovatorFormData = z.infer<typeof innovatorFormSchema>;
+type InnovatorFormData = InnovatorFormSchemaData;
 
 export const Route = createFileRoute("/admin/innovators/$innovatorId/edit/")({
   component: EditInnovatorPage,
@@ -47,88 +35,188 @@ function EditInnovatorPage() {
   const { adminToken } = useUserStore();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  
   const trpc = useTRPC();
   
-  const [previewKey, setPreviewKey] = useState(0); // Force preview re-render
-  const [lastImageUpdate, setLastImageUpdate] = useState<Date | null>(null);
-  const [debugMode] = useState(true); // Enable debugging
+  // Simple state management
+  const [previewKey, setPreviewKey] = useState<number>(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
-  const innovatorQuery = useQuery(
-    trpc.adminGetInnovatorById.queryOptions({
-      adminToken: adminToken || "",
-      id: parseInt(innovatorId),
-    })
-  );
-  
+  // Early validation - check if innovatorId is valid
+  const parsedInnovatorId = parseInt(innovatorId || '');
+  if (!innovatorId || isNaN(parsedInnovatorId)) {
+    return (
+      <div className="min-h-screen bg-background-light dark:bg-background-black flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto p-8">
+          <div className="mb-4">
+            <Users className="h-12 w-12 text-gray-400 mx-auto" />
+          </div>
+          <h3 className="text-lg font-medium text-text-dark dark:text-text-light mb-2">
+            Invalid Innovator ID
+          </h3>
+          <p className="text-red-600 mb-4">
+            The innovator ID "{innovatorId}" is not valid.
+          </p>
+          <Link
+            to="/admin/innovators"
+            className="block px-4 py-2 bg-secondary text-white rounded-lg hover:bg-secondary/90 transition-colors"
+          >
+            Back to Innovators
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // Early validation - check if admin token exists
+  if (!adminToken) {
+    return (
+      <div className="min-h-screen bg-background-light dark:bg-background-black flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto p-8">
+          <div className="mb-4">
+            <AlertCircle className="h-12 w-12 text-red-500 mx-auto" />
+          </div>
+          <h3 className="text-lg font-medium text-text-dark dark:text-text-light mb-2">
+            Authentication Required
+          </h3>
+          <p className="text-red-600 mb-4">
+            You must be logged in as an admin to edit innovators.
+          </p>
+          <Link
+            to="/admin"
+            className="block px-4 py-2 bg-secondary text-white rounded-lg hover:bg-secondary/90 transition-colors"
+          >
+            Go to Admin Login
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // Query to get innovator data
+  const innovatorQuery = trpc.adminGetInnovatorById.useQuery({
+    adminToken: adminToken,
+    id: parsedInnovatorId,
+  }, {
+    enabled: !!adminToken && !isNaN(parsedInnovatorId),
+    retry: (failureCount, error) => {
+      const errorMessage = error?.message || '';
+      if (errorMessage.includes('404') || errorMessage.includes('Unauthorized')) {
+        return false;
+      }
+      return failureCount < 3;
+    },
+    retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
+  const innovatorData = innovatorQuery.data;
+  const isLoading = innovatorQuery.isLoading;
+  const queryError = innovatorQuery.error;
+
+  // Form setup
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting },
+    formState,
     control,
     watch,
     reset,
     setValue,
-    trigger,
-    formState,
   } = useForm<InnovatorFormData>({
     resolver: zodResolver(innovatorFormSchema),
     defaultValues: {
+      name: "",
+      title: "",
+      bio: "",
+      image: "",
+      achievements: [{ value: "" }],
+      linkedinUrl: "",
+      twitterUrl: "",
+      websiteUrl: "",
       featured: false,
       hasVideo: false,
-      achievements: [{ value: "" }],
-      image: "", // Initialize with explicit empty string
+      videoUrl: "",
     },
+    mode: 'onChange',
   });
 
+  const { errors } = formState;
   const { fields, append, remove } = useFieldArray({
     control,
     name: "achievements",
   });
 
-  // Enhanced logging with timestamps (Fix #4) - memoized to prevent re-creation
-  const logWithTimestamp = useCallback((message: string, data?: any) => {
-    if (debugMode) {
-      console.log(`🔍 DEBUG: EditInnovatorForm [${new Date().toISOString()}] - ${message}`, data || '');
-    }
-  }, [debugMode]);
+  const imageUrl = watch("image") || "";
+  const hasVideo = watch("hasVideo") ?? false;
 
   // Pre-populate form when data is loaded
   useEffect(() => {
-    if (innovatorQuery.data) {
-      const innovator = innovatorQuery.data;
-      
-      // Parse achievements from JSON string
+    if (!innovatorData || isLoading) {
+      return;
+    }
+    
+    try {
+      // Parse achievements
       let achievements = [{ value: "" }];
       try {
-        const parsedAchievements = JSON.parse(innovator.achievements || "[]");
-        if (Array.isArray(parsedAchievements) && parsedAchievements.length > 0) {
-          achievements = parsedAchievements.map((achievement: string) => ({ value: achievement }));
+        if (innovatorData.achievements && typeof innovatorData.achievements === 'string') {
+          const parsedAchievements = JSON.parse(innovatorData.achievements);
+          if (Array.isArray(parsedAchievements) && parsedAchievements.length > 0) {
+            achievements = parsedAchievements.map((achievement: any) => ({ 
+              value: typeof achievement === 'string' ? achievement : String(achievement || "") 
+            }));
+          }
         }
-      } catch (error) {
-        console.error("Error parsing achievements:", error);
+      } catch (parseError) {
+        console.warn("Error parsing achievements, using default:", parseError);
+        achievements = [{ value: "" }];
       }
-      
-      reset({
-        name: innovator.name,
-        title: innovator.role, // Map role back to title for the form
-        bio: innovator.bio || innovator.impact, // Use bio if available, fallback to impact
-        image: innovator.avatar, // Map avatar back to image for the form
+
+      const formData = {
+        name: innovatorData.name || "",
+        title: innovatorData.role || "",
+        bio: innovatorData.bio || innovatorData.impact || "",
+        image: innovatorData.avatar || "",
         achievements,
         linkedinUrl: "",
         twitterUrl: "",
         websiteUrl: "",
-        featured: innovator.featured,
-        hasVideo: innovator.hasVideo,
-        videoUrl: innovator.videoUrl || "",
-      });
-    }
-  }, [innovatorQuery.data, reset]);
+        featured: innovatorData.featured ?? false,
+        hasVideo: innovatorData.hasVideo ?? false,
+        videoUrl: innovatorData.videoUrl || "",
+      };
 
-  const updateMutation = useMutation(
-    trpc.adminUpdateInnovator.mutationOptions({
-      onSuccess: async () => {
-        // Invalidate all relevant queries to ensure immediate updates
+      reset(formData);
+      setPreviewKey(prev => prev + 1);
+    } catch (error) {
+      console.error('Error during form pre-population:', error);
+      toast.error('Error loading innovator data');
+    }
+  }, [innovatorData, reset, isLoading]);
+
+  // Image change handler
+  const handleImageChange = useCallback((filePath: string | null) => {
+    if (filePath) {
+      setValue("image", filePath, { 
+        shouldValidate: true, 
+        shouldDirty: true,
+        shouldTouch: true
+      });
+      setPreviewKey(prev => prev + 1);
+    } else {
+      setValue("image", "", { 
+        shouldValidate: true, 
+        shouldDirty: true,
+        shouldTouch: true
+      });
+      setPreviewKey(prev => prev + 1);
+    }
+  }, [setValue]);
+
+  // Update mutation
+  const updateMutation = trpc.adminUpdateInnovator.useMutation({
+    onSuccess: async () => {
+      try {
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: ['adminGetInnovators'] }),
           queryClient.invalidateQueries({ queryKey: ['adminGetInnovatorById'] }),
@@ -138,234 +226,180 @@ function EditInnovatorPage() {
         
         toast.success("Innovator updated successfully");
         navigate({ to: "/admin/innovators" });
-      },
-      onError: (error) => {
-        toast.error(error.message);
-      },
-    })
-  );
+      } catch (error) {
+        console.error('Error in update success handler:', error);
+      }
+    },
+    onError: (error) => {
+      const errorMessage = error?.message || 'Update failed';
+      console.error('Update mutation error:', errorMessage);
+      toast.error(errorMessage);
+    },
+  });
 
-  // Memoized form submission handler to prevent re-creation on every render
-  const handleFormSubmit = useCallback((data: InnovatorFormData) => {
-    const achievements = data.achievements.map(a => a.value).filter(Boolean);
+  // Form submission handler
+  const handleFormSubmit = useCallback(async (data: InnovatorFormData) => {
+    if (isSubmitting) return;
     
-    updateMutation.mutate({
-      adminToken: adminToken || "",
-      id: parseInt(innovatorId),
-      data: {
-        name: data.name,
-        title: data.title,
-        bio: data.bio,
-        image: data.image,
+    setIsSubmitting(true);
+    
+    try {
+      // Validate required fields
+      if (!data.image || data.image.trim() === '') {
+        toast.error('❌ Image is required. Please upload an image before saving.');
+        return;
+      }
+
+      // Process achievements
+      const achievements = (data.achievements || [])
+        .map(a => a?.value || "")
+        .filter(value => typeof value === 'string' && value.trim() !== '');
+
+      if (achievements.length === 0) {
+        toast.error('❌ At least one achievement is required.');
+        return;
+      }
+
+      // Create update data
+      const updateData = {
+        name: data.name || "",
+        title: data.title || "",
+        bio: data.bio || "",
+        image: data.image.trim(),
         achievements,
         linkedinUrl: data.linkedinUrl || undefined,
         twitterUrl: data.twitterUrl || undefined,
         websiteUrl: data.websiteUrl || undefined,
-        featured: data.featured,
-        hasVideo: data.hasVideo,
-        videoUrl: data.hasVideo && data.videoUrl ? data.videoUrl : undefined,
-      },
-    });
-  }, [adminToken, innovatorId, updateMutation]);
+        featured: data.featured ?? false,
+        hasVideo: data.hasVideo ?? false,
+        videoUrl: (data.hasVideo && data.videoUrl) ? data.videoUrl : undefined,
+      };
 
-  // Memoized achievement handlers
-  const handleAddAchievement = useCallback(() => {
-    append({ value: "" });
-  }, [append]);
-
-  const handleRemoveAchievement = useCallback((index: number) => {
-    remove(index);
-  }, [remove]);
-
-  const imageUrl = watch("image");
-  const hasVideo = watch("hasVideo");
-
-  // Memoized onChange handler to prevent re-creation on every render
-  const handleImageChange = useCallback((filePath: string | string[] | null) => {
-    logWithTimestamp('BulletproofImageUpload onChange called with:', {
-      filePath: filePath,
-      filePathType: typeof filePath,
-      filePathLength: typeof filePath === 'string' ? filePath?.length : (Array.isArray(filePath) ? filePath.length : 0),
-      isString: typeof filePath === 'string',
-      isNonEmptyString: typeof filePath === 'string' && filePath.trim() !== '',
-      trimmedValue: typeof filePath === 'string' ? filePath.trim() : filePath,
-      currentFormImageValue: watch("image"),
-      previewKey: previewKey,
-    });
-    
-    // Ensure filePath is a string before setting
-    const pathValue = typeof filePath === 'string' ? filePath : null;
-    
-    if (pathValue && pathValue.trim() !== '') {
-      logWithTimestamp('About to call setValue with valid pathValue:', {
-        valueToSet: pathValue,
-        shouldValidate: true, 
-        shouldDirty: true,
-        shouldTouch: true,
+      await updateMutation.mutateAsync({
+        adminToken: adminToken,
+        id: parsedInnovatorId,
+        data: updateData,
       });
-      
-      setValue("image", pathValue, { 
-        shouldValidate: true, 
-        shouldDirty: true,
-        shouldTouch: true
-      });
-      
-      // Force preview update
-      setPreviewKey(prev => prev + 1);
-      setLastImageUpdate(new Date());
-      
-      logWithTimestamp('setValue called, checking immediate state:', {
-        setValueWith: pathValue,
-        newFormImageValue: watch("image"),
-        formErrors: errors,
-        imageFieldError: errors.image,
-        isDirty: formState.isDirty,
-        dirtyFields: formState.dirtyFields,
-        newPreviewKey: previewKey + 1,
-      });
-      
-      // Manual trigger call after setValue (Fix #2)
-      const timeoutId = setTimeout(async () => {
-        logWithTimestamp('Manual trigger call for image validation');
-        const isValid = await trigger("image");
-        logWithTimestamp('Manual trigger result:', {
-          isValid: isValid,
-          currentImageValue: watch("image"),
-          imageFieldError: errors.image,
-          formIsValid: formState.isValid,
-        });
-      }, 100);
-      
-    } else if (filePath === null) {
-      // Handle clearing the image
-      setValue("image", "", { 
-        shouldValidate: true, 
-        shouldDirty: true,
-        shouldTouch: true
-      });
-      setPreviewKey(prev => prev + 1);
-    }
-  }, [setValue, trigger, watch, errors, formState, previewKey, logWithTimestamp]);
 
-  // Enhanced image field validation watcher - Fixed dependency array to prevent loops
-  useEffect(() => {
-    logWithTimestamp('Innovator EDIT form - Image field validation watcher triggered:', {
-      imageUrl: imageUrl,
-      imageUrlType: typeof imageUrl,
-      imageUrlLength: imageUrl?.length,
-      imageUrlTrimmed: imageUrl?.trim(),
-      isEmpty: !imageUrl || imageUrl.trim() === '',
-      formErrors: errors,
-      imageFieldError: errors.image,
-      hasImageValidationError: !!errors.image,
-      formIsValid: formState.isValid,
-      formIsDirty: formState.isDirty,
-      dirtyFields: formState.dirtyFields,
-      previewKey: previewKey,
-    });
-    
-    // Force preview re-render when image URL changes
-    if (imageUrl && imageUrl.trim() !== '') {
-      logWithTimestamp('Image URL changed - forcing preview update');
-      setPreviewKey(prev => prev + 1);
-      setLastImageUpdate(new Date());
-    }
-    
-    // Force re-validation if we have a valid image but still have an error
-    if (imageUrl && imageUrl.trim() !== '' && errors.image) {
-      logWithTimestamp('Detected valid image with validation error, triggering re-validation');
-      const timeoutId = setTimeout(() => {
-        trigger("image");
-      }, 100);
-      return () => clearTimeout(timeoutId);
-    }
-    
-    // Force validation after setValue to ensure form state is updated
-    if (imageUrl && imageUrl.trim() !== '') {
-      const timeoutId = setTimeout(async () => {
-        logWithTimestamp('Forcing validation after image change');
-        const isValid = await trigger("image");
-        logWithTimestamp('Validation result:', {
-          isValid: isValid,
-          currentImageValue: imageUrl,
-          imageFieldError: errors.image,
-        });
-      }, 200);
-      return () => clearTimeout(timeoutId);
-    }
-  }, [imageUrl, errors.image, formState.isValid, trigger, logWithTimestamp]); // Removed previewKey to prevent loop
-
-  // Custom event listener for crosscutting image updates - Fixed dependency array
-  useEffect(() => {
-    const handleImageUpdated = (event: CustomEvent) => {
-      const { filePath: eventFilePath, timestamp, component } = event.detail || {};
+    } catch (error) {
+      console.error('Form submission failed:', error);
       
-      logWithTimestamp('Received imageUpdated event:', {
-        eventFilePath: eventFilePath,
-        currentImageUrl: imageUrl,
-        eventTimestamp: timestamp,
-        eventComponent: component,
-        shouldUpdate: eventFilePath && (eventFilePath === imageUrl || component === 'BulletproofImageUpload'),
-      });
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       
-      // Check if this event is for our current image or if it's a new upload
-      if (eventFilePath && (eventFilePath === imageUrl || component === 'BulletproofImageUpload')) {
-        logWithTimestamp('Event matches current context - forcing form and preview update');
-        
-        // Update form state if the path is different
-        if (eventFilePath !== imageUrl && eventFilePath.trim() !== '') {
-          logWithTimestamp('Updating form state from event');
-          setValue("image", eventFilePath, { 
-            shouldValidate: true, 
-            shouldDirty: true,
-            shouldTouch: true
-          });
-        }
-        
-        // Force preview update
-        setPreviewKey(prev => prev + 1);
-        setLastImageUpdate(new Date());
-        
-        // Trigger validation
-        const timeoutId = setTimeout(() => {
-          trigger("image");
-        }, 100);
-        
-        return () => clearTimeout(timeoutId);
+      if (errorMessage.includes('Network')) {
+        toast.error('❌ Network error. Please check your connection and try again.');
+      } else if (errorMessage.includes('Unauthorized') || errorMessage.includes('403')) {
+        toast.error('❌ Authentication error. Please log in again.');
+      } else if (errorMessage.includes('413')) {
+        toast.error('❌ Image file too large. Please use a smaller image.');
+      } else {
+        toast.error(`❌ Update failed: ${errorMessage}`);
       }
-    };
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [adminToken, parsedInnovatorId, updateMutation, isSubmitting]);
 
-    window.addEventListener('imageUpdated', handleImageUpdated as EventListener);
-    document.addEventListener('imageUpdated', handleImageUpdated as EventListener);
-    
-    return () => {
-      window.removeEventListener('imageUpdated', handleImageUpdated as EventListener);
-      document.removeEventListener('imageUpdated', handleImageUpdated as EventListener);
-    };
-  }, [imageUrl, setValue, trigger, logWithTimestamp]); // Removed state setters to prevent loops
-
-  if (innovatorQuery.isLoading) {
+  // Loading state
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-background-light dark:bg-background-black flex items-center justify-center">
-        <div className="text-center">
+        <div className="text-center max-w-md mx-auto p-8">
           <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-secondary" />
-          <p className="text-text-muted dark:text-text-light/70">Loading innovator...</p>
+          <p className="text-text-muted dark:text-text-light/70 mb-2">Loading innovator...</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            If this takes too long, please refresh the page
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-4 px-4 py-2 bg-secondary text-white rounded-lg hover:bg-secondary/90 transition-colors"
+          >
+            Refresh Page
+          </button>
         </div>
       </div>
     );
   }
 
-  if (innovatorQuery.error) {
+  // Error state
+  if (queryError) {
+    const errorMessage = queryError?.message || 'Unknown error';
+    const isNotFound = errorMessage.includes('404') || errorMessage.includes('not found');
+    const isUnauthorized = errorMessage.includes('Unauthorized') || errorMessage.includes('403');
+    
     return (
       <div className="min-h-screen bg-background-light dark:bg-background-black flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-red-600 mb-4">Error loading innovator: {innovatorQuery.error.message}</p>
-          <Link
-            to="/admin/innovators"
-            className="text-secondary hover:underline"
-          >
-            Back to Innovators
-          </Link>
+        <div className="text-center max-w-md mx-auto p-8">
+          <div className="mb-4">
+            {isNotFound ? (
+              <Users className="h-12 w-12 text-gray-400 mx-auto" />
+            ) : isUnauthorized ? (
+              <AlertCircle className="h-12 w-12 text-red-500 mx-auto" />
+            ) : (
+              <XCircle className="h-12 w-12 text-red-500 mx-auto" />
+            )}
+          </div>
+          
+          <h3 className="text-lg font-medium text-text-dark dark:text-text-light mb-2">
+            {isNotFound ? 'Innovator Not Found' : 
+             isUnauthorized ? 'Access Denied' : 
+             'Error Loading Innovator'}
+          </h3>
+          
+          <p className="text-red-600 mb-4">
+            {isNotFound ? 'The requested innovator could not be found.' :
+             isUnauthorized ? 'You do not have permission to edit this innovator.' :
+             `Error: ${errorMessage}`}
+          </p>
+          
+          <div className="space-y-2">
+            <Link
+              to="/admin/innovators"
+              className="block px-4 py-2 bg-secondary text-white rounded-lg hover:bg-secondary/90 transition-colors"
+            >
+              Back to Innovators
+            </Link>
+            
+            {!isNotFound && !isUnauthorized && (
+              <button
+                onClick={() => innovatorQuery.refetch()}
+                className="block w-full px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+              >
+                Try Again
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Final safety check
+  if (!innovatorData) {
+    return (
+      <div className="min-h-screen bg-background-light dark:bg-background-black flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto p-8">
+          <AlertCircle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-text-dark dark:text-text-light mb-2">
+            No Data Available
+          </h3>
+          <p className="text-yellow-600 mb-4">
+            Innovator data is not available. Please try refreshing the page.
+          </p>
+          <div className="space-y-2">
+            <button
+              onClick={() => innovatorQuery.refetch()}
+              className="block w-full px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors"
+            >
+              Refresh Data
+            </button>
+            <Link
+              to="/admin/innovators"
+              className="block px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+            >
+              Back to Innovators
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -419,7 +453,7 @@ function EditInnovatorPage() {
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-text-dark dark:text-text-light focus:ring-2 focus:ring-secondary focus:border-secondary"
                         placeholder="Enter innovator name"
                       />
-                      {errors.name && (
+                      {errors?.name && (
                         <p className="mt-1 text-sm text-red-600">{errors.name.message}</p>
                       )}
                     </div>
@@ -435,52 +469,52 @@ function EditInnovatorPage() {
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-text-dark dark:text-text-light focus:ring-2 focus:ring-secondary focus:border-secondary"
                         placeholder="e.g., CEO & Founder at TechCorp"
                       />
-                      {errors.title && (
+                      {errors?.title && (
                         <p className="mt-1 text-sm text-red-600">{errors.title.message}</p>
                       )}
                     </div>
 
-                    {/* Profile Image Upload with Bulletproof Processing */}
+                    {/* Image Upload */}
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-text-dark dark:text-text-light mb-2">
-                        Profile Image *
+                        Avatar Upload *
                       </label>
                       
-                      {/* Hidden input for form validation */}
-                      <input
-                        type="hidden"
-                        {...register("image")}
-                      />
+                      <ErrorBoundary
+                        fallback={
+                          <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+                            <p>Image upload system crashed. Please reload the page.</p>
+                            <button
+                              onClick={() => window.location.reload()}
+                              className="mt-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+                            >
+                              Reload Page
+                            </button>
+                          </div>
+                        }
+                      >
+                        <SimpleInnovatorImageUpload
+                          innovatorId={parsedInnovatorId}
+                          innovatorName={innovatorData.name || "Innovator"}
+                          value={imageUrl}
+                          onChange={handleImageChange}
+                          onUploadComplete={(result) => {
+                            console.log('Upload completed:', result);
+                            toast.success('✅ Image uploaded successfully');
+                          }}
+                          onUploadError={(error) => {
+                            console.error('Upload error:', error);
+                            toast.error(`❌ Upload failed: ${error.message || 'Unknown error'}`);
+                          }}
+                          enableAutoRetry={true}
+                          maxRetries={3}
+                          componentId={`simple-upload-${parsedInnovatorId}`}
+                        />
+                      </ErrorBoundary>
                       
-                      <BulletproofImageUpload
-                        value={imageUrl}
-                        onChange={handleImageChange}
-                        placeholder="Upload innovator profile image - bulletproof processing enabled"
-                        className="mb-4"
-                        multiple={false}
-                        enableProgressiveUpload={true}
-                        enableAutoRetry={true}
-                        enableClientOptimization={true}
-                        maxFileSize={200} // 200MB for bulletproof system
-                        onUploadError={(error) => {
-                          logWithTimestamp('BulletproofImageUpload error:', error);
-                        }}
-                        // Enhanced form integration props (Fix #2)
-                        onFormValueSet={(filePath) => {
-                          logWithTimestamp('BulletproofImageUpload onFormValueSet called:', {
-                            filePath: filePath,
-                          });
-                        }}
-                        retryFormUpdate={true} // Enable retry logic for form value patching
-                        validateImmediately={true} // Enable immediate validation
-                      />
-                      
-                      {errors.image && (
+                      {errors?.image && (
                         <p className="mt-1 text-sm text-red-600">{errors.image.message}</p>
                       )}
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        Bulletproof processing: Images will be automatically optimized, chunked for large sizes, and retried on failure.
-                      </p>
                     </div>
 
                     {/* Social Links */}
@@ -494,7 +528,7 @@ function EditInnovatorPage() {
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-text-dark dark:text-text-light focus:ring-2 focus:ring-secondary focus:border-secondary"
                         placeholder="https://linkedin.com/in/username"
                       />
-                      {errors.linkedinUrl && (
+                      {errors?.linkedinUrl && (
                         <p className="mt-1 text-sm text-red-600">{errors.linkedinUrl.message}</p>
                       )}
                     </div>
@@ -509,7 +543,7 @@ function EditInnovatorPage() {
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-text-dark dark:text-text-light focus:ring-2 focus:ring-secondary focus:border-secondary"
                         placeholder="https://twitter.com/username"
                       />
-                      {errors.twitterUrl && (
+                      {errors?.twitterUrl && (
                         <p className="mt-1 text-sm text-red-600">{errors.twitterUrl.message}</p>
                       )}
                     </div>
@@ -524,12 +558,12 @@ function EditInnovatorPage() {
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-text-dark dark:text-text-light focus:ring-2 focus:ring-secondary focus:border-secondary"
                         placeholder="https://website.com"
                       />
-                      {errors.websiteUrl && (
+                      {errors?.websiteUrl && (
                         <p className="mt-1 text-sm text-red-600">{errors.websiteUrl.message}</p>
                       )}
                     </div>
 
-                    {/* Featured */}
+                    {/* Featured checkbox */}
                     <div className="md:col-span-2">
                       <label className="flex items-center space-x-2">
                         <input
@@ -543,7 +577,7 @@ function EditInnovatorPage() {
                       </label>
                     </div>
 
-                    {/* Has Video */}
+                    {/* Has Video checkbox */}
                     <div className="md:col-span-2">
                       <label className="flex items-center space-x-2">
                         <input
@@ -569,7 +603,7 @@ function EditInnovatorPage() {
                           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-text-dark dark:text-text-light focus:ring-2 focus:ring-secondary focus:border-secondary"
                           placeholder="https://youtube.com/watch?v=..."
                         />
-                        {errors.videoUrl && (
+                        {errors?.videoUrl && (
                           <p className="mt-1 text-sm text-red-600">{errors.videoUrl.message}</p>
                         )}
                       </div>
@@ -592,7 +626,7 @@ function EditInnovatorPage() {
                             {fields.length > 1 && (
                               <button
                                 type="button"
-                                onClick={() => handleRemoveAchievement(index)}
+                                onClick={() => remove(index)}
                                 className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                               >
                                 <X className="h-4 w-4" />
@@ -600,14 +634,14 @@ function EditInnovatorPage() {
                             )}
                           </div>
                         ))}
-                        {errors.achievements && (
+                        {errors?.achievements && (
                           <p className="mt-1 text-sm text-red-600">
                             {errors.achievements.message || errors.achievements.root?.message}
                           </p>
                         )}
                         <button
                           type="button"
-                          onClick={handleAddAchievement}
+                          onClick={() => append({ value: "" })}
                           className="flex items-center space-x-2 px-3 py-2 text-secondary hover:bg-secondary/10 rounded-lg transition-colors"
                         >
                           <Plus className="h-4 w-4" />
@@ -627,7 +661,7 @@ function EditInnovatorPage() {
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-text-dark dark:text-text-light focus:ring-2 focus:ring-secondary focus:border-secondary"
                         placeholder="Detailed biography of the innovator"
                       />
-                      {errors.bio && (
+                      {errors?.bio && (
                         <p className="mt-1 text-sm text-red-600">{errors.bio.message}</p>
                       )}
                     </div>
@@ -655,36 +689,24 @@ function EditInnovatorPage() {
               <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 sticky top-8">
                 <h3 className="text-lg font-semibold text-text-dark dark:text-text-light mb-4">
                   Profile Preview
-                  {/* Visual indicator for debugging (Fix #4) */}
-                  {debugMode && (
-                    <span className="ml-2 text-xs text-gray-500">
-                      (Key: {previewKey})
-                    </span>
-                  )}
                 </h3>
                 
-                {/* Debug info panel (Fix #4) */}
-                {debugMode && (
-                  <div className="mb-4 p-2 bg-gray-50 dark:bg-gray-700 rounded text-xs">
-                    <div>Image URL: {imageUrl || 'None'}</div>
-                    <div>Preview Key: {previewKey}</div>
-                    <div>Last Update: {lastImageUpdate ? formatDate(lastImageUpdate) : 'None'}</div>
-                    <div>Form Valid: {formState.isValid ? '✅' : '❌'}</div>
-                    <div>Image Error: {errors.image ? '❌' : '✅'}</div>
-                  </div>
-                )}
-                
                 <ImagePreview
-                  imagePath={imageUrl}
+                  imagePath={imageUrl || ""}
                   alt="Innovator profile preview"
                   className="h-48"
                   placeholderIcon={Users}
                   placeholderText="Profile image preview will appear here"
                   showFileName={true}
-                  key={previewKey} // Force re-render when previewKey changes (Fix #5)
-                  updatedAt={lastImageUpdate || innovatorQuery.data?.updatedAt} // Cache busting (Fix #1)
-                  enableEventListening={true} // Enable event listening (Fix #3)
-                  debugMode={debugMode} // Enhanced debugging (Fix #4)
+                  key={previewKey}
+                  updatedAt={innovatorData?.updatedAt}
+                  onImageLoad={() => {
+                    console.log('Preview image loaded successfully');
+                  }}
+                  onImageError={(error) => {
+                    console.error('Preview image failed to load:', error);
+                    toast.error('Preview image failed to load', { duration: 3000 });
+                  }}
                 />
               </div>
             </div>

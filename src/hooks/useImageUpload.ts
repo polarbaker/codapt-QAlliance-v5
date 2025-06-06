@@ -154,37 +154,6 @@ export function useImageUpload(options: UseImageUploadOptions = {}) {
     })
   );
 
-  // Progressive upload mutation (if needed)
-  const progressiveUploadMutation = useMutation(
-    trpc.bulletproofProgressiveUpload.mutationOptions({
-      onSuccess: (data) => {
-        if (data.complete) {
-          setState(prev => ({ ...prev, isUploading: false, uploadProgress: '' }));
-          toast.success('🎉 Large file uploaded successfully with progressive upload!', { 
-            duration: 5000 
-          });
-          onUploadComplete?.(data);
-          clearState();
-        } else {
-          const percentage = (data.receivedChunks / data.totalChunks) * 100;
-          setState(prev => ({
-            ...prev,
-            uploadProgress: `Uploading chunk ${data.receivedChunks}/${data.totalChunks} (${percentage.toFixed(1)}%)...`
-          }));
-          onUploadProgress?.(percentage);
-        }
-      },
-      onError: (error) => {
-        setState(prev => ({ ...prev, isUploading: false, uploadProgress: '' }));
-        
-        const errorInfo = getUploadErrorMessage(error.message || 'Progressive upload failed');
-        toast.error(`❌ ${errorInfo.message}`, { duration: 8000 });
-        
-        onUploadError?.(error);
-      },
-    })
-  );
-
   // Clear state
   const clearState = useCallback(() => {
     setState({
@@ -341,19 +310,8 @@ export function useImageUpload(options: UseImageUploadOptions = {}) {
       
       setState(prev => ({ ...prev, uploadProgress: 'Uploading images...' }));
       
-      // Determine upload strategy
-      const shouldUseProgressive = enableProgressiveUpload && 
-        state.selectedFiles.some(file => file.size > 25 * 1024 * 1024); // 25MB threshold
-      
-      if (shouldUseProgressive && state.selectedFiles.length === 1) {
-        // Use progressive upload for large single files
-        // This would require implementing chunking logic
-        toast.info('Large file detected - using progressive upload for better reliability');
-        singleUploadMutation.mutate({
-          adminToken,
-          ...imagesData[0],
-        });
-      } else if (multiple || state.selectedFiles.length > 1) {
+      // Determine upload strategy (simplified, no progressive upload)
+      if (multiple || state.selectedFiles.length > 1) {
         // Use bulk upload
         bulkUploadMutation.mutate({
           adminToken,
@@ -374,7 +332,7 @@ export function useImageUpload(options: UseImageUploadOptions = {}) {
       });
       setState(prev => ({ ...prev, isUploading: false, uploadProgress: '' }));
     }
-  }, [state.selectedFiles, state.metadata, adminToken, multiple, enableProgressiveUpload, singleUploadMutation, bulkUploadMutation]);
+  }, [state.selectedFiles, state.metadata, adminToken, multiple, singleUploadMutation, bulkUploadMutation]);
 
   // Update metadata
   const updateMetadata = useCallback((index: number, newMetadata: Partial<ImageMetadata>) => {
@@ -406,7 +364,7 @@ export function useImageUpload(options: UseImageUploadOptions = {}) {
     ...state,
     
     // Computed state
-    isLoading: singleUploadMutation.isPending || bulkUploadMutation.isPending || progressiveUploadMutation.isPending,
+    isLoading: singleUploadMutation.isPending || bulkUploadMutation.isPending,
     hasFiles: state.selectedFiles.length > 0,
     
     // Actions
@@ -421,7 +379,7 @@ export function useImageUpload(options: UseImageUploadOptions = {}) {
     fileInputRef,
     
     // Mutation states
-    uploadError: singleUploadMutation.error || bulkUploadMutation.error || progressiveUploadMutation.error,
-    isSuccess: singleUploadMutation.isSuccess || bulkUploadMutation.isSuccess || progressiveUploadMutation.isSuccess,
+    uploadError: singleUploadMutation.error || bulkUploadMutation.error,
+    isSuccess: singleUploadMutation.isSuccess || bulkUploadMutation.isSuccess,
   };
 }

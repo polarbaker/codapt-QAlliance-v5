@@ -4,6 +4,7 @@ import { useTRPC } from "~/trpc/react";
 import { useQuery } from "@tanstack/react-query";
 import { AdminCard } from "~/components/AdminCard";
 import { StatCard } from "~/components/ui/StatCard";
+import { ImageSystemDashboard } from "~/components/admin/ImageSystemDashboard";
 import { toast } from "react-hot-toast";
 import {
   Users,
@@ -197,6 +198,14 @@ export function AdminDashboard() {
               disabled={true}
             />
           </div>
+        </div>
+
+        {/* Image System Management */}
+        <div className="py-8">
+          <h2 className="text-xl font-semibold text-text-dark dark:text-text-light mb-6">
+            Image System Management
+          </h2>
+          <ImageSystemDashboard />
         </div>
       </div>
     </div>

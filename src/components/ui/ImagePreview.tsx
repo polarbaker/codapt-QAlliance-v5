@@ -25,6 +25,15 @@ interface ImagePreviewProps {
   fallbackImagePath?: string; // Fallback image path
   onImageLoad?: () => void; // Callback when image loads successfully
   onImageError?: (error: string) => void; // Callback when image fails to load
+  // New verification-specific props
+  verificationMode?: boolean; // Enable verification-specific behavior
+  onVerificationComplete?: (success: boolean, details?: any) => void; // Callback for verification results
+  showVerificationStates?: boolean; // Show verification vs processing states
+  maxVerificationAttempts?: number; // Max verification attempts
+  // Integration with useImageUploadRecovery
+  reportErrorToRecovery?: (error: any, component: string) => void;
+  reportSuccessToRecovery?: (component: string, result?: any) => void;
+  componentId?: string; // For identifying the source component in recovery
 }
 
 export const ImagePreview = memo(function ImagePreview({
@@ -41,14 +50,32 @@ export const ImagePreview = memo(function ImagePreview({
   fallbackImagePath,
   onImageLoad,
   onImageError,
+  verificationMode = false,
+  onVerificationComplete,
+  showVerificationStates = false,
+  maxVerificationAttempts = 5,
+  reportErrorToRecovery,
+  reportSuccessToRecovery,
+  componentId = 'ImagePreview',
 }: ImagePreviewProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [retryCount, setRetryCount] = useState(0);
   const [refreshKey, setRefreshKey] = useState(0); // Force re-render key
-  const [visualIndicator, setVisualIndicator] = useState<'updating' | 'success' | 'error' | null>(null);
+  const [visualIndicator, setVisualIndicator] = useState<'updating' | 'processing' | 'verifying' | 'success' | 'error' | null>(null);
   const [currentImageUrl, setCurrentImageUrl] = useState<string>('');
+  // New verification-specific states
+  const [verificationState, setVerificationState] = useState<{
+    isVerifying: boolean;
+    attempts: number;
+    maxAttempts: number;
+    startTime?: number;
+  }>({
+    isVerifying: false,
+    attempts: 0,
+    maxAttempts: maxVerificationAttempts,
+  });
   const imgRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
@@ -59,9 +86,9 @@ export const ImagePreview = memo(function ImagePreview({
   // Enhanced debugging with timestamps - memoized to prevent re-creation
   const logWithTimestamp = useCallback((message: string, data?: any) => {
     if (debugMode) {
-      console.log(`🔍 DEBUG: ImagePreview [${new Date().toISOString()}] - ${message}`, data || '');
+      console.log(`🔍 DEBUG: ${componentId} [${new Date().toISOString()}] - ${message}`, data || '');
     }
-  }, [debugMode]);
+  }, [debugMode, componentId]);
   
   logWithTimestamp('Render evaluation:', {
     imagePath: imagePath,
@@ -76,12 +103,21 @@ export const ImagePreview = memo(function ImagePreview({
     refreshKey: refreshKey,
     visualIndicator: visualIndicator,
     currentImageUrl: currentImageUrl,
+    verificationMode: verificationMode,
+    verificationState: verificationState,
   });
 
-  // Visual indicator effect - memoized to prevent re-creation
-  const showVisualIndicator = useCallback((type: 'updating' | 'success' | 'error') => {
+  // Enhanced visual indicator with verification states
+  const showVisualIndicator = useCallback((type: 'updating' | 'processing' | 'verifying' | 'success' | 'error') => {
     setVisualIndicator(type);
-    setTimeout(() => setVisualIndicator(null), type === 'success' ? 2000 : 3000);
+    
+    const duration = type === 'success' ? 2000 : 
+                    type === 'verifying' ? 0 : // Keep verifying indicator until complete
+                    3000;
+    
+    if (duration > 0) {
+      setTimeout(() => setVisualIndicator(null), duration);
+    }
   }, []);
 
   // Enhanced retry mechanism
@@ -93,6 +129,47 @@ export const ImagePreview = memo(function ImagePreview({
     setRefreshKey(prev => prev + 1);
     showVisualIndicator('updating');
   }, [retryCount, imagePath, logWithTimestamp, showVisualIndicator]);
+
+  // Method to trigger verification from external components
+  const triggerVerification = useCallback(() => {
+    if (!hasValidImagePath || verificationState.isVerifying) {
+      return false;
+    }
+    
+    logWithTimestamp('Triggering image verification:', {
+      imagePath,
+      maxAttempts: verificationState.maxAttempts,
+    });
+    
+    setVerificationState({
+      isVerifying: true,
+      attempts: 0,
+      maxAttempts: verificationState.maxAttempts,
+      startTime: Date.now(),
+    });
+    
+    setHasError(false);
+    setErrorMessage('');
+    setRetryCount(0);
+    setRefreshKey(prev => prev + 1);
+    showVisualIndicator('verifying');
+    
+    return true;
+  }, [hasValidImagePath, verificationState.isVerifying, verificationState.maxAttempts, imagePath, logWithTimestamp, showVisualIndicator]);
+
+  // Expose verification trigger via ref or callback
+  useEffect(() => {
+    if (verificationMode && window) {
+      // Store verification trigger globally for access by upload component
+      (window as any).__imagePreviewVerificationTrigger = triggerVerification;
+    }
+    
+    return () => {
+      if (verificationMode && window) {
+        delete (window as any).__imagePreviewVerificationTrigger;
+      }
+    };
+  }, [verificationMode, triggerVerification]);
 
   // Memoized image event handlers to prevent re-creation on every render
   const handleImageLoadStart = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
@@ -117,14 +194,46 @@ export const ImagePreview = memo(function ImagePreview({
       retryCount: retryCount,
       naturalWidth: target.naturalWidth,
       naturalHeight: target.naturalHeight,
+      verificationMode: verificationMode,
+      isVerifying: verificationState.isVerifying,
     });
+    
     setIsLoading(false);
     setHasError(false);
     setErrorMessage('');
     setRetryCount(0); // Reset retry count on success
-    showVisualIndicator('success');
+    
+    // Handle verification completion
+    if (verificationMode && verificationState.isVerifying) {
+      setVerificationState(prev => ({
+        ...prev,
+        isVerifying: false,
+        attempts: prev.attempts + 1,
+      }));
+      
+      showVisualIndicator('success');
+      onVerificationComplete?.(true);
+      
+      logWithTimestamp('Image verification completed successfully:', {
+        imagePath,
+        attempts: verificationState.attempts + 1,
+        verificationTime: verificationState.startTime ? Date.now() - verificationState.startTime : 0,
+      });
+    } else {
+      showVisualIndicator('success');
+    }
+    
+    if (reportSuccessToRecovery) {
+      reportSuccessToRecovery(componentId, {
+        filePath: imagePath,
+        imageUrl: target.src,
+        naturalWidth: target.naturalWidth,
+        naturalHeight: target.naturalHeight,
+      });
+    }
+    
     onImageLoad?.();
-  }, [logWithTimestamp, imagePath, refreshKey, retryCount, showVisualIndicator, onImageLoad]);
+  }, [logWithTimestamp, imagePath, refreshKey, retryCount, showVisualIndicator, onImageLoad, verificationMode, verificationState, onVerificationComplete, reportSuccessToRecovery, componentId]);
 
   // Generate image URL with enhanced error handling and absolute URL support
   const generateImageUrl = useCallback((path: string, useCache: boolean = true): string => {
@@ -181,6 +290,8 @@ export const ImagePreview = memo(function ImagePreview({
       currentSrc: target.currentSrc,
       refreshKey: refreshKey,
       retryCount: retryCount,
+      verificationMode: verificationMode,
+      isVerifying: verificationState.isVerifying,
       timestamp: new Date().toISOString(),
     };
     
@@ -200,42 +311,96 @@ export const ImagePreview = memo(function ImagePreview({
     setHasError(true);
     setErrorMessage(errorMsg);
     showVisualIndicator('error');
+    
+    if (reportErrorToRecovery) {
+      reportErrorToRecovery({
+        message: errorMsg,
+        diagnostics: errorDiagnostics,
+      }, componentId);
+    }
+    
     onImageError?.(errorMsg);
     
-    // Enhanced auto-retry logic with exponential backoff
-    if (retryCount < 3 && hasValidImagePath) {
-      const retryDelay = Math.pow(2, retryCount) * 1000; // Exponential backoff
-      logWithTimestamp(`Enhanced auto-retry scheduled in ${retryDelay}ms`, { 
-        retryCount, 
-        maxRetries: 3,
-        errorDiagnostics 
-      });
+    // Handle verification failure
+    if (verificationMode && verificationState.isVerifying) {
+      const newAttempts = verificationState.attempts + 1;
       
-      setTimeout(() => {
-        setRetryCount(prev => prev + 1);
-        setRefreshKey(prev => prev + 1);
-        setHasError(false);
-        setErrorMessage('');
-        showVisualIndicator('updating');
+      if (newAttempts >= verificationState.maxAttempts) {
+        setVerificationState(prev => ({
+          ...prev,
+          isVerifying: false,
+          attempts: newAttempts,
+        }));
         
-        // Try to regenerate URL with different cache-busting
-        const newUrl = generateImageUrl(imagePath, true);
-        setCurrentImageUrl(newUrl);
+        onVerificationComplete?.(false);
         
-        logWithTimestamp('Auto-retry attempt with new URL:', {
-          attempt: retryCount + 1,
-          newUrl: newUrl,
-          previousUrl: target.src,
+        logWithTimestamp('Image verification failed after all attempts:', {
+          imagePath,
+          totalAttempts: newAttempts,
+          maxAttempts: verificationState.maxAttempts,
         });
-      }, retryDelay);
+      } else {
+        // Continue verification with exponential backoff
+        const retryDelay = Math.min(1000 * Math.pow(2, newAttempts - 1), 8000);
+        
+        setVerificationState(prev => ({
+          ...prev,
+          attempts: newAttempts,
+        }));
+        
+        logWithTimestamp(`Verification retry scheduled in ${retryDelay}ms`, {
+          attempt: newAttempts,
+          maxAttempts: verificationState.maxAttempts,
+        });
+        
+        setTimeout(() => {
+          setRetryCount(prev => prev + 1);
+          setRefreshKey(prev => prev + 1);
+          setHasError(false);
+          setErrorMessage('');
+          showVisualIndicator('verifying');
+          
+          // Try to regenerate URL with different cache-busting
+          const newUrl = generateImageUrl(imagePath, true);
+          setCurrentImageUrl(newUrl);
+        }, retryDelay);
+      }
     } else {
-      logWithTimestamp('Max retry attempts reached or invalid image path', {
-        retryCount,
-        hasValidImagePath,
-        maxRetries: 3,
-      });
+      // Standard auto-retry logic for non-verification mode
+      if (retryCount < 3 && hasValidImagePath) {
+        const retryDelay = Math.pow(2, retryCount) * 1000; // Exponential backoff
+        logWithTimestamp(`Enhanced auto-retry scheduled in ${retryDelay}ms`, { 
+          retryCount, 
+          maxRetries: 3,
+          errorDiagnostics 
+        });
+        
+        setTimeout(() => {
+          setRetryCount(prev => prev + 1);
+          setRefreshKey(prev => prev + 1);
+          setHasError(false);
+          setErrorMessage('');
+          showVisualIndicator('updating');
+          
+          // Try to regenerate URL with different cache-busting
+          const newUrl = generateImageUrl(imagePath, true);
+          setCurrentImageUrl(newUrl);
+          
+          logWithTimestamp('Auto-retry attempt with new URL:', {
+            attempt: retryCount + 1,
+            newUrl: newUrl,
+            previousUrl: target.src,
+          });
+        }, retryDelay);
+      } else {
+        logWithTimestamp('Max retry attempts reached or invalid image path', {
+          retryCount,
+          hasValidImagePath,
+          maxRetries: 3,
+        });
+      }
     }
-  }, [logWithTimestamp, imagePath, refreshKey, retryCount, showVisualIndicator, onImageError, hasValidImagePath, generateImageUrl]);
+  }, [logWithTimestamp, imagePath, refreshKey, retryCount, showVisualIndicator, onImageError, hasValidImagePath, generateImageUrl, verificationMode, verificationState, onVerificationComplete, reportErrorToRecovery, componentId]);
 
   // Update current image URL when dependencies change
   useEffect(() => {
@@ -294,41 +459,49 @@ export const ImagePreview = memo(function ImagePreview({
     if (!enableEventListening) return;
 
     const handleImageUpdated = (event: CustomEvent) => {
-      const { filePath: eventFilePath, timestamp } = event.detail || {};
+      const { 
+        filePath: eventFilePath, 
+        timestamp, 
+        component: sourceComponent, 
+        componentId: sourceComponentId 
+      } = event.detail || {};
       
       logWithTimestamp('Received imageUpdated event:', {
-        eventFilePath: eventFilePath,
+        eventFilePath,
         currentImagePath: imagePath,
         eventTimestamp: timestamp,
-        shouldUpdate: eventFilePath === imagePath,
+        sourceComponent,
+        sourceComponentId,
+        shouldUpdate: eventFilePath === imagePath || (sourceComponent === 'UnifiedImageUploadInterface' && eventFilePath),
       });
       
-      // Check if this event is for our current image
-      if (eventFilePath && eventFilePath === imagePath) {
-        logWithTimestamp('Event matches current image - forcing update');
+      // Check if this event is for our current image or a general update from unified interface
+      if (eventFilePath && (eventFilePath === imagePath || (sourceComponent === 'UnifiedImageUploadInterface' && eventFilePath.trim() !== ''))) {
+        logWithTimestamp('Event matches current image or is a general update - forcing preview update');
         setHasError(false);
         setErrorMessage('');
         setRetryCount(0);
-        setRefreshKey(prev => prev + 1);
+        setRefreshKey(prev => prev + 1); // This will trigger re-generation of currentImageUrl
         showVisualIndicator('success');
         
-        // Direct DOM update as fallback
+        // Direct DOM update as fallback if needed (though refreshKey should handle it)
         if (imgRef.current) {
           const newUrl = getCacheBustedImageUrl(eventFilePath, new Date());
-          logWithTimestamp('Direct DOM update - setting new src:', {
+          logWithTimestamp('Direct DOM update attempt - setting new src:', {
             oldSrc: imgRef.current.src,
             newSrc: newUrl,
           });
-          imgRef.current.src = newUrl;
-          setCurrentImageUrl(newUrl);
+          // setCurrentImageUrl(newUrl); // Let useEffect handle this via refreshKey
         }
       }
     };
 
     window.addEventListener('imageUpdated', handleImageUpdated as EventListener);
+    document.addEventListener('imageUpdated', handleImageUpdated as EventListener); // Listen on document as well
     
     return () => {
       window.removeEventListener('imageUpdated', handleImageUpdated as EventListener);
+      document.removeEventListener('imageUpdated', handleImageUpdated as EventListener);
     };
   }, [imagePath, enableEventListening, logWithTimestamp, showVisualIndicator]);
 
@@ -396,19 +569,32 @@ export const ImagePreview = memo(function ImagePreview({
         visualIndicator ? 'ring-2 ring-offset-2' : ''
       } ${
         visualIndicator === 'updating' ? 'ring-blue-500' :
+        visualIndicator === 'processing' ? 'ring-purple-500' :
+        visualIndicator === 'verifying' ? 'ring-yellow-500' :
         visualIndicator === 'success' ? 'ring-green-500' :
         visualIndicator === 'error' ? 'ring-red-500' : ''
       }`}
     >
-      {/* Visual indicator overlay */}
+      {/* Enhanced visual indicator overlay */}
       {visualIndicator && (
         <div className={`absolute top-2 right-2 z-10 px-2 py-1 rounded text-xs font-medium ${
           visualIndicator === 'updating' ? 'bg-blue-100 text-blue-800' :
+          visualIndicator === 'processing' ? 'bg-purple-100 text-purple-800' :
+          visualIndicator === 'verifying' ? 'bg-yellow-100 text-yellow-800' :
           visualIndicator === 'success' ? 'bg-green-100 text-green-800' :
           'bg-red-100 text-red-800'
         }`}>
           {visualIndicator === 'updating' ? '🔄 Updating' :
-           visualIndicator === 'success' ? '✅ Updated' : '❌ Error'}
+           visualIndicator === 'processing' ? '⚙️ Processing' :
+           visualIndicator === 'verifying' ? '🔍 Verifying' :
+           visualIndicator === 'success' ? '✅ Ready' : '❌ Error'}
+        </div>
+      )}
+
+      {/* Verification progress indicator */}
+      {verificationState.isVerifying && showVerificationStates && (
+        <div className="absolute bottom-2 left-2 z-10 px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs">
+          Verifying {verificationState.attempts + 1}/{verificationState.maxAttempts}
         </div>
       )}
 
@@ -416,7 +602,9 @@ export const ImagePreview = memo(function ImagePreview({
         <div className="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-gray-800 z-10">
           <div className="flex flex-col items-center space-y-2">
             <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-            <p className="text-sm text-gray-500 dark:text-gray-400">Loading preview...</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {verificationState.isVerifying ? 'Verifying image...' : 'Loading preview...'}
+            </p>
           </div>
         </div>
       )}
@@ -439,7 +627,7 @@ export const ImagePreview = memo(function ImagePreview({
       )}
       
       {/* Error overlay with retry option */}
-      {hasError && enableRetry && retryCount < 3 && (
+      {hasError && enableRetry && retryCount < 3 && !verificationState.isVerifying && (
         <div className="absolute bottom-2 right-2 z-10">
           <button
             onClick={handleRetry}
@@ -455,10 +643,14 @@ export const ImagePreview = memo(function ImagePreview({
       {debugMode && (
         <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-90 text-white text-xs p-3 opacity-0 hover:opacity-100 transition-opacity z-20">
           <div className="space-y-1">
+            <div>Component ID: {componentId}</div>
             <div>Path: {imagePath || 'None'}</div>
             <div>URL: {currentImageUrl || 'None'}</div>
             <div>Absolute URL: {currentImageUrl ? getAbsoluteImageUrl(imagePath || '') : 'None'}</div>
             <div>Key: {refreshKey} | Retry: {retryCount}</div>
+            {verificationMode && (
+              <div>Verification: {verificationState.isVerifying ? 'Active' : 'Inactive'} | Attempts: {verificationState.attempts}/{verificationState.maxAttempts}</div>
+            )}
             {updatedAt && <div>Updated: {formatDate(updatedAt)}</div>}
             {hasError && <div className="text-red-300">Error: {errorMessage}</div>}
             <div className="flex items-center space-x-2 mt-2">
@@ -486,7 +678,18 @@ export const ImagePreview = memo(function ImagePreview({
                   </button>
                 </>
               )}
+              {verificationMode && (
+                <button
+                  onClick={triggerVerification}
+                  disabled={verificationState.isVerifying || !hasValidImagePath}
+                  className="flex items-center space-x-1 px-2 py-1 bg-yellow-600 rounded text-xs hover:bg-yellow-700 disabled:opacity-50"
+                >
+                  <RefreshCw className="h-3 w-3" />
+                  <span>Verify</span>
+                </button>
+              )}
             </div>
+            <div>Event Listening: {enableEventListening ? 'Enabled' : 'Disabled'}</div>
           </div>
         </div>
       )}

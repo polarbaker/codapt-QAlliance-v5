@@ -686,6 +686,143 @@ const uploadToStorageWithRetry = async (
   );
 };
 
+// Enhanced server-side file verification after storage upload
+const verifyFileExistsInStorage = async (
+  fileName: string,
+  expectedSize?: number,
+  maxRetries: number = 3
+): Promise<{ exists: boolean; actualSize?: number; error?: string; metadata?: any }> => {
+  console.log(`🔍 SERVER VERIFICATION: Starting file existence check for ${fileName}`);
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`🔍 SERVER VERIFICATION: Attempt ${attempt}/${maxRetries} for ${fileName}`);
+      
+      // Check if file exists in storage
+      const stat = await minioClient.statObject(BUCKET_NAME, fileName);
+      
+      if (!stat) {
+        console.error(`❌ SERVER VERIFICATION: No stat object returned for ${fileName} on attempt ${attempt}`);
+        continue;
+      }
+      
+      const actualSize = stat.size;
+      const lastModified = stat.lastModified;
+      const etag = stat.etag;
+      const contentType = stat.metaData?.['content-type'];
+      
+      console.log(`✅ SERVER VERIFICATION: File exists in storage:`, {
+        fileName,
+        actualSize,
+        expectedSize,
+        lastModified,
+        etag,
+        contentType,
+        attempt,
+        bucket: BUCKET_NAME,
+      });
+      
+      // Verify file size if expected size is provided
+      if (expectedSize && actualSize !== expectedSize) {
+        console.warn(`⚠️ SERVER VERIFICATION: Size mismatch for ${fileName}:`, {
+          expectedSize,
+          actualSize,
+          difference: Math.abs(actualSize - expectedSize),
+        });
+        
+        // Allow small differences (up to 1KB) due to metadata
+        if (Math.abs(actualSize - expectedSize) > 1024) {
+          return {
+            exists: false,
+            actualSize,
+            error: `File size mismatch: expected ${expectedSize}, got ${actualSize}`,
+          };
+        }
+      }
+      
+      // Try to actually read a small portion of the file to ensure it's not corrupted
+      try {
+        const stream = await minioClient.getObject(BUCKET_NAME, fileName);
+        let readBytes = 0;
+        const maxReadBytes = 1024; // Read first 1KB to verify accessibility
+        
+        for await (const chunk of stream) {
+          readBytes += chunk.length;
+          if (readBytes >= maxReadBytes) {
+            break; // We've read enough to verify the file is accessible
+          }
+        }
+        
+        console.log(`✅ SERVER VERIFICATION: File is readable, verified ${readBytes} bytes for ${fileName}`);
+        
+        return {
+          exists: true,
+          actualSize,
+          metadata: {
+            lastModified,
+            etag,
+            contentType,
+            verifiedBytes: readBytes,
+            verificationAttempt: attempt,
+          },
+        };
+        
+      } catch (readError) {
+        console.error(`❌ SERVER VERIFICATION: File exists but cannot be read on attempt ${attempt}:`, {
+          fileName,
+          error: readError instanceof Error ? readError.message : 'Unknown read error',
+        });
+        
+        if (attempt === maxRetries) {
+          return {
+            exists: false,
+            actualSize,
+            error: `File exists but cannot be read: ${readError instanceof Error ? readError.message : 'Unknown error'}`,
+          };
+        }
+        
+        // Wait before retry
+        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+      }
+      
+    } catch (statError: any) {
+      console.error(`❌ SERVER VERIFICATION: Stat error for ${fileName} on attempt ${attempt}:`, {
+        error: statError instanceof Error ? statError.message : 'Unknown stat error',
+        code: statError?.code,
+        statusCode: statError?.statusCode,
+      });
+      
+      if (statError?.code === 'NoSuchKey' || statError?.statusCode === 404) {
+        if (attempt === maxRetries) {
+          return {
+            exists: false,
+            error: `File not found in storage after ${maxRetries} attempts`,
+          };
+        }
+        
+        // Wait before retry for file to propagate
+        console.log(`⏳ SERVER VERIFICATION: File not found, waiting before retry ${attempt + 1}...`);
+        await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
+      } else {
+        if (attempt === maxRetries) {
+          return {
+            exists: false,
+            error: `Storage error: ${statError instanceof Error ? statError.message : 'Unknown error'}`,
+          };
+        }
+        
+        // Wait before retry for transient errors
+        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+      }
+    }
+  }
+  
+  return {
+    exists: false,
+    error: `File verification failed after ${maxRetries} attempts`,
+  };
+};
+
 const ensureBucketExists = async (): Promise<void> => {
   try {
     // Check main bucket
@@ -735,6 +872,241 @@ const ensureBucketExists = async (): Promise<void> => {
     );
   }
 };
+
+// Storage system health check endpoint
+export const storageHealthCheck = baseProcedure
+  .input(z.object({
+    adminToken: z.string(),
+    testUpload: z.boolean().default(false),
+  }))
+  .query(async ({ input }) => {
+    try {
+      await requireAdminAuth(input.adminToken);
+      
+      console.log('🏥 STORAGE HEALTH CHECK: Starting comprehensive storage system validation');
+      
+      const healthResults = {
+        timestamp: new Date().toISOString(),
+        bucketExists: false,
+        bucketAccessible: false,
+        testFileUpload: false,
+        testFileDownload: false,
+        testFileDelete: false,
+        memoryStatus: 'unknown' as 'low' | 'medium' | 'high' | 'critical' | 'unknown',
+        errors: [] as string[],
+        warnings: [] as string[],
+        details: {} as Record<string, any>,
+      };
+      
+      // Check memory status first
+      try {
+        const memoryStats = getMemoryStats();
+        healthResults.memoryStatus = memoryStats.system.pressure;
+        healthResults.details.memory = {
+          heapUsed: `${memoryStats.heap.used.toFixed(1)}MB`,
+          heapTotal: `${memoryStats.heap.total.toFixed(1)}MB`,
+          heapPercentage: `${memoryStats.heap.percentage.toFixed(1)}%`,
+          rss: `${memoryStats.rss.toFixed(1)}MB`,
+          available: `${memoryStats.system.available.toFixed(1)}MB`,
+          pressure: memoryStats.system.pressure,
+        };
+        
+        if (memoryStats.system.pressure === 'critical') {
+          healthResults.errors.push('Critical memory pressure detected');
+        } else if (memoryStats.system.pressure === 'high') {
+          healthResults.warnings.push('High memory pressure detected');
+        }
+      } catch (memoryError) {
+        healthResults.errors.push(`Memory check failed: ${memoryError instanceof Error ? memoryError.message : 'Unknown error'}`);
+      }
+      
+      // Check if main bucket exists
+      try {
+        const bucketExists = await minioClient.bucketExists(BUCKET_NAME);
+        healthResults.bucketExists = bucketExists;
+        
+        if (!bucketExists) {
+          healthResults.errors.push(`Main bucket '${BUCKET_NAME}' does not exist`);
+          return { success: false, health: healthResults };
+        }
+        
+        console.log(`✅ STORAGE HEALTH CHECK: Main bucket '${BUCKET_NAME}' exists`);
+      } catch (bucketError) {
+        const errorMsg = `Failed to check bucket existence: ${bucketError instanceof Error ? bucketError.message : 'Unknown error'}`;
+        healthResults.errors.push(errorMsg);
+        console.error(`❌ STORAGE HEALTH CHECK: ${errorMsg}`);
+        return { success: false, health: healthResults };
+      }
+      
+      // Check bucket accessibility by listing objects (limited)
+      try {
+        const objects = minioClient.listObjects(BUCKET_NAME, '', false);
+        let objectCount = 0;
+        let totalSize = 0;
+        
+        // Check first few objects
+        for await (const obj of objects) {
+          objectCount++;
+          totalSize += obj.size || 0;
+          
+          if (objectCount >= 10) break; // Limit check to first 10 objects
+        }
+        
+        healthResults.bucketAccessible = true;
+        healthResults.details.bucketInfo = {
+          sampleObjectCount: objectCount,
+          sampleTotalSize: `${(totalSize / (1024 * 1024)).toFixed(1)}MB`,
+        };
+        
+        console.log(`✅ STORAGE HEALTH CHECK: Bucket accessible, found ${objectCount} sample objects`);
+      } catch (listError) {
+        const errorMsg = `Failed to access bucket contents: ${listError instanceof Error ? listError.message : 'Unknown error'}`;
+        healthResults.errors.push(errorMsg);
+        console.error(`❌ STORAGE HEALTH CHECK: ${errorMsg}`);
+      }
+      
+      // Perform test upload/download/delete if requested
+      if (input.testUpload && healthResults.bucketExists) {
+        const testFileName = `health-check-${Date.now()}.txt`;
+        const testContent = `Health check test file created at ${new Date().toISOString()}`;
+        const testBuffer = Buffer.from(testContent, 'utf-8');
+        
+        try {
+          // Test upload
+          console.log(`🧪 STORAGE HEALTH CHECK: Testing upload with file ${testFileName}`);
+          await minioClient.putObject(BUCKET_NAME, testFileName, testBuffer, testBuffer.length, {
+            'Content-Type': 'text/plain',
+            'X-Health-Check': 'true',
+          });
+          
+          healthResults.testFileUpload = true;
+          console.log(`✅ STORAGE HEALTH CHECK: Test upload successful`);
+          
+          // Verify file exists
+          const verification = await verifyFileExistsInStorage(testFileName, testBuffer.length);
+          if (!verification.exists) {
+            healthResults.warnings.push(`Test file uploaded but verification failed: ${verification.error}`);
+          } else {
+            console.log(`✅ STORAGE HEALTH CHECK: Test file verification successful`);
+          }
+          
+          // Test download
+          try {
+            const stream = await minioClient.getObject(BUCKET_NAME, testFileName);
+            const chunks: Buffer[] = [];
+            
+            for await (const chunk of stream) {
+              chunks.push(chunk);
+            }
+            
+            const downloadedContent = Buffer.concat(chunks).toString('utf-8');
+            
+            if (downloadedContent === testContent) {
+              healthResults.testFileDownload = true;
+              console.log(`✅ STORAGE HEALTH CHECK: Test download successful`);
+            } else {
+              healthResults.errors.push('Test download content mismatch');
+              console.error(`❌ STORAGE HEALTH CHECK: Downloaded content doesn't match uploaded content`);
+            }
+          } catch (downloadError) {
+            const errorMsg = `Test download failed: ${downloadError instanceof Error ? downloadError.message : 'Unknown error'}`;
+            healthResults.errors.push(errorMsg);
+            console.error(`❌ STORAGE HEALTH CHECK: ${errorMsg}`);
+          }
+          
+          // Test delete
+          try {
+            await minioClient.removeObject(BUCKET_NAME, testFileName);
+            healthResults.testFileDelete = true;
+            console.log(`✅ STORAGE HEALTH CHECK: Test delete successful`);
+          } catch (deleteError) {
+            const errorMsg = `Test delete failed: ${deleteError instanceof Error ? deleteError.message : 'Unknown error'}`;
+            healthResults.warnings.push(errorMsg); // Warning, not error, since upload/download worked
+            console.warn(`⚠️ STORAGE HEALTH CHECK: ${errorMsg}`);
+          }
+          
+        } catch (uploadError) {
+          const errorMsg = `Test upload failed: ${uploadError instanceof Error ? uploadError.message : 'Unknown error'}`;
+          healthResults.errors.push(errorMsg);
+          console.error(`❌ STORAGE HEALTH CHECK: ${errorMsg}`);
+        }
+      }
+      
+      // Check environment configuration
+      try {
+        const { env } = await import("~/server/env");
+        healthResults.details.environment = {
+          uploadMaxFileSize: `${(env.UPLOAD_MAX_FILE_SIZE / (1024 * 1024)).toFixed(0)}MB`,
+          chunkSize: `${(env.UPLOAD_CHUNK_SIZE / (1024 * 1024)).toFixed(0)}MB`,
+          progressiveThreshold: `${(env.PROGRESSIVE_UPLOAD_THRESHOLD / (1024 * 1024)).toFixed(0)}MB`,
+          memoryLimit: `${env.IMAGE_PROCESSING_MEMORY_LIMIT}MB`,
+          corsOrigins: env.IMAGE_CORS_ORIGINS.join(', '),
+          monitoringEnabled: env.ENABLE_UPLOAD_MONITORING,
+        };
+      } catch (envError) {
+        healthResults.warnings.push(`Environment check failed: ${envError instanceof Error ? envError.message : 'Unknown error'}`);
+      }
+      
+      // Determine overall health status
+      const isHealthy = healthResults.bucketExists && 
+                       healthResults.bucketAccessible && 
+                       (!input.testUpload || (healthResults.testFileUpload && healthResults.testFileDownload)) &&
+                       healthResults.errors.length === 0 &&
+                       healthResults.memoryStatus !== 'critical';
+      
+      const healthSummary = {
+        status: isHealthy ? 'healthy' : 'degraded',
+        score: Math.max(0, 100 - (healthResults.errors.length * 25) - (healthResults.warnings.length * 10)),
+        recommendations: [] as string[],
+      };
+      
+      if (!isHealthy) {
+        if (healthResults.errors.length > 0) {
+          healthSummary.recommendations.push('Address critical errors before using image upload');
+        }
+        if (healthResults.memoryStatus === 'critical') {
+          healthSummary.recommendations.push('Increase server memory or reduce concurrent operations');
+        }
+        if (!healthResults.bucketAccessible) {
+          healthSummary.recommendations.push('Check Minio service connectivity and permissions');
+        }
+      }
+      
+      console.log(`🏥 STORAGE HEALTH CHECK: Completed with status '${healthSummary.status}' (score: ${healthSummary.score}/100)`);
+      
+      return {
+        success: isHealthy,
+        health: healthResults,
+        summary: healthSummary,
+        timestamp: new Date().toISOString(),
+      };
+      
+    } catch (error) {
+      console.error('❌ STORAGE HEALTH CHECK: Failed:', error);
+      
+      return {
+        success: false,
+        health: {
+          timestamp: new Date().toISOString(),
+          bucketExists: false,
+          bucketAccessible: false,
+          testFileUpload: false,
+          testFileDownload: false,
+          testFileDelete: false,
+          memoryStatus: 'unknown' as const,
+          errors: [`Health check failed: ${error instanceof Error ? error.message : 'Unknown error'}`],
+          warnings: [],
+          details: {},
+        },
+        summary: {
+          status: 'unhealthy',
+          score: 0,
+          recommendations: ['Check server logs and storage system connectivity'],
+        },
+        timestamp: new Date().toISOString(),
+      };
+    }
+  });
 
 const progressiveUploadInputSchema = z.object({
   adminToken: z.string(),
@@ -1464,6 +1836,7 @@ export const getImageVariant = baseProcedure
     }
   });
 
+// Enhanced bulletproofSingleUpload with comprehensive server-side verification
 export const bulletproofSingleUpload = baseProcedure
   .input(z.object({
     adminToken: z.string(),
@@ -1482,7 +1855,7 @@ export const bulletproofSingleUpload = baseProcedure
     
     try {
       await requireAdminAuth(input.adminToken);
-      console.log(`Starting bulletproof upload: ${input.fileName}`);
+      console.log(`🚀 BULLETPROOF UPLOAD: Starting upload for ${input.fileName}`);
       
       // Parse and validate buffer
       let buffer: Buffer;
@@ -1515,7 +1888,7 @@ export const bulletproofSingleUpload = baseProcedure
           );
         }
         
-        console.log(`Parsed file data: ${sizeMB.toFixed(1)}MB`);
+        console.log(`📊 BULLETPROOF UPLOAD: Parsed file data - ${sizeMB.toFixed(1)}MB for ${input.fileName}`);
         
       } catch (parseError) {
         throw createBulletproofError(
@@ -1547,16 +1920,63 @@ export const bulletproofSingleUpload = baseProcedure
       }
       
       // Process image with bulletproof strategies
+      console.log(`🔧 BULLETPROOF UPLOAD: Processing image with bulletproof strategies for ${input.fileName}`);
       const processed = await processImageWithFallbacks(buffer, input.fileName, input.fileType);
       
       // Generate unique filename
       const uniqueFileName = `${randomUUID()}.${processed.extension}`;
       uploadedFileName = uniqueFileName;
       
+      console.log(`📤 BULLETPROOF UPLOAD: Generated unique filename: ${uniqueFileName} for original: ${input.fileName}`);
+      console.log(`📤 BULLETPROOF UPLOAD: File details:`, {
+        originalName: input.fileName,
+        uniqueName: uniqueFileName,
+        originalSize: buffer.length,
+        processedSize: processed.processedBuffer.length,
+        contentType: processed.contentType,
+        bucket: BUCKET_NAME,
+        strategy: processed.metadata.strategy,
+      });
+      
       // Upload with retry logic
       await uploadToStorageWithRetry(uniqueFileName, processed.processedBuffer, processed.contentType);
       
-      // Save to database with comprehensive metadata
+      // CRITICAL: Server-side verification before completing transaction
+      console.log(`🔍 BULLETPROOF UPLOAD: Starting server-side verification for ${uniqueFileName}`);
+      const verification = await verifyFileExistsInStorage(uniqueFileName, processed.processedBuffer.length);
+      
+      if (!verification.exists) {
+        console.error(`❌ BULLETPROOF UPLOAD: Server-side verification failed for ${uniqueFileName}:`, verification.error);
+        
+        // Clean up uploaded file on verification failure
+        try {
+          await minioClient.removeObject(BUCKET_NAME, uniqueFileName);
+          console.log(`🧹 BULLETPROOF UPLOAD: Cleaned up failed upload: ${uniqueFileName}`);
+        } catch (cleanupError) {
+          console.error('Failed to cleanup after verification failure:', cleanupError);
+        }
+        
+        throw createBulletproofError(
+          `Upload completed but server verification failed: ${verification.error || 'File not accessible'}`,
+          'storage',
+          {
+            retryAfter: 30,
+            suggestions: [
+              'Try uploading again - this may be a temporary storage issue',
+              'Check server storage system status',
+              'Contact support if the problem persists',
+            ],
+          }
+        );
+      }
+      
+      console.log(`✅ BULLETPROOF UPLOAD: Server-side verification successful for ${uniqueFileName}:`, {
+        actualSize: verification.actualSize,
+        expectedSize: processed.processedBuffer.length,
+        metadata: verification.metadata,
+      });
+      
+      // Save to database with comprehensive metadata (only after verification)
       try {
         const { db } = await import("~/server/db");
         
@@ -1578,25 +1998,30 @@ export const bulletproofSingleUpload = baseProcedure
               detectedFormat: detectedType.detectedType,
               formatConfidence: detectedType.confidence,
               warnings: processed.warnings,
+              serverVerification: {
+                verified: true,
+                actualSize: verification.actualSize,
+                verificationMetadata: verification.metadata,
+              },
             }),
           },
         });
         
-        console.log(`Database record created: ${imageRecord.id}`);
+        console.log(`💾 BULLETPROOF UPLOAD: Database record created with ID: ${imageRecord.id} for ${uniqueFileName}`);
         
       } catch (dbError) {
-        console.error('Database error:', dbError);
+        console.error('Database error after successful verification:', dbError);
         
-        // Clean up uploaded file on database error
+        // Clean up uploaded file on database error (even though verification passed)
         try {
           await minioClient.removeObject(BUCKET_NAME, uniqueFileName);
-          console.log(`Cleaned up uploaded file after database error: ${uniqueFileName}`);
+          console.log(`🧹 BULLETPROOF UPLOAD: Cleaned up uploaded file after database error: ${uniqueFileName}`);
         } catch (cleanupError) {
           console.error('Failed to cleanup after database error:', cleanupError);
         }
         
         throw createBulletproofError(
-          'Failed to save image metadata to database',
+          'File uploaded and verified successfully but failed to save metadata to database',
           'storage',
           {
             retryAfter: 30,
@@ -1609,31 +2034,36 @@ export const bulletproofSingleUpload = baseProcedure
       }
       
       const totalTime = Date.now() - startTime;
-      console.log(`Bulletproof upload completed: ${input.fileName} in ${totalTime}ms`);
+      console.log(`✅ BULLETPROOF UPLOAD: Upload completed successfully for ${input.fileName} -> ${uniqueFileName} in ${totalTime}ms`);
       
       return {
         success: true,
         filePath: uniqueFileName,
         imageId: imageRecord.id,
-        message: 'Image uploaded successfully with bulletproof processing',
+        message: 'Image uploaded successfully with bulletproof processing and server verification',
         metadata: {
           ...processed.metadata,
           totalProcessingTime: totalTime,
           detectedFormat: detectedType.detectedType,
           formatConfidence: detectedType.confidence,
+          serverVerification: {
+            verified: true,
+            actualSize: verification.actualSize,
+            verificationTime: verification.metadata?.verificationTime || 0,
+          },
         },
         warnings: processed.warnings,
       };
       
     } catch (error) {
       const totalTime = Date.now() - startTime;
-      console.error(`Bulletproof upload failed for ${input.fileName} after ${totalTime}ms:`, error);
+      console.error(`❌ BULLETPROOF UPLOAD: Upload failed for ${input.fileName} after ${totalTime}ms:`, error);
       
       // Enhanced cleanup on failure
       if (uploadedFileName) {
         try {
           await minioClient.removeObject(BUCKET_NAME, uploadedFileName);
-          console.log(`Cleaned up failed upload: ${uploadedFileName}`);
+          console.log(`🧹 BULLETPROOF UPLOAD: Cleaned up failed upload: ${uploadedFileName}`);
         } catch (cleanupError) {
           console.error('Failed to cleanup failed upload:', cleanupError);
         }

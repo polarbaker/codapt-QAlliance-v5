@@ -1,5 +1,4 @@
 import { useTRPC } from "~/trpc/react";
-import { useQuery } from "@tanstack/react-query";
 import { useUserStore } from "~/stores/userStore";
 import { StatCard } from "~/components/ui/StatCard";
 import {
@@ -15,13 +14,11 @@ export function InnovatorStats() {
   const { adminToken } = useUserStore();
   const trpc = useTRPC();
   
-  // Fetch all innovators to calculate stats
-  const innovatorsQuery = useQuery(
-    trpc.adminGetInnovators.queryOptions({
-      adminToken: adminToken || "",
-      limit: 100, // Get a large number to calculate stats
-    })
-  );
+  // Fetch all innovators to calculate stats using direct tRPC hook
+  const innovatorsQuery = trpc.adminGetInnovators.useQuery({
+    adminToken: adminToken || "",
+    limit: 100, // Get a large number to calculate stats
+  });
 
   if (innovatorsQuery.isLoading || !innovatorsQuery.data) {
     return (

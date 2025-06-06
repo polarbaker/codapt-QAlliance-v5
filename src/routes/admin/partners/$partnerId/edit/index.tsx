@@ -192,14 +192,14 @@ function EditPartnerPage() {
       previewKey: previewKey,
     });
     
-    // Force preview re-render when logo URL changes
+    // Conditional guard: Force preview re-render when logo URL changes
     if (logoUrl && logoUrl.trim() !== '') {
       logWithTimestamp('Logo URL changed - forcing preview update');
       setPreviewKey(prev => prev + 1);
       setLastImageUpdate(new Date());
     }
     
-    // Force re-validation if we have a valid logo but still have an error
+    // Conditional guard: Force re-validation if we have a valid logo but still have an error
     if (logoUrl && logoUrl.trim() !== '' && errors.logoUrl) {
       logWithTimestamp('Detected valid logoUrl with validation error, triggering re-validation');
       const timeoutId = setTimeout(() => {
@@ -208,7 +208,7 @@ function EditPartnerPage() {
       return () => clearTimeout(timeoutId);
     }
     
-    // Force validation after setValue to ensure form state is updated
+    // Conditional guard: Force validation after setValue to ensure form state is updated
     if (logoUrl && logoUrl.trim() !== '') {
       const timeoutId = setTimeout(async () => {
         logWithTimestamp('Forcing validation after logoUrl change');
@@ -221,7 +221,7 @@ function EditPartnerPage() {
       }, 200);
       return () => clearTimeout(timeoutId);
     }
-  }, [logoUrl, errors.logoUrl, formState.isValid, trigger, logWithTimestamp]); // Fixed: removed previewKey from deps to prevent loop
+  }, [logoUrl, errors.logoUrl, formState.isValid, trigger, logWithTimestamp]); // Fixed: removed previewKey and state setters from deps to prevent loop
 
   if (partnerQuery.isLoading) {
     return (

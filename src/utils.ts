@@ -14,207 +14,410 @@ function getBaseUrl(): string {
   return `http://localhost:3000`;
 }
 
-// Debounce function to limit how often a function can be called
+// Debounce function to limit how often a function can be called with comprehensive null safety
 export function debounce<T extends (...args: any[]) => any>(
-  func: T,
+  func: T | null | undefined,
   wait: number
 ): (...args: Parameters<T>) => void {
+  // Validate inputs with null safety
+  if (!func || typeof func !== 'function') {
+    console.warn('Invalid function provided to debounce:', { func, type: typeof func });
+    return (() => {}) as any; // Return a no-op function
+  }
+  
+  if (typeof wait !== 'number' || isNaN(wait) || wait < 0) {
+    console.warn('Invalid wait time provided to debounce, using default 300ms:', { wait });
+    wait = 300;
+  }
+  
   let timeout: NodeJS.Timeout;
+  
   return function executedFunction(...args: Parameters<T>) {
-    const later = () => {
+    try {
+      const later = () => {
+        clearTimeout(timeout);
+        if (func && typeof func === 'function') {
+          func(...args);
+        }
+      };
       clearTimeout(timeout);
-      func(...args);
-    };
-    clearTimeout(timeout);
-    timeout = setTimeout(later, wait);
+      timeout = setTimeout(later, wait);
+    } catch (error) {
+      console.error('Error in debounced function execution:', error);
+    }
   };
 }
 
-// Enhanced validation for image paths
-export function isValidImagePath(filePath: string): boolean {
+// Enhanced validation for image paths with comprehensive null safety
+export function isValidImagePath(filePath: string | null | undefined): boolean {
+  // Early null/undefined check
   if (!filePath || typeof filePath !== 'string') {
     return false;
   }
   
-  // Check for data URLs
-  if (filePath.startsWith('data:')) {
-    return filePath.includes('image/') && filePath.includes('base64');
+  // Trim and check for empty string
+  const trimmedPath = filePath.trim();
+  if (trimmedPath.length === 0) {
+    return false;
   }
   
-  // Check for external URLs
-  if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
-    try {
-      new URL(filePath);
-      return true;
-    } catch {
-      return false;
+  try {
+    // Check for data URLs
+    if (trimmedPath.startsWith('data:')) {
+      return trimmedPath.includes('image/') && trimmedPath.includes('base64');
     }
+    
+    // Check for external URLs
+    if (trimmedPath.startsWith('http://') || trimmedPath.startsWith('https://')) {
+      try {
+        new URL(trimmedPath);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+    
+    // Check for stored image paths (UUID.extension format)
+    const storedImageRegex = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.(jpg|jpeg|png|gif|webp|bmp|tiff|svg|avif)$/i;
+    return storedImageRegex.test(trimmedPath);
+  } catch (error) {
+    console.warn('Error validating image path:', error, { filePath: trimmedPath });
+    return false;
   }
-  
-  // Check for stored image paths (UUID.extension format)
-  const storedImageRegex = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.(jpg|jpeg|png|gif|webp|bmp|tiff|svg|avif)$/i;
-  return storedImageRegex.test(filePath.trim());
 }
 
-// Enhanced error handling for image URLs
-export function getImageUrlWithFallback(filePath: string, fallbackUrl?: string): string {
-  if (!filePath || !isValidImagePath(filePath)) {
+// Enhanced error handling for image URLs with comprehensive null safety
+export function getImageUrlWithFallback(filePath: string | null | undefined, fallbackUrl?: string): string {
+  try {
+    // Validate inputs with null safety
+    if (!filePath || typeof filePath !== 'string') {
+      return fallbackUrl || '';
+    }
+    
+    const trimmedPath = filePath.trim();
+    if (trimmedPath.length === 0) {
+      return fallbackUrl || '';
+    }
+    
+    if (!isValidImagePath(trimmedPath)) {
+      return fallbackUrl || '';
+    }
+    
+    const imageUrl = getImageUrl(trimmedPath);
+    return imageUrl || fallbackUrl || '';
+  } catch (error) {
+    console.warn('Error in getImageUrlWithFallback:', error, { filePath, fallbackUrl });
     return fallbackUrl || '';
   }
-  
-  return getImageUrl(filePath);
 }
 
-// Generate URLs for images stored in our system with variant support
-export function getImageUrl(filePath: string, variantType?: string): string {
-  if (!filePath) {
+// Generate URLs for images stored in our system with variant support and comprehensive null safety
+export function getImageUrl(filePath: string | null | undefined, variantType?: string): string {
+  // Early null/undefined check with safe return
+  if (!filePath || typeof filePath !== 'string') {
+    console.warn('getImageUrl called with invalid filePath:', { filePath, type: typeof filePath });
+    return '';
+  }
+  
+  const trimmedPath = filePath.trim();
+  if (trimmedPath.length === 0) {
     console.warn('getImageUrl called with empty filePath');
     return '';
   }
   
-  // Enhanced validation
-  if (!isValidImagePath(filePath)) {
-    console.warn('getImageUrl called with invalid filePath:', filePath);
-    return '';
-  }
-  
-  // If it's already a full URL (for backwards compatibility), return as-is
-  if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
-    return filePath;
-  }
-  
-  // If it's a data URL (base64), return as-is
-  if (filePath.startsWith('data:')) {
-    return filePath;
-  }
-  
-  // Generate URL for our image serving endpoint with proper tRPC structure
-  const input = variantType 
-    ? { filePath: filePath.trim(), variantType }
-    : { filePath: filePath.trim() };
-  
-  const endpoint = variantType ? 'getImageVariant' : 'getImage';
-  
   try {
-    const encodedInput = encodeURIComponent(JSON.stringify(input));
+    // Enhanced validation
+    if (!isValidImagePath(trimmedPath)) {
+      console.warn('getImageUrl called with invalid filePath:', trimmedPath);
+      return '';
+    }
     
-    // Use the proper base URL function
-    const baseUrl = getBaseUrl().replace(/\/$/, ''); // Remove trailing slash
+    // If it's already a full URL (for backwards compatibility), return as-is
+    if (trimmedPath.startsWith('http://') || trimmedPath.startsWith('https://')) {
+      return trimmedPath;
+    }
     
-    return `${baseUrl}/api/trpc/${endpoint}?input=${encodedInput}`;
+    // If it's a data URL (base64), return as-is
+    if (trimmedPath.startsWith('data:')) {
+      return trimmedPath;
+    }
+    
+    // Generate URL for our image serving endpoint with proper tRPC structure
+    const input = variantType 
+      ? { filePath: trimmedPath, variantType }
+      : { filePath: trimmedPath };
+    
+    const endpoint = variantType ? 'getImageVariant' : 'getImage';
+    
+    try {
+      const encodedInput = encodeURIComponent(JSON.stringify(input));
+      
+      // Use the proper base URL function
+      const baseUrl = getBaseUrl().replace(/\/$/, ''); // Remove trailing slash
+      
+      return `${baseUrl}/api/trpc/${endpoint}?input=${encodedInput}`;
+    } catch (error) {
+      console.error('Error encoding image URL input:', error, { filePath: trimmedPath, variantType });
+      // Fallback: simple URL construction with relative path
+      return `/api/trpc/${endpoint}?input=${encodeURIComponent(JSON.stringify({ filePath: trimmedPath }))}`;
+    }
   } catch (error) {
-    console.error('Error encoding image URL input:', error, { filePath, variantType });
-    // Fallback: simple URL construction with relative path
-    return `/api/trpc/${endpoint}?input=${encodeURIComponent(JSON.stringify({ filePath: filePath.trim() }))}`;
+    console.error('Error in getImageUrl:', error, { filePath: trimmedPath, variantType });
+    return '';
   }
 }
 
-// Generate cache-busted image URLs with variant support
-export function getCacheBustedImageUrl(filePath: string, updatedAt?: Date | string, variantType?: string): string {
-  if (!filePath) {
+// Generate cache-busted image URLs with variant support and comprehensive null safety
+export function getCacheBustedImageUrl(
+  filePath: string | null | undefined, 
+  updatedAt?: Date | string | null, 
+  variantType?: string
+): string {
+  // Early null/undefined check with safe return
+  if (!filePath || typeof filePath !== 'string') {
+    console.warn('getCacheBustedImageUrl called with invalid filePath:', { filePath, type: typeof filePath });
+    return '';
+  }
+  
+  const trimmedPath = filePath.trim();
+  if (trimmedPath.length === 0) {
     console.warn('getCacheBustedImageUrl called with empty filePath');
     return '';
   }
   
-  // Enhanced validation
-  if (!isValidImagePath(filePath)) {
-    console.warn('getCacheBustedImageUrl called with invalid filePath:', filePath);
+  try {
+    if (!isValidImagePath(trimmedPath)) {
+      console.warn('getCacheBustedImageUrl called with invalid filePath:', trimmedPath);
+      return '';
+    }
+    
+    if (trimmedPath.startsWith('http://') || trimmedPath.startsWith('https://')) {
+      if (!updatedAt) return trimmedPath;
+      
+      try {
+        const timestamp = typeof updatedAt === 'string' ? new Date(updatedAt) : updatedAt;
+        const cacheBuster = timestamp && !isNaN(timestamp.getTime()) ? timestamp.getTime() : Date.now();
+        const separator = trimmedPath.includes('?') ? '&' : '?';
+        const url = `${trimmedPath}${separator}v=${cacheBuster}`;
+        return url;
+      } catch (error) {
+        console.warn('Error creating cache buster for external URL:', error);
+        return trimmedPath;
+      }
+    }
+    
+    if (trimmedPath.startsWith('data:')) {
+      return trimmedPath;
+    }
+    
+    const input = variantType 
+      ? { filePath: trimmedPath, variantType }
+      : { filePath: trimmedPath };
+    
+    const endpoint = variantType ? 'getImageVariant' : 'getImage';
+    
+    try {
+      const encodedInput = encodeURIComponent(JSON.stringify(input));
+      const baseUrl = getBaseUrl().replace(/\/$/, '');
+      let url = `${baseUrl}/api/trpc/${endpoint}?input=${encodedInput}`;
+      
+      let cacheBuster: number;
+      if (updatedAt) {
+        const timestamp = typeof updatedAt === 'string' ? new Date(updatedAt) : updatedAt;
+        cacheBuster = timestamp && !isNaN(timestamp.getTime()) ? timestamp.getTime() : Date.now();
+      } else {
+        cacheBuster = Date.now();
+      }
+      
+      const randomComponent = Math.floor(Math.random() * 1000);
+      url += `&v=${cacheBuster}&r=${randomComponent}`;
+      
+      return url;
+    } catch (error) {
+      console.error('Error creating cache-busted URL:', error, { filePath: trimmedPath, updatedAt, variantType });
+      return getImageUrl(trimmedPath, variantType);
+    }
+  } catch (error) {
+    console.error('Error in getCacheBustedImageUrl:', error, { filePath: trimmedPath, updatedAt, variantType });
+    return '';
+  }
+}
+
+// Generate verification URL for image accessibility testing - simplified
+export function getVerificationImageUrl(
+  filePath: string
+): string {
+  if (!filePath || !isValidImagePath(filePath)) {
+    console.warn('getVerificationImageUrl called with invalid filePath:', filePath);
     return '';
   }
   
-  // If it's already a full URL (for backwards compatibility), use original function
-  if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
-    if (!updatedAt) return filePath;
-    
-    try {
-      const timestamp = typeof updatedAt === 'string' ? new Date(updatedAt) : updatedAt;
-      const cacheBuster = timestamp.getTime();
-      const separator = filePath.includes('?') ? '&' : '?';
-      return `${filePath}${separator}v=${cacheBuster}`;
-    } catch (error) {
-      console.warn('Error creating cache buster for external URL:', error);
-      return filePath;
-    }
-  }
-  
-  // If it's a data URL (base64), return as-is
-  if (filePath.startsWith('data:')) {
-    return filePath;
-  }
-  
-  // For our stored images, add cache buster to the tRPC endpoint
-  const input = variantType 
-    ? { filePath: filePath.trim(), variantType }
-    : { filePath: filePath.trim() };
-  
-  const endpoint = variantType ? 'getImageVariant' : 'getImage';
-  
   try {
-    const encodedInput = encodeURIComponent(JSON.stringify(input));
+    // Use cache-busted URL
+    const baseUrl = getCacheBustedImageUrl(filePath, new Date());
     
-    // Use the proper base URL function
-    const baseUrl = getBaseUrl().replace(/\/$/, ''); // Remove trailing slash
+    // Add verification-specific parameters
+    const separator = baseUrl.includes('?') ? '&' : '?';
+    const verificationParams = [
+      `verify=1`,
+      `ts=${Date.now()}`, // Ensure uniqueness
+    ].join('&');
     
-    let url = `${baseUrl}/api/trpc/${endpoint}?input=${encodedInput}`;
-    
-    // Enhanced cache busting logic
-    let cacheBuster: number;
-    if (updatedAt) {
-      const timestamp = typeof updatedAt === 'string' ? new Date(updatedAt) : updatedAt;
-      cacheBuster = timestamp.getTime();
-    } else {
-      // Add current timestamp as fallback to prevent stale cache
-      cacheBuster = Date.now();
-    }
-    
-    // Add random component to ensure fresh loading even with same timestamp
-    const randomComponent = Math.floor(Math.random() * 1000);
-    url += `&v=${cacheBuster}&r=${randomComponent}`;
-    
-    return url;
+    return `${baseUrl}${separator}${verificationParams}`;
   } catch (error) {
-    console.error('Error creating cache-busted URL:', error, { filePath, updatedAt, variantType });
-    // Fallback: basic URL without cache busting
-    return getImageUrl(filePath, variantType);
+    console.error('Error creating verification URL:', error, { filePath });
+    return getImageUrl(filePath);
   }
 }
 
-// Get absolute image URL for debugging purposes
-export function getAbsoluteImageUrl(filePath: string, variantType?: string): string {
-  const url = getImageUrl(filePath, variantType);
-  
-  // If already absolute, return as-is
-  if (url.startsWith('http://') || url.startsWith('https://')) {
-    return url;
-  }
-  
-  // Make relative URL absolute using the proper base URL function
-  const baseUrl = getBaseUrl();
-  return `${baseUrl}${url}`;
+// Test image accessibility - simplified
+export async function testImageAccessibility(
+  filePath: string
+): Promise<{
+  accessible: boolean;
+  error?: string;
+  loadTime?: number;
+  imageSize?: { width: number; height: number };
+}> {
+  return new Promise((resolve) => {
+    const startTime = Date.now();
+    const img = new Image();
+    let resolved = false;
+    const defaultTimeout = 10000; // Default 10s timeout
+    
+    const cleanup = () => {
+      img.onload = null;
+      img.onerror = null;
+      img.src = '';
+    };
+    
+    const resolveOnce = (result: any) => {
+      if (resolved) return;
+      resolved = true;
+      cleanup();
+      resolve(result);
+    };
+    
+    const timeoutId = setTimeout(() => {
+      resolveOnce({
+        accessible: false,
+        error: `Timeout after ${defaultTimeout}ms`,
+        loadTime: Date.now() - startTime,
+      });
+    }, defaultTimeout);
+    
+    img.onload = () => {
+      clearTimeout(timeoutId);
+      resolveOnce({
+        accessible: true,
+        loadTime: Date.now() - startTime,
+        imageSize: {
+          width: img.naturalWidth,
+          height: img.naturalHeight,
+        },
+      });
+    };
+    
+    img.onerror = (error) => {
+      clearTimeout(timeoutId);
+      resolveOnce({
+        accessible: false,
+        error: `Load error: ${error}`,
+        loadTime: Date.now() - startTime,
+      });
+    };
+    
+    img.crossOrigin = 'anonymous';
+    img.src = getVerificationImageUrl(filePath); // Use simplified verification URL
+  });
 }
 
-// Validate and normalize image URLs for consistent handling
-export function normalizeImageUrl(url: string): string {
-  if (!url) return '';
+// Utility functions for connection state management
+export function isConnectionStable(): boolean {
+  if (typeof navigator === 'undefined') return true;
   
+  if (!navigator.onLine) return false;
+  
+  if ('connection' in navigator) {
+    const connection = (navigator as any).connection;
+    if (connection) {
+      const slowConnections = ['slow-2g', '2g'];
+      if (slowConnections.includes(connection.effectiveType)) {
+        return false;
+      }
+      if (connection.saveData) {
+        return false;
+      }
+    }
+  }
+  
+  return true;
+}
+
+// Get absolute image URL for debugging purposes with comprehensive null safety
+export function getAbsoluteImageUrl(filePath: string | null | undefined, variantType?: string): string {
   try {
+    // Early validation with null safety
+    if (!filePath || typeof filePath !== 'string') {
+      return '';
+    }
+    
+    const trimmedPath = filePath.trim();
+    if (trimmedPath.length === 0) {
+      return '';
+    }
+    
+    const url = getImageUrl(trimmedPath, variantType);
+    
+    // If already absolute, return as-is
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return url;
+    }
+    
+    // If empty or invalid, return empty
+    if (!url || url.trim() === '') {
+      return '';
+    }
+    
+    // Make relative URL absolute using the proper base URL function
+    const baseUrl = getBaseUrl();
+    return `${baseUrl}${url}`;
+  } catch (error) {
+    console.warn('Error in getAbsoluteImageUrl:', error, { filePath, variantType });
+    return '';
+  }
+}
+
+// Validate and normalize image URLs for consistent handling with comprehensive null safety
+export function normalizeImageUrl(url: string | null | undefined): string {
+  try {
+    // Early validation with null safety
+    if (!url || typeof url !== 'string') {
+      return '';
+    }
+    
+    const trimmedUrl = url.trim();
+    if (trimmedUrl.length === 0) {
+      return '';
+    }
+    
     // If it's a relative URL starting with /api/trpc, make it absolute
-    if (url.startsWith('/api/trpc/')) {
+    if (trimmedUrl.startsWith('/api/trpc/')) {
       const baseUrl = getBaseUrl();
-      return `${baseUrl}${url}`;
+      return `${baseUrl}${trimmedUrl}`;
     }
     
     // If it's already absolute or a data URL, return as-is
-    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
-      return url;
+    if (trimmedUrl.startsWith('http://') || trimmedUrl.startsWith('https://') || trimmedUrl.startsWith('data:')) {
+      return trimmedUrl;
     }
     
     // For other relative URLs, make them absolute
     const baseUrl = getBaseUrl();
-    return new URL(url, baseUrl).toString();
+    return new URL(trimmedUrl, baseUrl).toString();
   } catch (error) {
     console.warn('Error normalizing image URL:', error, { url });
-    return url;
+    return url || '';
   }
 }
 
@@ -390,16 +593,46 @@ export function formatFileSize(bytes: number): string {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
-// Format dates for consistent display
-export function formatDate(date: Date | string, options?: Intl.DateTimeFormatOptions): string {
-  const dateObj = typeof date === 'string' ? new Date(date) : date;
-  const defaultOptions: Intl.DateTimeFormatOptions = {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  };
-  
-  return new Intl.DateTimeFormat('en-US', { ...defaultOptions, ...options }).format(dateObj);
+// Format dates for consistent display with comprehensive null safety
+export function formatDate(date: Date | string | null | undefined, options?: Intl.DateTimeFormatOptions): string {
+  try {
+    // Early validation with null safety
+    if (!date) {
+      return '';
+    }
+    
+    let dateObj: Date;
+    
+    if (typeof date === 'string') {
+      dateObj = new Date(date);
+      // Check if the date is valid
+      if (isNaN(dateObj.getTime())) {
+        console.warn('Invalid date string provided to formatDate:', date);
+        return '';
+      }
+    } else if (date instanceof Date) {
+      // Check if the date is valid
+      if (isNaN(date.getTime())) {
+        console.warn('Invalid Date object provided to formatDate:', date);
+        return '';
+      }
+      dateObj = date;
+    } else {
+      console.warn('Invalid date type provided to formatDate:', { date, type: typeof date });
+      return '';
+    }
+    
+    const defaultOptions: Intl.DateTimeFormatOptions = {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    };
+    
+    return new Intl.DateTimeFormat('en-US', { ...defaultOptions, ...options }).format(dateObj);
+  } catch (error) {
+    console.warn('Error formatting date:', error, { date, options });
+    return '';
+  }
 }
 
 // Get relative time string (e.g., "2 days ago", "in 3 hours")
