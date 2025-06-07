@@ -18,7 +18,7 @@ import {
   Building,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
-import { BulletproofImageUpload } from "~/components/ui/BulletproofImageUpload";
+import { SimplePartnerImageUpload } from "~/components/ui/SimplePartnerImageUpload";
 import { ImagePreview } from "~/components/ui/ImagePreview";
 
 type PartnerFormData = z.infer<typeof partnerSchema>;
@@ -110,7 +110,7 @@ function EditPartnerPage() {
 
   // Memoized onChange handler to prevent re-creation on every render
   const handleLogoChange = useCallback((filePath: string | string[] | null) => {
-    logWithTimestamp('BulletproofImageUpload onChange called with:', {
+    logWithTimestamp('SimplePartnerImageUpload onChange called with:', {
       filePath: filePath,
       filePathType: typeof filePath,
       filePathLength: typeof filePath === 'string' ? filePath?.length : (Array.isArray(filePath) ? filePath.length : 0),
@@ -313,47 +313,35 @@ function EditPartnerPage() {
                       )}
                     </div>
 
-                    {/* Logo Upload with Bulletproof Processing */}
+                    {/* Logo Upload with Simple Processing */}
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-text-dark dark:text-text-light mb-2">
                         Logo *
                       </label>
                       
-                      {/* Hidden input for form validation */}
-                      <input
-                        type="hidden"
-                        {...register("logoUrl")}
-                      />
-                      
-                      <BulletproofImageUpload
+                      <SimplePartnerImageUpload
+                        partnerId={parseInt(partnerId)}
+                        partnerName={partnerQuery.data?.name || "Partner"}
                         value={logoUrl}
                         onChange={handleLogoChange}
-                        placeholder="Upload partner logo - bulletproof processing enabled"
-                        className="mb-4"
-                        multiple={false}
-                        enableProgressiveUpload={true}
-                        enableAutoRetry={true}
-                        enableClientOptimization={true}
-                        maxFileSize={200} // 200MB for bulletproof system
+                        onUploadComplete={(result) => {
+                          console.log('Upload completed:', result);
+                          toast.success('✅ Logo uploaded successfully');
+                        }}
                         onUploadError={(error) => {
-                          console.error('❌ DEBUG: Partner EDIT form - BulletproofImageUpload error:', error);
+                          console.error('Upload error:', error);
+                          toast.error(`❌ Upload failed: ${error.message || 'Unknown error'}`);
                         }}
-                        // Enhanced form integration props
-                        onFormValueSet={(filePath) => {
-                          // This is an additional callback, main logic is in onChange
-                          console.log('🔍 DEBUG: Partner EDIT form - BulletproofImageUpload onFormValueSet called:', {
-                            filePath: filePath,
-                            timestamp: new Date().toISOString()
-                          });
-                        }}
-                        retryFormUpdate={true} // Enable retry logic for form value patching
+                        enableAutoRetry={true}
+                        maxRetries={3}
+                        componentId={`simple-partner-upload-${partnerId}`}
                       />
                       
                       {errors.logoUrl && (
                         <p className="mt-1 text-sm text-red-600">{errors.logoUrl.message}</p>
                       )}
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        Bulletproof processing: Logos will be automatically optimized, chunked for large sizes, and retried on failure.
+                        Simple & reliable: Logos will be automatically optimized and stored securely.
                       </p>
                     </div>
 

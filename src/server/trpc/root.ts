@@ -88,6 +88,12 @@ export const appRouter = createTRPCRouter({
   removeSimpleInnovatorImage: simpleImageStorageProcs.removeSimpleInnovatorImage,
   listInnovatorsWithImageStatus: simpleImageStorageProcs.listInnovatorsWithImageStatus,
   
+  // Simple base64 image storage for partners (same system as innovators)
+  uploadSimplePartnerImage: simpleImageStorageProcs.uploadSimplePartnerImage,
+  getSimplePartnerImage: simpleImageStorageProcs.getSimplePartnerImage,
+  removeSimplePartnerImage: simpleImageStorageProcs.removeSimplePartnerImage,
+  listPartnersWithImageStatus: simpleImageStorageProcs.listPartnersWithImageStatus,
+  
   // Storage health check procedure
   storageHealthCheck: bulletproofImageUploadProcs.storageHealthCheck,
   

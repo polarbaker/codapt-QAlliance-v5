@@ -469,3 +469,297 @@ export const listInnovatorsWithImageStatus = baseProcedure
       );
     }
   });
+
+// Upload simple base64 image for partner
+export const uploadSimplePartnerImage = baseProcedure
+  .input(z.object({
+    adminToken: z.string(),
+    partnerId: z.number(),
+    fileName: z.string().min(1).max(255),
+    fileContent: z.string().min(1), // base64 encoded
+    fileType: z.string().regex(/^image\//, "File must be an image"),
+  }))
+  .mutation(async ({ input }) => {
+    const startTime = Date.now();
+    
+    try {
+      await requireAdminAuth(input.adminToken);
+      
+      console.log(`🖼️ SIMPLE IMAGE: Starting simple image upload for partner ${input.partnerId}: ${input.fileName}`);
+      
+      // Parse base64 content
+      let buffer: Buffer;
+      try {
+        const base64Data = input.fileContent.includes('base64,') 
+          ? input.fileContent.split('base64,')[1]
+          : input.fileContent;
+        
+        buffer = Buffer.from(base64Data, 'base64');
+        
+        if (buffer.length === 0) {
+          throw new Error('Empty file data');
+        }
+        
+        // Check initial size (before optimization)
+        const initialSizeMB = buffer.length / (1024 * 1024);
+        if (initialSizeMB > 10) { // 10MB limit for input
+          throw createSimpleImageError(
+            `Input image too large (${initialSizeMB.toFixed(1)}MB). Maximum input size is 10MB.`,
+            'size_limit',
+            {
+              suggestions: [
+                'Reduce image size before uploading',
+                'Use an image editor to compress the image',
+                'Convert to JPEG format for better compression',
+              ]
+            }
+          );
+        }
+        
+        console.log(`📊 SIMPLE IMAGE: Parsed image data - ${initialSizeMB.toFixed(1)}MB`);
+        
+      } catch (parseError) {
+        throw createSimpleImageError(
+          'Invalid image data - upload may be corrupted',
+          'validation',
+          {
+            suggestions: [
+              'Try uploading the file again',
+              'Check your internet connection',
+              'Ensure the file is a valid image',
+            ]
+          }
+        );
+      }
+      
+      // Process image for base64 storage
+      const processed = await processImageForBase64Storage(buffer, input.fileName);
+      
+      // Update partner record with base64 image
+      const { db } = await import("~/server/db");
+      
+      // Check if partner exists
+      const existingPartner = await db.partner.findUnique({
+        where: { id: input.partnerId },
+      });
+      
+      if (!existingPartner) {
+        throw createSimpleImageError(
+          `Partner with ID ${input.partnerId} not found`,
+          'validation',
+          {
+            suggestions: [
+              'Check the partner ID',
+              'Ensure the partner exists',
+            ]
+          }
+        );
+      }
+      
+      // Update partner with base64 image data
+      const updatedPartner = await db.partner.update({
+        where: { id: input.partnerId },
+        data: {
+          logoUrl: processed.base64Data, // Store base64 data URL directly
+          updatedAt: new Date(),
+        },
+      });
+      
+      const totalTime = Date.now() - startTime;
+      
+      console.log(`✅ SIMPLE IMAGE: Successfully uploaded simple image for partner ${input.partnerId} in ${totalTime}ms`);
+      
+      return {
+        success: true,
+        partnerId: input.partnerId,
+        message: 'Image uploaded successfully with simple base64 storage',
+        metadata: {
+          originalSize: processed.originalSize,
+          optimizedSize: processed.optimizedSize,
+          compressionRatio: processed.originalSize / processed.optimizedSize,
+          dimensions: processed.dimensions,
+          contentType: processed.contentType,
+          processingTime: totalTime,
+          storageType: 'base64_inline',
+        },
+      };
+      
+    } catch (error) {
+      const totalTime = Date.now() - startTime;
+      console.error(`❌ SIMPLE IMAGE: Upload failed for partner ${input.partnerId} after ${totalTime}ms:`, error);
+      
+      // Re-throw SimpleImageError as-is
+      if (error instanceof Error && 'category' in error) {
+        throw error;
+      }
+      
+      throw createSimpleImageError(
+        error instanceof Error ? error.message : 'Upload failed unexpectedly',
+        'processing',
+        {
+          suggestions: [
+            'Try uploading the image again',
+            'Try a smaller image file',
+            'Contact support if the problem persists',
+          ]
+        }
+      );
+    }
+  });
+
+// Get simple base64 image for partner
+export const getSimplePartnerImage = baseProcedure
+  .input(z.object({
+    partnerId: z.number(),
+  }))
+  .query(async ({ input }) => {
+    try {
+      const { db } = await import("~/server/db");
+      
+      const partner = await db.partner.findUnique({
+        where: { id: input.partnerId },
+        select: {
+          id: true,
+          name: true,
+          logoUrl: true,
+          updatedAt: true,
+        },
+      });
+      
+      if (!partner) {
+        throw createSimpleImageError(
+          `Partner with ID ${input.partnerId} not found`,
+          'validation'
+        );
+      }
+      
+      // Check if logoUrl is a base64 data URL
+      const isBase64 = partner.logoUrl && partner.logoUrl.startsWith('data:image/');
+      
+      return {
+        success: true,
+        partnerId: input.partnerId,
+        partnerName: partner.name,
+        hasImage: !!partner.logoUrl,
+        isBase64: isBase64,
+        imageData: isBase64 ? partner.logoUrl : null,
+        imageUrl: !isBase64 ? partner.logoUrl : null, // External URL if not base64
+        updatedAt: partner.updatedAt,
+      };
+      
+    } catch (error) {
+      console.error(`Error retrieving simple image for partner ${input.partnerId}:`, error);
+      
+      if (error instanceof Error && 'category' in error) {
+        throw error;
+      }
+      
+      throw createSimpleImageError(
+        error instanceof Error ? error.message : 'Failed to retrieve image',
+        'processing'
+      );
+    }
+  });
+
+// Remove simple base64 image for partner
+export const removeSimplePartnerImage = baseProcedure
+  .input(z.object({
+    adminToken: z.string(),
+    partnerId: z.number(),
+  }))
+  .mutation(async ({ input }) => {
+    try {
+      await requireAdminAuth(input.adminToken);
+      
+      const { db } = await import("~/server/db");
+      
+      const updatedPartner = await db.partner.update({
+        where: { id: input.partnerId },
+        data: {
+          logoUrl: '', // Clear the logoUrl
+          updatedAt: new Date(),
+        },
+      });
+      
+      console.log(`🗑️ SIMPLE IMAGE: Removed image for partner ${input.partnerId}`);
+      
+      return {
+        success: true,
+        partnerId: input.partnerId,
+        message: 'Image removed successfully',
+      };
+      
+    } catch (error) {
+      console.error(`Error removing simple image for partner ${input.partnerId}:`, error);
+      
+      if (error instanceof Error && 'category' in error) {
+        throw error;
+      }
+      
+      throw createSimpleImageError(
+        error instanceof Error ? error.message : 'Failed to remove image',
+        'processing'
+      );
+    }
+  });
+
+// List all partners with their image status
+export const listPartnersWithImageStatus = baseProcedure
+  .input(z.object({
+    adminToken: z.string(),
+  }))
+  .query(async ({ input }) => {
+    try {
+      await requireAdminAuth(input.adminToken);
+      
+      const { db } = await import("~/server/db");
+      
+      const partners = await db.partner.findMany({
+        select: {
+          id: true,
+          name: true,
+          logoUrl: true,
+          updatedAt: true,
+          visible: true,
+          order: true,
+        },
+        orderBy: [
+          { order: 'asc' },
+          { name: 'asc' },
+        ],
+      });
+      
+      const partnersWithStatus = partners.map(partner => ({
+        ...partner,
+        hasImage: !!partner.logoUrl,
+        isBase64: partner.logoUrl ? partner.logoUrl.startsWith('data:image/') : false,
+        isExternalUrl: partner.logoUrl ? partner.logoUrl.startsWith('http') : false,
+        imageSize: partner.logoUrl && partner.logoUrl.startsWith('data:image/') 
+          ? `${(partner.logoUrl.length / 1024).toFixed(1)}KB`
+          : null,
+      }));
+      
+      return {
+        success: true,
+        partners: partnersWithStatus,
+        summary: {
+          total: partners.length,
+          withImages: partners.filter(p => !!p.logoUrl).length,
+          withBase64Images: partners.filter(p => p.logoUrl && p.logoUrl.startsWith('data:image/')).length,
+          withExternalImages: partners.filter(p => p.logoUrl && p.logoUrl.startsWith('http')).length,
+        },
+      };
+      
+    } catch (error) {
+      console.error('Error listing partners with image status:', error);
+      
+      if (error instanceof Error && 'category' in error) {
+        throw error;
+      }
+      
+      throw createSimpleImageError(
+        error instanceof Error ? error.message : 'Failed to list partners',
+        'processing'
+      );
+    }
+  });

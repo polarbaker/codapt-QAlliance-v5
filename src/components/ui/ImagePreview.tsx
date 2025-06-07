@@ -83,6 +83,9 @@ export const ImagePreview = memo(function ImagePreview({
   const hasValidImagePath = imagePath && isValidImagePath(imagePath);
   const hasFallback = fallbackImagePath && isValidImagePath(fallbackImagePath);
   
+  // Check if imagePath is a base64 data URL
+  const isBase64Image = imagePath && imagePath.startsWith('data:image/');
+  
   // Enhanced debugging with timestamps - memoized to prevent re-creation
   const logWithTimestamp = useCallback((message: string, data?: any) => {
     if (debugMode) {
@@ -95,6 +98,7 @@ export const ImagePreview = memo(function ImagePreview({
     imagePathType: typeof imagePath,
     imagePathLength: imagePath?.length,
     hasValidImagePath: hasValidImagePath,
+    isBase64Image: isBase64Image,
     hasFallback: hasFallback,
     isLoading: isLoading,
     hasError: hasError,
@@ -132,12 +136,13 @@ export const ImagePreview = memo(function ImagePreview({
 
   // Method to trigger verification from external components
   const triggerVerification = useCallback(() => {
-    if (!hasValidImagePath || verificationState.isVerifying) {
+    if ((!hasValidImagePath && !isBase64Image) || verificationState.isVerifying) {
       return false;
     }
     
     logWithTimestamp('Triggering image verification:', {
       imagePath,
+      isBase64Image,
       maxAttempts: verificationState.maxAttempts,
     });
     
@@ -155,7 +160,7 @@ export const ImagePreview = memo(function ImagePreview({
     showVisualIndicator('verifying');
     
     return true;
-  }, [hasValidImagePath, verificationState.isVerifying, verificationState.maxAttempts, imagePath, logWithTimestamp, showVisualIndicator]);
+  }, [hasValidImagePath, isBase64Image, verificationState.isVerifying, verificationState.maxAttempts, imagePath, logWithTimestamp, showVisualIndicator]);
 
   // Expose verification trigger via ref or callback
   useEffect(() => {
@@ -240,6 +245,18 @@ export const ImagePreview = memo(function ImagePreview({
     try {
       let url = '';
       
+      // If it's already a base64 data URL, return it as-is (no cache busting needed)
+      if (path.startsWith('data:')) {
+        logWithTimestamp('Path is base64 data URL, returning as-is:', {
+          pathLength: path.length,
+          isJpeg: path.includes('image/jpeg'),
+          isPng: path.includes('image/png'),
+          isValid: path.includes('base64,'),
+        });
+        return path;
+      }
+      
+      // For non-base64 paths, use cache busting if requested
       if (useCache && updatedAt) {
         url = getCacheBustedImageUrl(path, updatedAt);
       } else if (useCache) {
@@ -262,6 +279,11 @@ export const ImagePreview = memo(function ImagePreview({
       return normalizedUrl;
     } catch (error) {
       logWithTimestamp('Error generating image URL:', { path, error });
+      
+      // Fallback: if it's a base64 string, return it directly
+      if (path.startsWith('data:')) {
+        return path;
+      }
       
       // Fallback: try to get a basic absolute URL
       try {
@@ -367,7 +389,7 @@ export const ImagePreview = memo(function ImagePreview({
       }
     } else {
       // Standard auto-retry logic for non-verification mode
-      if (retryCount < 3 && hasValidImagePath) {
+      if (retryCount < 3 && (hasValidImagePath || isBase64Image)) {
         const retryDelay = Math.pow(2, retryCount) * 1000; // Exponential backoff
         logWithTimestamp(`Enhanced auto-retry scheduled in ${retryDelay}ms`, { 
           retryCount, 
@@ -396,22 +418,34 @@ export const ImagePreview = memo(function ImagePreview({
         logWithTimestamp('Max retry attempts reached or invalid image path', {
           retryCount,
           hasValidImagePath,
+          isBase64Image,
           maxRetries: 3,
         });
       }
     }
-  }, [logWithTimestamp, imagePath, refreshKey, retryCount, showVisualIndicator, onImageError, hasValidImagePath, generateImageUrl, verificationMode, verificationState, onVerificationComplete, reportErrorToRecovery, componentId]);
+  }, [logWithTimestamp, imagePath, refreshKey, retryCount, showVisualIndicator, onImageError, hasValidImagePath, isBase64Image, generateImageUrl, verificationMode, verificationState, onVerificationComplete, reportErrorToRecovery, componentId]);
 
   // Update current image URL when dependencies change
   useEffect(() => {
-    if (hasValidImagePath) {
-      const newUrl = generateImageUrl(imagePath, true);
-      setCurrentImageUrl(newUrl);
-      logWithTimestamp('Image URL updated:', {
-        imagePath,
-        newUrl,
-        refreshKey,
-      });
+    if (hasValidImagePath || isBase64Image) {
+      // For base64 images, use them directly without processing
+      if (isBase64Image) {
+        setCurrentImageUrl(imagePath);
+        logWithTimestamp('Set currentImageUrl to base64 data directly:', {
+          imagePath: imagePath ? 'Present' : 'None',
+          imagePathLength: imagePath?.length,
+          refreshKey,
+        });
+      } else {
+        const newUrl = generateImageUrl(imagePath, true);
+        setCurrentImageUrl(newUrl);
+        logWithTimestamp('Generated new image URL:', {
+          imagePath,
+          newUrl,
+          refreshKey,
+          isBase64Image,
+        });
+      }
     } else if (hasFallback) {
       const fallbackUrl = generateImageUrl(fallbackImagePath, true);
       setCurrentImageUrl(fallbackUrl);
@@ -421,13 +455,13 @@ export const ImagePreview = memo(function ImagePreview({
       });
     } else {
       setCurrentImageUrl('');
-      logWithTimestamp('No valid image path available');
+      logWithTimestamp('No valid image path available, clearing currentImageUrl');
     }
-  }, [imagePath, fallbackImagePath, hasValidImagePath, hasFallback, generateImageUrl, refreshKey, logWithTimestamp]);
+  }, [imagePath, fallbackImagePath, hasValidImagePath, isBase64Image, hasFallback, generateImageUrl, refreshKey, logWithTimestamp]);
 
   // Reset error state when image path changes - Fixed dependency array to prevent loops
   useEffect(() => {
-    if (hasValidImagePath) {
+    if (hasValidImagePath || isBase64Image) {
       logWithTimestamp('Image path changed, resetting error state');
       setHasError(false);
       setErrorMessage('');
@@ -437,22 +471,31 @@ export const ImagePreview = memo(function ImagePreview({
       // Force refresh key change to ensure re-render
       setRefreshKey(prev => prev + 1);
     }
-  }, [imagePath, hasValidImagePath, logWithTimestamp, showVisualIndicator]);
+  }, [imagePath, hasValidImagePath, isBase64Image, logWithTimestamp, showVisualIndicator]);
 
   // Enhanced useEffect for form state changes - Fixed dependency array to prevent loops
   useEffect(() => {
     logWithTimestamp('Form state change detected - forcing preview update:', {
       imagePath: imagePath,
+      imagePathType: typeof imagePath,
+      imagePathLength: imagePath?.length,
+      isBase64: imagePath?.startsWith('data:'),
       updatedAt: updatedAt,
       refreshKey: refreshKey,
     });
     
     // Force preview re-render when form state changes
-    if (hasValidImagePath) {
-      setRefreshKey(prev => prev + 1);
-      showVisualIndicator('updating');
+    if (hasValidImagePath || isBase64Image) {
+      // For base64 images, update URL directly without refresh key increment
+      if (isBase64Image) {
+        setCurrentImageUrl(imagePath);
+        showVisualIndicator('updating');
+      } else {
+        setRefreshKey(prev => prev + 1);
+        showVisualIndicator('updating');
+      }
     }
-  }, [imagePath, updatedAt, hasValidImagePath, logWithTimestamp, showVisualIndicator]);
+  }, [imagePath, updatedAt, hasValidImagePath, isBase64Image, logWithTimestamp, showVisualIndicator]);
 
   // Custom event listener for crosscutting image updates - Fixed dependency array
   useEffect(() => {
@@ -463,7 +506,8 @@ export const ImagePreview = memo(function ImagePreview({
         filePath: eventFilePath, 
         timestamp, 
         component: sourceComponent, 
-        componentId: sourceComponentId 
+        componentId: sourceComponentId,
+        partnerId: eventPartnerId,
       } = event.detail || {};
       
       logWithTimestamp('Received imageUpdated event:', {
@@ -472,40 +516,60 @@ export const ImagePreview = memo(function ImagePreview({
         eventTimestamp: timestamp,
         sourceComponent,
         sourceComponentId,
-        shouldUpdate: eventFilePath === imagePath || (sourceComponent === 'UnifiedImageUploadInterface' && eventFilePath),
+        eventPartnerId,
+        componentId,
+        shouldUpdate: eventFilePath && (
+          eventFilePath === imagePath || 
+          sourceComponent === 'SimplePartnerImageUpload' ||
+          sourceComponent === 'UnifiedImageUploadInterface'
+        ),
       });
       
-      // Check if this event is for our current image or a general update from unified interface
-      if (eventFilePath && (eventFilePath === imagePath || (sourceComponent === 'UnifiedImageUploadInterface' && eventFilePath.trim() !== ''))) {
-        logWithTimestamp('Event matches current image or is a general update - forcing preview update');
+      // Enhanced matching logic for partner images
+      const shouldUpdate = eventFilePath && (
+        // Direct path match
+        eventFilePath === imagePath ||
+        // Partner-specific component match
+        (sourceComponent === 'SimplePartnerImageUpload' && eventFilePath.trim() !== '') ||
+        // General unified interface update
+        (sourceComponent === 'UnifiedImageUploadInterface' && eventFilePath.trim() !== '') ||
+        // Base64 data URL update (for inline storage)
+        (eventFilePath.startsWith('data:image/') && sourceComponent === 'SimplePartnerImageUpload')
+      );
+      
+      if (shouldUpdate) {
+        logWithTimestamp('Event matches - forcing preview update with new image data');
         setHasError(false);
         setErrorMessage('');
         setRetryCount(0);
-        setRefreshKey(prev => prev + 1); // This will trigger re-generation of currentImageUrl
-        showVisualIndicator('success');
         
-        // Direct DOM update as fallback if needed (though refreshKey should handle it)
-        if (imgRef.current) {
-          const newUrl = getCacheBustedImageUrl(eventFilePath, new Date());
-          logWithTimestamp('Direct DOM update attempt - setting new src:', {
-            oldSrc: imgRef.current.src,
-            newSrc: newUrl,
+        // For base64 data URLs, update the current image URL directly
+        if (eventFilePath.startsWith('data:image/')) {
+          setCurrentImageUrl(eventFilePath);
+          logWithTimestamp('Updated currentImageUrl with base64 data:', {
+            dataLength: eventFilePath.length,
+            isJpeg: eventFilePath.includes('image/jpeg'),
+            isPng: eventFilePath.includes('image/png'),
           });
-          // setCurrentImageUrl(newUrl); // Let useEffect handle this via refreshKey
+        } else {
+          // For regular file paths, trigger refresh
+          setRefreshKey(prev => prev + 1);
         }
+        
+        showVisualIndicator('success');
       }
     };
 
     window.addEventListener('imageUpdated', handleImageUpdated as EventListener);
-    document.addEventListener('imageUpdated', handleImageUpdated as EventListener); // Listen on document as well
+    document.addEventListener('imageUpdated', handleImageUpdated as EventListener);
     
     return () => {
       window.removeEventListener('imageUpdated', handleImageUpdated as EventListener);
       document.removeEventListener('imageUpdated', handleImageUpdated as EventListener);
     };
-  }, [imagePath, enableEventListening, logWithTimestamp, showVisualIndicator]);
+  }, [imagePath, enableEventListening, logWithTimestamp, showVisualIndicator, componentId]);
 
-  if (!hasValidImagePath && !hasFallback) {
+  if (!hasValidImagePath && !hasFallback && !isBase64Image) {
     logWithTimestamp('Showing placeholder (no valid image path)');
     
     return (
@@ -648,6 +712,7 @@ export const ImagePreview = memo(function ImagePreview({
             <div>URL: {currentImageUrl || 'None'}</div>
             <div>Absolute URL: {currentImageUrl ? getAbsoluteImageUrl(imagePath || '') : 'None'}</div>
             <div>Key: {refreshKey} | Retry: {retryCount}</div>
+            <div>Base64: {isBase64Image ? 'Yes' : 'No'}</div>
             {verificationMode && (
               <div>Verification: {verificationState.isVerifying ? 'Active' : 'Inactive'} | Attempts: {verificationState.attempts}/{verificationState.maxAttempts}</div>
             )}
@@ -681,7 +746,7 @@ export const ImagePreview = memo(function ImagePreview({
               {verificationMode && (
                 <button
                   onClick={triggerVerification}
-                  disabled={verificationState.isVerifying || !hasValidImagePath}
+                  disabled={verificationState.isVerifying || (!hasValidImagePath && !isBase64Image)}
                   className="flex items-center space-x-1 px-2 py-1 bg-yellow-600 rounded text-xs hover:bg-yellow-700 disabled:opacity-50"
                 >
                   <RefreshCw className="h-3 w-3" />
