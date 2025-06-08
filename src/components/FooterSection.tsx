@@ -1,7 +1,28 @@
 import { Mail, ArrowRight, Twitter, Linkedin, Youtube, Instagram } from "lucide-react";
 import toast from "react-hot-toast";
+import { useBulkSiteContentText } from "~/hooks/useSiteContentText";
 
 export default function FooterSection() {
+  // Fetch footer section text content
+  const { texts: footerTexts } = useBulkSiteContentText([
+    'footer_brand_name',
+    'footer_description',
+    'footer_quick_links_title',
+    'footer_about_link',
+    'footer_case_studies_link',
+    'footer_impact_link',
+    'footer_news_link',
+    'footer_newsletter_title',
+    'footer_newsletter_description',
+    'footer_email_placeholder',
+    'footer_subscribe_toast',
+    'footer_invalid_email_toast',
+    'footer_copyright_text',
+    'footer_privacy_link',
+    'footer_terms_link',
+    'footer_cookie_link',
+  ]);
+
   return (
     <footer className="bg-background-black py-20">
       <div className="mx-auto max-w-7xl container-padding">
@@ -9,10 +30,10 @@ export default function FooterSection() {
           {/* Logo and Description */}
           <div>
             <div className="mb-6 text-3xl font-bold text-text-light">
-              Quantum Alliance
+              {footerTexts.footer_brand_name}
             </div>
             <p className="mb-8 text-text-light/70">
-              Bridging innovation gaps by connecting frontier technology with real-world problems across the globe.
+              {footerTexts.footer_description}
             </p>
             <div className="flex space-x-4">
               <a
@@ -64,7 +85,7 @@ export default function FooterSection() {
 
           {/* Quick Links - Using semantic HTML */}
           <div>
-            <h3 className="mb-6 text-xl font-bold text-text-light">Quick Links</h3>
+            <h3 className="mb-6 text-xl font-bold text-text-light">{footerTexts.footer_quick_links_title}</h3>
             <nav aria-label="Quick navigation links">
               <ul className="grid grid-cols-2 gap-x-8 gap-y-3">
                 <li>
@@ -72,7 +93,7 @@ export default function FooterSection() {
                     href="/about" 
                     className="text-text-light/70 transition-colors hover:text-secondary hover:underline"
                   >
-                    About Us
+                    {footerTexts.footer_about_link}
                   </a>
                 </li>
                 <li>
@@ -80,7 +101,7 @@ export default function FooterSection() {
                     href="/case-studies" 
                     className="text-text-light/70 transition-colors hover:text-secondary hover:underline"
                   >
-                    Case Studies
+                    {footerTexts.footer_case_studies_link}
                   </a>
                 </li>
                 <li>
@@ -92,7 +113,7 @@ export default function FooterSection() {
                       document.getElementById('impact')?.scrollIntoView({ behavior: 'smooth' });
                     }}
                   >
-                    Impact
+                    {footerTexts.footer_impact_link}
                   </a>
                 </li>
                 <li>
@@ -100,7 +121,7 @@ export default function FooterSection() {
                     href="/news" 
                     className="text-text-light/70 transition-colors hover:text-secondary hover:underline"
                   >
-                    News & Events
+                    {footerTexts.footer_news_link}
                   </a>
                 </li>
                 <li>
@@ -181,15 +202,15 @@ export default function FooterSection() {
 
           {/* Newsletter */}
           <div>
-            <h3 className="mb-6 text-xl font-bold text-text-light">Stay Updated</h3>
+            <h3 className="mb-6 text-xl font-bold text-text-light">{footerTexts.footer_newsletter_title}</h3>
             <p className="mb-6 text-text-light/70">
-              Subscribe to our newsletter for the latest challenges, success stories, and events.
+              {footerTexts.footer_newsletter_description}
             </p>
             <div className="flex">
               <input
                 type="email"
                 id="newsletter-email"
-                placeholder="Your email address"
+                placeholder={footerTexts.footer_email_placeholder}
                 className="w-full rounded-l-full border-0 bg-background-light/10 px-5 py-3 text-text-light placeholder:text-text-light/50 focus:ring-2 focus:ring-secondary"
                 aria-label="Your email address"
               />
@@ -197,9 +218,9 @@ export default function FooterSection() {
                 onClick={() => {
                   const email = (document.getElementById('newsletter-email') as HTMLInputElement)?.value;
                   if (email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-                    toast.success("Thanks for subscribing! We'll send you our next newsletter soon.");
+                    toast.success(footerTexts.footer_subscribe_toast);
                   } else {
-                    toast.error("Please enter a valid email address");
+                    toast.error(footerTexts.footer_invalid_email_toast);
                   }
                 }}
                 className="rounded-r-full bg-secondary px-5 py-3 text-white transition-colors hover:bg-secondary-light"
@@ -214,7 +235,7 @@ export default function FooterSection() {
         <div className="mt-16 border-t border-text-light/10 pt-8">
           <div className="flex flex-col items-center justify-between space-y-4 md:flex-row md:space-y-0">
             <p className="text-sm text-text-light/50">
-              © {new Date().getFullYear()} Quantum Alliance. All rights reserved.
+              © {new Date().getFullYear()} {footerTexts.footer_brand_name}. {footerTexts.footer_copyright_text}
             </p>
             <div className="flex space-x-8">
               <a 
@@ -226,7 +247,7 @@ export default function FooterSection() {
                 className="text-sm text-text-light/50 transition-colors hover:text-secondary"
                 aria-label="Read our Privacy Policy"
               >
-                Privacy Policy
+                {footerTexts.footer_privacy_link}
               </a>
               <a 
                 href="#" 
@@ -237,7 +258,7 @@ export default function FooterSection() {
                 className="text-sm text-text-light/50 transition-colors hover:text-secondary"
                 aria-label="Read our Terms of Service"
               >
-                Terms of Service
+                {footerTexts.footer_terms_link}
               </a>
               <a 
                 href="#" 
@@ -248,7 +269,7 @@ export default function FooterSection() {
                 className="text-sm text-text-light/50 transition-colors hover:text-secondary"
                 aria-label="Read our Cookie Policy"
               >
-                Cookie Policy
+                {footerTexts.footer_cookie_link}
               </a>
             </div>
           </div>

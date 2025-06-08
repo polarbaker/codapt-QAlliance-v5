@@ -342,3 +342,28 @@ model ImageProcessingJob {
   @@index([status, priority])
   @@index([createdAt])
 }
+
+// Site content management for editable images and text content
+model SiteContent {
+  id                Int      @id @default(autoincrement())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @default(now()) @updatedAt
+  
+  // Content type identifier (can be image or text type)
+  contentType       String   @unique
+  
+  // Image data stored as base64 data URL (for image content)
+  imageData         String?  @db.Text
+  
+  // Text data stored as string (for text content)
+  textData          String?  @db.Text
+  
+  // Original filename for reference (images only)
+  fileName          String?
+  
+  // Optional metadata
+  description       String?
+  altText           String?
+  
+  @@index([contentType])
+}

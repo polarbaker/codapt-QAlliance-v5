@@ -64,6 +64,27 @@ export const adminGetChallenges = baseProcedure
     };
   });
 
+export const adminGetChallengeById = baseProcedure
+  .input(z.object({
+    adminToken: z.string(),
+    id: z.number().int().positive(),
+  }))
+  .query(async ({ input }) => {
+    await requireAdminAuth(input.adminToken);
+    
+    const { id } = input;
+    
+    const challenge = await db.challenge.findUnique({
+      where: { id },
+    });
+    
+    if (!challenge) {
+      throw new Error('Challenge not found');
+    }
+    
+    return challenge;
+  });
+
 export const adminCreateChallenge = baseProcedure
   .input(z.object({
     adminToken: z.string(),
@@ -73,10 +94,13 @@ export const adminCreateChallenge = baseProcedure
     await requireAdminAuth(input.adminToken);
     
     const { data } = input;
+    // data.image will be a base64 string from SimpleChallengeImageUpload
     
     // Convert date strings to Date objects if they exist
     const challengeData = {
       ...data,
+      // Handle optional image field - use empty string if not provided
+      image: data.image || "",
       openDate: data.openDate ? new Date(data.openDate) : null,
       closeDate: data.closeDate ? new Date(data.closeDate) : null,
       pilotStartDate: data.pilotStartDate ? new Date(data.pilotStartDate) : null,
@@ -103,6 +127,7 @@ export const adminUpdateChallenge = baseProcedure
     await requireAdminAuth(input.adminToken);
     
     const { id, data } = input;
+    // data.image (if present) will be a base64 string
     
     // Convert date strings to Date objects if they exist
     const updateData: any = { ...data };

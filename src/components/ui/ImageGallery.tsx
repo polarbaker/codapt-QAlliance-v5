@@ -112,13 +112,30 @@ export function ImageGallery({
     onSelectionChange(newSelection);
   };
 
-  const handleCopyPath = (image: ImageData) => {
-    navigator.clipboard.writeText(image.filePath);
+  const handleCopyPath = async (image: ImageData) => {
+    try {
+      await navigator.clipboard.writeText(image.filePath);
+    } catch (error) {
+      console.error('Failed to copy path:', error);
+    }
   };
 
-  const handleCopyUrl = (image: ImageData) => {
-    const url = getImageUrl(image.filePath);
-    navigator.clipboard.writeText(url);
+  const handleCopyUrl = async (image: ImageData) => {
+    try {
+      const url = getImageUrl(image.filePath);
+      await navigator.clipboard.writeText(url);
+    } catch (error) {
+      console.error('Failed to copy URL:', error);
+    }
+  };
+
+  const getImageSrc = (filePath: string, size?: string) => {
+    try {
+      return getImageUrl(filePath, size);
+    } catch (error) {
+      console.error('Failed to get image URL:', error);
+      return '';
+    }
   };
 
   if (loading) {
@@ -178,7 +195,7 @@ export function ImageGallery({
                       </div>
                     )}
                     <img
-                      src={getImageUrl(image.filePath, 'medium')}
+                      src={getImageSrc(image.filePath, 'medium')}
                       alt={image.altText || image.title || image.fileName}
                       className={`w-full h-full object-cover transition-opacity ${
                         imageLoading.has(image.id) ? 'opacity-0' : 'opacity-100'
@@ -316,10 +333,13 @@ export function ImageGallery({
           >
             <div className="max-w-4xl max-h-full relative">
               <img
-                src={getImageUrl(lightboxImage.filePath, 'large')}
+                src={getImageSrc(lightboxImage.filePath, 'large')}
                 alt={lightboxImage.altText || lightboxImage.title || lightboxImage.fileName}
                 className="max-w-full max-h-full object-contain"
                 onClick={(e) => e.stopPropagation()}
+                onError={() => {
+                  console.error('Failed to load lightbox image');
+                }}
               />
               <button
                 onClick={() => setLightboxImage(null)}
@@ -394,11 +414,15 @@ export function ImageGallery({
                     )}
                     <td className="px-6 py-4 whitespace-nowrap">
                       <img
-                        src={getImageUrl(image.filePath, 'thumbnail')}
+                        src={getImageSrc(image.filePath, 'thumbnail')}
                         alt={image.altText || image.title || image.fileName}
                         className="h-12 w-12 object-cover rounded cursor-pointer"
                         onClick={() => onImageClick?.(image)}
                         loading="lazy"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.style.display = 'none';
+                        }}
                       />
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -466,7 +490,7 @@ export function ImageGallery({
     );
   }
 
-  // Masonry View (placeholder for future implementation)
+  // Masonry View
   if (viewMode === 'masonry') {
     return (
       <div className={`${className}`}>
@@ -481,10 +505,14 @@ export function ImageGallery({
                 onClick={() => onImageClick?.(image)}
               >
                 <img
-                  src={getImageUrl(image.filePath, 'medium')}
+                  src={getImageSrc(image.filePath, 'medium')}
                   alt={image.altText || image.title || image.fileName}
                   className="w-full h-auto object-cover"
                   loading="lazy"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                  }}
                 />
               </div>
               <div className="p-4">

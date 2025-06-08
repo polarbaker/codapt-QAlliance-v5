@@ -29,65 +29,6 @@ export default function CaseStudyDetailModal({
     !YEAR_TAG_PATTERN.test(tag) && !REGION_TAGS.includes(tag as any)
   );
   
-  // Function to render YouTube video embed
-  const renderVideoEmbed = () => {
-    if (!caseStudy.video) return null;
-    
-    // Enhanced YouTube video ID extraction with support for more URL formats
-    const getYouTubeId = (url: string) => {
-      try {
-        // Handle youtu.be short links
-        if (url.includes('youtu.be')) {
-          const id = url.split('youtu.be/')[1]?.split(/[?&]/)[0];
-          return id && id.length === 11 ? id : null;
-        }
-        
-        // Handle regular youtube.com links
-        const regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/;
-        const match = url.match(regExp);
-        
-        // Validate ID length
-        const id = match && match[7].length === 11 ? match[7] : null;
-        
-        // Add logging for debugging
-        if (!id) {
-          console.warn('Invalid YouTube URL format:', url);
-        }
-        
-        return id;
-      } catch (error) {
-        console.error('Error extracting YouTube ID:', error);
-        return null;
-      }
-    };
-    
-    const videoId = getYouTubeId(caseStudy.video);
-    
-    if (!videoId) {
-      return (
-        <div className="mb-8 aspect-video w-full overflow-hidden rounded-lg bg-neutral-dark/30 flex items-center justify-center">
-          <p className="text-text-light/70">Video unavailable</p>
-        </div>
-      );
-    }
-    
-    return (
-      <div className="mb-8 aspect-video w-full overflow-hidden rounded-lg shadow-lg">
-        <iframe
-          width="100%"
-          height="100%"
-          src={`https://www.youtube.com/embed/${videoId}`}
-          title={caseStudy.title}
-          frameBorder="0"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          allowFullScreen
-          loading="lazy"
-          className="transition-all duration-300 hover:scale-[1.01]"
-        ></iframe>
-      </div>
-    );
-  };
-  
   return (
     <Transition appear show={isOpen} as={Fragment}>
       <Dialog as="div" className="relative z-50" onClose={onClose}>
@@ -137,15 +78,13 @@ export default function CaseStudyDetailModal({
                   </button>
                 </div>
                 
-                {/* Video or Image */}
-                {caseStudy.video ? renderVideoEmbed() : (
-                  <div className="mb-8 aspect-video w-full overflow-hidden rounded-lg">
-                    <div
-                      className="h-full w-full bg-cover bg-center transition-all duration-500 hover:scale-105 transform"
-                      style={{ backgroundImage: `url(${caseStudy.image})` }}
-                    ></div>
-                  </div>
-                )}
+                {/* Case Study Image - always show image instead of video */}
+                <div className="mb-8 aspect-video w-full overflow-hidden rounded-lg">
+                  <div
+                    className="h-full w-full bg-cover bg-center transition-all duration-500 hover:scale-105 transform"
+                    style={{ backgroundImage: `url(${caseStudy.image})` }}
+                  ></div>
+                </div>
                 
                 <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
                   {/* Main Content - left 2/3 */}

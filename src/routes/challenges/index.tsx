@@ -1,311 +1,301 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
-import { Search, Filter, MapPin, Calendar, DollarSign } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Loader2, AlertCircle, Trophy } from "lucide-react";
+import { useTRPC } from "~/trpc/react";
+import ChallengeFilters from "~/components/ChallengeFilters";
+import ChallengeCard, { ChallengeData } from "~/components/ChallengeCard";
+import ChallengeDetailModal from "~/components/ChallengeDetailModal";
+import ChallengeCTASection from "~/components/ChallengeCTASection";
+import { CHALLENGE_CATEGORIES, CHALLENGE_REGIONS, CHALLENGE_STATUSES } from "~/constants/validation";
 
 export const Route = createFileRoute("/challenges/")({
   component: Challenges,
 });
 
-// Mock challenge data - in a real app, this would come from tRPC
-const mockChallenges = [
-  {
-    id: 1,
-    title: "Climate Resilient Agriculture",
-    tagline: "Develop drought-resistant farming solutions for sub-Saharan Africa",
-    category: "Climate",
-    region: "Africa",
-    status: "Active",
-    image: "https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b?w=600&h=400&fit=crop",
-    description: "Design innovative agricultural technologies that can withstand extreme weather conditions while maintaining food security for vulnerable populations.",
-    prize: "$250,000",
-    openDate: "2024-01-15",
-    closeDate: "2024-06-30",
-    featured: true,
-  },
-  {
-    id: 2,
-    title: "Digital Health Infrastructure",
-    tagline: "Create scalable telemedicine platforms for rural communities",
-    category: "Digital",
-    region: "Global",
-    status: "Submissions Open",
-    image: "https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=600&h=400&fit=crop",
-    description: "Build accessible digital health solutions that can operate in low-bandwidth environments and provide quality healthcare to underserved areas.",
-    prize: "$400,000",
-    openDate: "2024-02-01",
-    closeDate: "2024-07-15",
-    featured: true,
-  },
-  {
-    id: 3,
-    title: "Clean Water Innovation",
-    tagline: "Develop affordable water purification systems",
-    category: "Health",
-    region: "Asia",
-    status: "Active",
-    image: "https://images.unsplash.com/photo-1581833971358-2c8b550f87b3?w=600&h=400&fit=crop",
-    description: "Create cost-effective water treatment technologies that can provide clean drinking water to communities without reliable infrastructure.",
-    prize: "$180,000",
-    openDate: "2024-01-01",
-    closeDate: "2024-05-31",
-    featured: false,
-  },
-  {
-    id: 4,
-    title: "Renewable Energy Storage",
-    tagline: "Next-generation battery solutions for grid stability",
-    category: "Climate",
-    region: "Europe",
-    status: "Coming Soon",
-    image: "https://images.unsplash.com/photo-1473341304170-971dccb5ac1e?w=600&h=400&fit=crop",
-    description: "Develop advanced energy storage systems that can support renewable energy integration at scale.",
-    prize: "$500,000",
-    openDate: "2024-04-01",
-    closeDate: "2024-09-30",
-    featured: true,
-  },
-  {
-    id: 5,
-    title: "Education Technology Access",
-    tagline: "Bridge the digital divide in education",
-    category: "Digital",
-    region: "South America",
-    status: "Active",
-    image: "https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=600&h=400&fit=crop",
-    description: "Design educational technology solutions that work offline and can reach students in remote areas.",
-    prize: "$150,000",
-    openDate: "2024-01-20",
-    closeDate: "2024-06-15",
-    featured: false,
-  },
-  {
-    id: 6,
-    title: "Urban Air Quality",
-    tagline: "Smart solutions for cleaner cities",
-    category: "Health",
-    region: "Asia",
-    status: "Submissions Open",
-    image: "https://images.unsplash.com/photo-1519452575417-564c1401ecc0?w=600&h=400&fit=crop",
-    description: "Create innovative air purification and monitoring systems for urban environments.",
-    prize: "$300,000",
-    openDate: "2024-02-15",
-    closeDate: "2024-08-01",
-    featured: false,
-  },
-];
-
 function Challenges() {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("All");
-  const [selectedRegion, setSelectedRegion] = useState("All");
-  const [selectedStatus, setSelectedStatus] = useState("All");
+  const trpc = useTRPC();
+  
+  // Filter state
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  
+  // Pagination state
+  const [allChallenges, setAllChallenges] = useState<ChallengeData[]>([]);
+  const [nextCursor, setNextCursor] = useState<number | undefined>(undefined);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  
+  // Modal state
+  const [selectedChallenge, setSelectedChallenge] = useState<ChallengeData | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Filter challenges based on search and filters
-  const filteredChallenges = mockChallenges.filter(challenge => {
-    const matchesSearch = challenge.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         challenge.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         challenge.tagline.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesCategory = selectedCategory === "All" || challenge.category === selectedCategory;
-    const matchesRegion = selectedRegion === "All" || challenge.region === selectedRegion;
-    const matchesStatus = selectedStatus === "All" || challenge.status === selectedStatus;
-    
-    return matchesSearch && matchesCategory && matchesRegion && matchesStatus;
-  });
+  // Breadcrumb component
+  const Breadcrumb = () => (
+    <nav className="mb-8" aria-label="Breadcrumb">
+      <ol className="flex items-center space-x-2 text-sm text-text-light/60">
+        <li>
+          <a href="/" className="hover:text-text-light transition-colors">
+            Home
+          </a>
+        </li>
+        <li>
+          <span className="mx-2">/</span>
+        </li>
+        <li className="text-text-light font-medium">Challenges</li>
+      </ol>
+    </nav>
+  );
 
-  const categories = ["All", "Climate", "Digital", "Health"];
-  const regions = ["All", "Global", "Africa", "Asia", "Europe", "North America", "South America"];
-  const statuses = ["All", "Active", "Submissions Open", "Coming Soon"];
+  // Fetch challenges with filters
+  const challengesQuery = useQuery(
+    trpc.getChallenges.queryOptions({
+      limit: 20,
+      category: selectedCategory || undefined,
+      region: selectedRegion || undefined,
+      status: selectedStatus || undefined,
+      search: searchQuery || undefined,
+    })
+  );
+
+  // Update challenges list when query data changes
+  useEffect(() => {
+    if (challengesQuery.data) {
+      setAllChallenges(challengesQuery.data.challenges);
+      setNextCursor(challengesQuery.data.nextCursor);
+    }
+  }, [challengesQuery.data]);
+
+  // Reset pagination when filters change
+  useEffect(() => {
+    setAllChallenges([]);
+    setNextCursor(undefined);
+  }, [selectedCategory, selectedRegion, selectedStatus, searchQuery]);
+
+  // Load more challenges
+  const loadMoreChallenges = async () => {
+    if (!nextCursor || isLoadingMore) return;
+    
+    setIsLoadingMore(true);
+    try {
+      const moreData = await trpc.getChallenges.query({
+        limit: 20,
+        cursor: nextCursor,
+        category: selectedCategory || undefined,
+        region: selectedRegion || undefined,
+        status: selectedStatus || undefined,
+        search: searchQuery || undefined,
+      });
+      
+      setAllChallenges(prev => [...prev, ...moreData.challenges]);
+      setNextCursor(moreData.nextCursor);
+    } catch (error) {
+      console.error('Error loading more challenges:', error);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
+
+  // Fetch featured challenges for hero section
+  const featuredChallengesQuery = useQuery(
+    trpc.getFeaturedChallenges.queryOptions({
+      limit: 3,
+    })
+  );
+
+  const handleChallengeClick = (challenge: ChallengeData) => {
+    setSelectedChallenge(challenge);
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setSelectedChallenge(null);
+  };
+
+  const handleClearFilters = () => {
+    setSelectedCategory(null);
+    setSelectedRegion(null);
+    setSelectedStatus(null);
+    setSearchQuery("");
+  };
+
+  const featuredChallenges = featuredChallengesQuery.data || [];
+  const isLoading = challengesQuery.isLoading;
+  const isError = challengesQuery.isError;
 
   return (
     <div className="min-h-screen bg-background-light dark:bg-background-black pt-24">
       {/* Hero Section */}
-      <section className="section-padding">
+      <section className="section-padding bg-gradient-to-br from-background-black via-neutral-dark to-background-black">
         <div className="mx-auto max-w-7xl container-padding">
           <div className="text-center mb-16">
-            <h1 className="mb-8 text-6xl font-extrabold leading-tight text-text-dark dark:text-text-light md:text-7xl">
+            <Breadcrumb />
+            <h1 className="mb-8 text-4xl font-extrabold leading-tight text-text-light md:text-6xl lg:text-7xl">
               Innovation <span className="bg-gradient-to-r from-secondary to-accent bg-clip-text text-transparent">Challenges</span>
             </h1>
-            <p className="mx-auto max-w-3xl text-xl font-light text-text-dark/80 dark:text-text-light/80 md:text-2xl">
+            <p className="mx-auto max-w-3xl text-lg font-light text-text-light/80 md:text-xl lg:text-2xl">
               Join global challenges that are shaping the future. Apply your expertise to solve real-world problems and make a lasting impact.
             </p>
           </div>
-        </div>
-      </section>
 
-      {/* Search and Filters */}
-      <section className="section-padding bg-neutral-light/20 dark:bg-neutral-dark/20">
-        <div className="mx-auto max-w-7xl container-padding">
-          {/* Search Bar */}
-          <div className="mb-8">
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-text-dark/40 dark:text-text-light/40" />
-              <input
-                type="text"
-                placeholder="Search challenges..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full rounded-full border-0 bg-background-light dark:bg-background-black py-4 pl-12 pr-6 text-text-dark dark:text-text-light placeholder-text-dark/40 dark:placeholder-text-light/40 shadow-sm focus:ring-2 focus:ring-secondary"
-              />
-            </div>
-          </div>
-
-          {/* Filters */}
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-            <div>
-              <label className="mb-2 block text-sm font-medium text-text-dark dark:text-text-light">Category</label>
-              <select
-                value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
-                className="w-full rounded-lg border-0 bg-background-light dark:bg-background-black py-3 px-4 text-text-dark dark:text-text-light focus:ring-2 focus:ring-secondary"
-              >
-                {categories.map(category => (
-                  <option key={category} value={category}>{category}</option>
+          {/* Featured Challenges */}
+          {featuredChallenges.length > 0 && (
+            <div className="mb-12 md:mb-16">
+              <div className="flex items-center justify-center mb-6 md:mb-8">
+                <Trophy className="mr-2 md:mr-3 h-6 w-6 md:h-8 md:w-8 text-secondary" />
+                <h2 className="text-2xl md:text-3xl font-bold text-text-light">Featured Challenges</h2>
+              </div>
+              <div className="grid grid-cols-1 gap-6 md:gap-8 sm:grid-cols-2 lg:grid-cols-3">
+                {featuredChallenges.map((challenge) => (
+                  <ChallengeCard
+                    key={challenge.id}
+                    challenge={challenge}
+                    onClick={handleChallengeClick}
+                  />
                 ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-medium text-text-dark dark:text-text-light">Region</label>
-              <select
-                value={selectedRegion}
-                onChange={(e) => setSelectedRegion(e.target.value)}
-                className="w-full rounded-lg border-0 bg-background-light dark:bg-background-black py-3 px-4 text-text-dark dark:text-text-light focus:ring-2 focus:ring-secondary"
-              >
-                {regions.map(region => (
-                  <option key={region} value={region}>{region}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-medium text-text-dark dark:text-text-light">Status</label>
-              <select
-                value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value)}
-                className="w-full rounded-lg border-0 bg-background-light dark:bg-background-black py-3 px-4 text-text-dark dark:text-text-light focus:ring-2 focus:ring-secondary"
-              >
-                {statuses.map(status => (
-                  <option key={status} value={status}>{status}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex items-end">
-              <button
-                onClick={() => {
-                  setSearchTerm("");
-                  setSelectedCategory("All");
-                  setSelectedRegion("All");
-                  setSelectedStatus("All");
-                }}
-                className="w-full rounded-lg bg-secondary px-4 py-3 text-white transition-colors hover:bg-secondary-light"
-              >
-                Clear Filters
-              </button>
-            </div>
-          </div>
-
-          {/* Results Count */}
-          <div className="mt-6 text-text-dark/60 dark:text-text-light/60">
-            Showing {filteredChallenges.length} of {mockChallenges.length} challenges
-          </div>
-        </div>
-      </section>
-
-      {/* Challenges Grid */}
-      <section className="section-padding">
-        <div className="mx-auto max-w-7xl container-padding">
-          {filteredChallenges.length === 0 ? (
-            <div className="text-center py-16">
-              <Filter className="mx-auto h-16 w-16 text-text-dark/40 dark:text-text-light/40 mb-4" />
-              <h3 className="text-2xl font-bold text-text-dark dark:text-text-light mb-2">No challenges found</h3>
-              <p className="text-text-dark/60 dark:text-text-light/60">Try adjusting your search criteria or filters.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
-              {filteredChallenges.map(challenge => (
-                <div key={challenge.id} className="group overflow-hidden rounded-lg bg-background-light dark:bg-neutral-dark/30 shadow-sm transition-all hover:shadow-lg hover:-translate-y-1">
-                  {/* Challenge Image */}
-                  <div className="aspect-[16/10] overflow-hidden">
-                    <img
-                      src={challenge.image}
-                      alt={challenge.title}
-                      className="h-full w-full object-cover transition-transform group-hover:scale-105"
-                    />
-                  </div>
-
-                  {/* Challenge Content */}
-                  <div className="p-6">
-                    {/* Status Badge */}
-                    <div className="mb-3">
-                      <span className={`inline-block rounded-full px-3 py-1 text-xs font-medium ${
-                        challenge.status === 'Active' ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400' :
-                        challenge.status === 'Submissions Open' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400' :
-                        'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400'
-                      }`}>
-                        {challenge.status}
-                      </span>
-                    </div>
-
-                    {/* Title and Tagline */}
-                    <h3 className="mb-2 text-xl font-bold text-text-dark dark:text-text-light group-hover:text-secondary transition-colors">
-                      {challenge.title}
-                    </h3>
-                    <p className="mb-4 text-sm text-secondary font-medium">{challenge.tagline}</p>
-                    <p className="mb-6 text-text-dark/80 dark:text-text-light/80 line-clamp-3">
-                      {challenge.description}
-                    </p>
-
-                    {/* Challenge Details */}
-                    <div className="space-y-2 mb-6 text-sm text-text-dark/60 dark:text-text-light/60">
-                      <div className="flex items-center">
-                        <MapPin className="mr-2 h-4 w-4" />
-                        <span>{challenge.region}</span>
-                        <span className="mx-2">•</span>
-                        <span>{challenge.category}</span>
-                      </div>
-                      <div className="flex items-center">
-                        <DollarSign className="mr-2 h-4 w-4" />
-                        <span>Prize: {challenge.prize}</span>
-                      </div>
-                      <div className="flex items-center">
-                        <Calendar className="mr-2 h-4 w-4" />
-                        <span>Closes: {new Date(challenge.closeDate).toLocaleDateString()}</span>
-                      </div>
-                    </div>
-
-                    {/* Action Button */}
-                    <button className="w-full rounded-full bg-secondary px-6 py-3 text-white transition-all hover:bg-secondary-light hover:scale-105">
-                      {challenge.status === 'Coming Soon' ? 'Learn More' : 'Apply Now'}
-                    </button>
-                  </div>
-                </div>
-              ))}
+              </div>
             </div>
           )}
         </div>
       </section>
 
-      {/* Call to Action */}
-      <section className="section-padding bg-neutral-light/20 dark:bg-neutral-dark/20">
+      {/* Filters Section */}
+      <section className="py-12 md:py-16 lg:py-20 bg-neutral-light/10 dark:bg-neutral-dark/10">
         <div className="mx-auto max-w-7xl container-padding">
-          <div className="text-center">
-            <h2 className="mb-6 text-4xl font-bold text-text-dark dark:text-text-light">
-              Don't see a challenge that fits?
-            </h2>
-            <p className="mb-8 text-xl text-text-dark/80 dark:text-text-light/80">
-              We're always looking for new problems to solve. Submit your own challenge idea.
-            </p>
-            <a
-              href="/submit-a-challenge"
-              className="inline-block rounded-full bg-secondary px-8 py-4 text-lg font-medium text-white transition-all hover:bg-secondary-light hover:scale-105"
-            >
-              Submit a Challenge
-            </a>
+          <ChallengeFilters
+            categories={Array.from(CHALLENGE_CATEGORIES)}
+            regions={Array.from(CHALLENGE_REGIONS)}
+            statuses={Array.from(CHALLENGE_STATUSES)}
+            selectedCategory={selectedCategory}
+            selectedRegion={selectedRegion}
+            selectedStatus={selectedStatus}
+            searchQuery={searchQuery}
+            onCategoryChange={setSelectedCategory}
+            onRegionChange={setSelectedRegion}
+            onStatusChange={setSelectedStatus}
+            onSearchChange={setSearchQuery}
+            onClearFilters={handleClearFilters}
+          />
+
+          {/* Results Count */}
+          <div className="mb-8 text-text-dark/60 dark:text-text-light/60">
+            {isLoading ? (
+              <div className="flex items-center">
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Loading challenges...
+              </div>
+            ) : isError ? (
+              <div className="flex items-center text-red-500">
+                <AlertCircle className="mr-2 h-4 w-4" />
+                Error loading challenges
+              </div>
+            ) : (
+              `Showing ${allChallenges.length} challenge${allChallenges.length !== 1 ? 's' : ''}${nextCursor ? ' (more available)' : ''}`
+            )}
           </div>
         </div>
       </section>
+
+      {/* Challenges Grid */}
+      <section className="py-12 md:py-16 lg:py-20">
+        <div className="mx-auto max-w-7xl container-padding">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="text-center">
+                <Loader2 className="mx-auto h-12 w-12 animate-spin text-secondary mb-4" />
+                <p className="text-text-dark dark:text-text-light">Loading challenges...</p>
+              </div>
+            </div>
+          ) : isError ? (
+            <div className="text-center py-16">
+              <AlertCircle className="mx-auto h-16 w-16 text-red-500 mb-4" />
+              <h3 className="text-2xl font-bold text-text-dark dark:text-text-light mb-2">
+                Unable to load challenges
+              </h3>
+              <p className="text-text-dark/60 dark:text-text-light/60 mb-6">
+                There was an error loading the challenges. Please try again later.
+              </p>
+              <button
+                onClick={() => challengesQuery.refetch()}
+                className="rounded-full bg-secondary px-6 py-3 text-white transition-all hover:bg-secondary-light"
+              >
+                Try Again
+              </button>
+            </div>
+          ) : allChallenges.length === 0 ? (
+            <div className="text-center py-16">
+              <div className="mx-auto h-16 w-16 rounded-full bg-neutral-light/20 dark:bg-neutral-dark/20 flex items-center justify-center mb-4">
+                <Trophy className="h-8 w-8 text-text-dark/40 dark:text-text-light/40" />
+              </div>
+              <h3 className="text-2xl font-bold text-text-dark dark:text-text-light mb-2">
+                No challenges found
+              </h3>
+              <p className="text-text-dark/60 dark:text-text-light/60 mb-6">
+                Try adjusting your search criteria or filters to find challenges.
+              </p>
+              <button
+                onClick={handleClearFilters}
+                className="rounded-full bg-secondary px-6 py-3 text-white transition-all hover:bg-secondary-light"
+              >
+                Clear All Filters
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+                {allChallenges.map((challenge, index) => (
+                  <div
+                    key={challenge.id}
+                    className="animate-fadeIn"
+                    style={{ animationDelay: `${(index % 12) * 0.1}s` }}
+                  >
+                    <ChallengeCard
+                      challenge={challenge}
+                      onClick={handleChallengeClick}
+                    />
+                  </div>
+                ))}
+              </div>
+              
+              {/* Load More Button */}
+              {nextCursor && (
+                <div className="text-center mt-8 md:mt-12">
+                  <button
+                    onClick={loadMoreChallenges}
+                    disabled={isLoadingMore}
+                    className="rounded-full bg-secondary px-6 md:px-8 py-3 md:py-4 text-sm md:text-base text-white transition-all hover:bg-secondary-light hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                  >
+                    {isLoadingMore ? (
+                      <div className="flex items-center">
+                        <Loader2 className="mr-2 h-4 w-4 md:h-5 md:w-5 animate-spin" />
+                        <span className="hidden sm:inline">Loading more challenges...</span>
+                        <span className="sm:hidden">Loading...</span>
+                      </div>
+                    ) : (
+                      <>
+                        <span className="hidden sm:inline">Load More Challenges</span>
+                        <span className="sm:hidden">Load More</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </section>
+
+      {/* Call to Action */}
+      <ChallengeCTASection />
+
+      {/* Challenge Detail Modal */}
+      <ChallengeDetailModal
+        challenge={selectedChallenge}
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+      />
     </div>
   );
 }

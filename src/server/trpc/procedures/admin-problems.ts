@@ -161,3 +161,100 @@ export const adminGetProblemStats = baseProcedure
       })),
     };
   });
+
+export const adminGetProblemSubmissionById = baseProcedure
+  .input(z.object({
+    adminToken: z.string(),
+    id: z.number().int().positive(),
+  }))
+  .query(async ({ input }) => {
+    await requireAdminAuth(input.adminToken);
+    
+    const { id } = input;
+    
+    const submission = await db.problemSubmission.findUnique({
+      where: { id },
+      include: {
+        comments: {
+          select: {
+            id: true,
+            content: true,
+            author: true,
+            createdAt: true,
+            likes: true,
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+        },
+        _count: {
+          select: {
+            comments: true,
+          },
+        },
+      },
+    });
+    
+    if (!submission) {
+      throw new Error('Problem submission not found');
+    }
+    
+    return submission;
+  });
+
+export const adminUpdateProblemSubmission = baseProcedure
+  .input(z.object({
+    adminToken: z.string(),
+    id: z.number().int().positive(),
+    data: z.object({
+      title: z.string().min(1, "Title is required").optional(),
+      description: z.string().min(1, "Description is required").optional(),
+      category: z.string().min(1, "Category is required").optional(),
+      technicalRequirements: z.string().optional(),
+      constraints: z.string().optional(),
+      successCriteria: z.string().optional(),
+      timeline: z.string().optional(),
+      budget: z.string().optional(),
+      name: z.string().min(1, "Name is required").optional(),
+      organization: z.string().min(1, "Organization is required").optional(),
+      email: z.string().email("Invalid email").optional(),
+      phone: z.string().optional(),
+      consentToContact: z.boolean().optional(),
+      status: z.enum(['pending', 'approved', 'rejected']).optional(),
+    }),
+  }))
+  .mutation(async ({ input }) => {
+    await requireAdminAuth(input.adminToken);
+    
+    const { id, data } = input;
+    
+    const updatedSubmission = await db.problemSubmission.update({
+      where: { id },
+      data,
+      include: {
+        comments: {
+          select: {
+            id: true,
+            content: true,
+            author: true,
+            createdAt: true,
+            likes: true,
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+        },
+        _count: {
+          select: {
+            comments: true,
+          },
+        },
+      },
+    });
+    
+    return {
+      success: true,
+      submission: updatedSubmission,
+      message: 'Problem submission updated successfully',
+    };
+  });

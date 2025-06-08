@@ -155,11 +155,16 @@ export function getImageUrl(filePath: string | null | undefined, variantType?: s
       // Use the proper base URL function
       const baseUrl = getBaseUrl().replace(/\/$/, ''); // Remove trailing slash
       
+      // Use direct tRPC endpoint URL format for Response-returning procedures
       return `${baseUrl}/api/trpc/${endpoint}?input=${encodedInput}`;
     } catch (error) {
       console.error('Error encoding image URL input:', error, { filePath: trimmedPath, variantType });
       // Fallback: simple URL construction with relative path
-      return `/api/trpc/${endpoint}?input=${encodeURIComponent(JSON.stringify({ filePath: trimmedPath }))}`;
+      const endpoint = variantType ? 'getImageVariant' : 'getImage';
+      const simpleInput = variantType 
+        ? `{"filePath":"${trimmedPath}","variantType":"${variantType}"}`
+        : `{"filePath":"${trimmedPath}"}`;
+      return `/api/trpc/${endpoint}?input=${encodeURIComponent(simpleInput)}`;
     }
   } catch (error) {
     console.error('Error in getImageUrl:', error, { filePath: trimmedPath, variantType });
@@ -191,6 +196,12 @@ export function getCacheBustedImageUrl(
       return '';
     }
     
+    // For base64 data URLs, return immediately without any modification
+    // Base64 data URLs don't need cache busting since they contain the actual image data
+    if (trimmedPath.startsWith('data:')) {
+      return trimmedPath;
+    }
+    
     if (trimmedPath.startsWith('http://') || trimmedPath.startsWith('https://')) {
       if (!updatedAt) return trimmedPath;
       
@@ -204,10 +215,6 @@ export function getCacheBustedImageUrl(
         console.warn('Error creating cache buster for external URL:', error);
         return trimmedPath;
       }
-    }
-    
-    if (trimmedPath.startsWith('data:')) {
-      return trimmedPath;
     }
     
     const input = variantType 

@@ -6,6 +6,7 @@ import {
 // Import all procedures
 import * as authProcs from "~/server/trpc/procedures/auth";
 import * as partnersProcs from "~/server/trpc/procedures/partners";
+import * as challengesProcs from "~/server/trpc/procedures/challenges";
 import * as commentsProcs from "~/server/trpc/procedures/comments";
 import * as impactMetricsProcs from "~/server/trpc/procedures/impact-metrics";
 import * as innovatorsProcs from "~/server/trpc/procedures/innovators";
@@ -17,7 +18,10 @@ import * as adminInnovatorsProcs from "~/server/trpc/procedures/admin-innovators
 import * as adminGeneralProcs from "~/server/trpc/procedures/admin-general";
 import * as imageUploadProcs from "~/server/trpc/procedures/image-upload";
 import * as simpleImageStorageProcs from "~/server/trpc/procedures/simple-image-storage";
+import * as simpleImageStorageExtendedProcs from "~/server/trpc/procedures/simple-image-storage-extended";
 import * as bulletproofImageUploadProcs from "~/server/trpc/procedures/bulletproof-image-upload";
+import * as imageCollectionProcs from "~/server/trpc/procedures/image-collections";
+import * as siteContentProcs from "~/server/trpc/procedures/site-content";
 
 export const appRouter = createTRPCRouter({
   // Authentication procedures
@@ -26,12 +30,15 @@ export const appRouter = createTRPCRouter({
   
   // Admin procedures - Problems
   adminGetProblemSubmissions: adminProblemsProcs.adminGetProblemSubmissions,
+  adminGetProblemSubmissionById: adminProblemsProcs.adminGetProblemSubmissionById,
+  adminUpdateProblemSubmission: adminProblemsProcs.adminUpdateProblemSubmission,
   adminUpdateProblemStatus: adminProblemsProcs.adminUpdateProblemStatus,
   adminDeleteProblemSubmission: adminProblemsProcs.adminDeleteProblemSubmission,
   adminGetProblemStats: adminProblemsProcs.adminGetProblemStats,
   
   // Admin procedures - Challenges
   adminGetChallenges: adminChallengesProcs.adminGetChallenges,
+  adminGetChallengeById: adminChallengesProcs.adminGetChallengeById,
   adminCreateChallenge: adminChallengesProcs.adminCreateChallenge,
   adminUpdateChallenge: adminChallengesProcs.adminUpdateChallenge,
   adminDeleteChallenge: adminChallengesProcs.adminDeleteChallenge,
@@ -47,12 +54,14 @@ export const appRouter = createTRPCRouter({
   
   // Admin procedures - Case Studies
   adminGetCaseStudies: adminGeneralProcs.adminGetCaseStudies,
+  adminGetCaseStudyById: adminGeneralProcs.adminGetCaseStudyById,
   adminCreateCaseStudy: adminGeneralProcs.adminCreateCaseStudy,
   adminUpdateCaseStudy: adminGeneralProcs.adminUpdateCaseStudy,
   adminDeleteCaseStudy: adminGeneralProcs.adminDeleteCaseStudy,
   
   // Admin procedures - News
   adminGetNews: adminGeneralProcs.adminGetNews,
+  adminGetNewsById: adminGeneralProcs.adminGetNewsById,
   adminCreateNews: adminGeneralProcs.adminCreateNews,
   adminUpdateNews: adminGeneralProcs.adminUpdateNews,
   adminDeleteNews: adminGeneralProcs.adminDeleteNews,
@@ -75,31 +84,77 @@ export const appRouter = createTRPCRouter({
   adminGetContactMessages: adminGeneralProcs.adminGetContactMessages,
   adminUpdateContactMessageStatus: adminGeneralProcs.adminUpdateContactMessageStatus,
   
-  // Enhanced image upload procedures (keeping general image procedures)
+  // Admin procedures - Image Management
   adminUploadImage: imageUploadProcs.adminUploadImage,
   adminBulkUploadImages: imageUploadProcs.adminBulkUploadImages,
-  getImage: imageUploadProcs.getImage,
   adminDeleteImage: imageUploadProcs.adminDeleteImage,
   adminListImages: imageUploadProcs.adminListImages,
   
-  // Simple base64 image storage (primary method for innovators)
+  // Admin procedures - Image Collections
+  adminListImageCollections: imageCollectionProcs.adminListImageCollections,
+  adminCreateImageCollection: imageCollectionProcs.adminCreateImageCollection,
+  adminUpdateImageCollection: imageCollectionProcs.adminUpdateImageCollection,
+  adminDeleteImageCollection: imageCollectionProcs.adminDeleteImageCollection,
+  adminAddImagesToCollection: imageCollectionProcs.adminAddImagesToCollection,
+  adminRemoveImagesFromCollection: imageCollectionProcs.adminRemoveImagesFromCollection,
+  
+  // Admin procedures - Site Content Images
+  uploadSiteContentImage: siteContentProcs.uploadSiteContentImage,
+  removeSiteContentImage: siteContentProcs.removeSiteContentImage,
+  listSiteContentImages: siteContentProcs.listSiteContentImages,
+  
+  // Admin procedures - Site Content Text
+  uploadSiteContentText: siteContentProcs.uploadSiteContentText,
+  removeSiteContentText: siteContentProcs.removeSiteContentText,
+  listSiteContentTexts: siteContentProcs.listSiteContentTexts,
+  
+  // Admin procedures - Simple Image Storage (Innovators)
   uploadSimpleInnovatorImage: simpleImageStorageProcs.uploadSimpleInnovatorImage,
-  getSimpleInnovatorImage: simpleImageStorageProcs.getSimpleInnovatorImage,
   removeSimpleInnovatorImage: simpleImageStorageProcs.removeSimpleInnovatorImage,
   listInnovatorsWithImageStatus: simpleImageStorageProcs.listInnovatorsWithImageStatus,
   
-  // Simple base64 image storage for partners (same system as innovators)
+  // Admin procedures - Simple Image Storage (Partners)
   uploadSimplePartnerImage: simpleImageStorageProcs.uploadSimplePartnerImage,
-  getSimplePartnerImage: simpleImageStorageProcs.getSimplePartnerImage,
   removeSimplePartnerImage: simpleImageStorageProcs.removeSimplePartnerImage,
   listPartnersWithImageStatus: simpleImageStorageProcs.listPartnersWithImageStatus,
   
-  // Storage health check procedure
+  // Admin procedures - Simple Image Storage (Case Studies)
+  uploadSimpleCaseStudyImage: simpleImageStorageExtendedProcs.uploadSimpleCaseStudyImage,
+  removeSimpleCaseStudyImage: simpleImageStorageExtendedProcs.removeSimpleCaseStudyImage,
+  
+  // Admin procedures - Simple Image Storage (Challenges)
+  uploadSimpleChallengeImage: simpleImageStorageExtendedProcs.uploadSimpleChallengeImage,
+  removeSimpleChallengeImage: simpleImageStorageExtendedProcs.removeSimpleChallengeImage,
+  
+  // Admin procedures - Simple Image Storage (News)
+  uploadSimpleNewsImage: simpleImageStorageExtendedProcs.uploadSimpleNewsImage,
+  removeSimpleNewsImage: simpleImageStorageExtendedProcs.removeSimpleNewsImage,
+  
+  // Image serving procedures (public)
+  getImage: imageUploadProcs.getImage,
+  getImageVariant: imageUploadProcs.getImageVariant,
+  getSiteContentImage: siteContentProcs.getSiteContentImage,
+  getSimpleInnovatorImage: simpleImageStorageProcs.getSimpleInnovatorImage,
+  getSimplePartnerImage: simpleImageStorageProcs.getSimplePartnerImage,
+  getSimpleCaseStudyImage: simpleImageStorageExtendedProcs.getSimpleCaseStudyImage,
+  getSimpleChallengeImage: simpleImageStorageExtendedProcs.getSimpleChallengeImage,
+  getSimpleNewsImage: simpleImageStorageExtendedProcs.getSimpleNewsImage,
+  
+  // Text serving procedures (public)
+  getSiteContentText: siteContentProcs.getSiteContentText,
+  getBulkSiteContentText: siteContentProcs.getBulkSiteContentText,
+  
+  // Storage utilities
   storageHealthCheck: bulletproofImageUploadProcs.storageHealthCheck,
   
   // Partners procedures
   getPartners: partnersProcs.getPartners,
   getPartnerById: partnersProcs.getPartnerById,
+  
+  // Challenges procedures (public)
+  getChallenges: challengesProcs.getChallenges,
+  getChallengeById: challengesProcs.getChallengeById,
+  getFeaturedChallenges: challengesProcs.getFeaturedChallenges,
   
   // Comments procedures
   getComments: commentsProcs.getComments,

@@ -22,6 +22,7 @@ import {
   Database,
   Eye,
   Image,
+  Monitor,
 } from "lucide-react";
 
 export function AdminDashboard() {
@@ -135,6 +136,12 @@ export function AdminDashboard() {
               description="Manage all images used across the site"
               icon={<Image className="h-8 w-8 text-purple-600" />}
               link="/admin/images"
+            />
+            <AdminCard
+              title="Site Content Images"
+              description="Manage images used throughout the main website"
+              icon={<Monitor className="h-8 w-8 text-blue-500" />}
+              link="/admin/site-content"
             />
             <AdminCard
               title="Innovators"

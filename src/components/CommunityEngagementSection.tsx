@@ -191,8 +191,30 @@ export default function CommunityEngagementSection() {
   const [refreshKey, setRefreshKey] = useState(0); // For manual refresh
   const [imageError, setImageError] = useState(false);
   const [imageLoading, setImageLoading] = useState(true);
+  const [retryCount, setRetryCount] = useState(0);
+  const maxRetries = 2;
   const { name, avatar, likedComments, likeComment, hasLikedComment } = useUserStore();
   const trpc = useTRPC();
+  
+  // Fetch community engagement featured image from database
+  const communityImageQuery = useQuery(
+    trpc.getSiteContentImage.queryOptions({
+      imageType: 'community_engagement_featured_image',
+    })
+  );
+
+  const [imageUrl, setImageUrl] = useState("https://images.unsplash.com/photo-1563379091339-03246963d4d9?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80");
+
+  // Use database image if available, otherwise fall back to hardcoded URL with existing fallback logic
+  const getFeaturedImageUrl = () => {
+    if (communityImageQuery.data?.hasImage && communityImageQuery.data?.imageData) {
+      return communityImageQuery.data.imageData;
+    }
+    // Fall back to the existing imageUrl state logic
+    return imageUrl;
+  };
+
+  const currentImageUrl = getFeaturedImageUrl();
   
   // Form for posting comments
   const {
@@ -250,8 +272,27 @@ export default function CommunityEngagementSection() {
   
   // Handle image loading events
   const handleImageError = () => {
-    setImageError(true);
     setImageLoading(false);
+    
+    if (retryCount < maxRetries) {
+      // Try alternative working URLs for water/clean water theme
+      const fallbackUrls = [
+        "https://images.unsplash.com/photo-1584464491033-06628f3a6b7b?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80", // Water drop
+        "https://images.unsplash.com/photo-1559827260-dc66d52bef19?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80", // Clean water
+        "https://images.unsplash.com/photo-1582408921715-18e7806365c1?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80"  // Water infrastructure
+      ];
+      
+      const nextUrl = fallbackUrls[retryCount];
+      if (nextUrl) {
+        setRetryCount(prev => prev + 1);
+        setImageUrl(nextUrl);
+        setImageError(false);
+        setImageLoading(true);
+        return;
+      }
+    }
+    
+    setImageError(true);
   };
 
   const handleImageLoad = () => {
@@ -328,7 +369,20 @@ export default function CommunityEngagementSection() {
                 <div className="h-full w-full flex items-center justify-center bg-neutral-light/20 dark:bg-neutral-dark/20">
                   <div className="text-center">
                     <ImageIcon className="h-16 w-16 mx-auto mb-4 text-text-dark/40 dark:text-text-light/40" />
-                    <p className="text-sm text-text-dark/60 dark:text-text-light/60">Image unavailable</p>
+                    <p className="text-sm text-text-dark/60 dark:text-text-light/60 mb-3">Image temporarily unavailable</p>
+                    {retryCount < maxRetries && (
+                      <button
+                        onClick={() => {
+                          setRetryCount(0);
+                          setImageUrl("https://images.unsplash.com/photo-1563379091339-03246963d4d9?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80");
+                          setImageError(false);
+                          setImageLoading(true);
+                        }}
+                        className="text-xs text-secondary hover:text-secondary-light underline"
+                      >
+                        Try again
+                      </button>
+                    )}
                   </div>
                 </div>
               ) : (
@@ -339,7 +393,7 @@ export default function CommunityEngagementSection() {
                     </div>
                   )}
                   <img
-                    src="https://images.unsplash.com/photo-1635001087799-539b4a31e478?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=2070&q=80"
+                    src={currentImageUrl}
                     alt="Water Access Initiative - Clean water infrastructure project"
                     className={`h-full w-full object-cover transition-opacity duration-300 ${
                       imageLoading ? 'opacity-0' : 'opacity-100'
@@ -348,6 +402,7 @@ export default function CommunityEngagementSection() {
                     onLoad={handleImageLoad}
                     onLoadStart={handleImageLoadStart}
                     loading="lazy"
+                    crossOrigin="anonymous"
                   />
                 </div>
               )}

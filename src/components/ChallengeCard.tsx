@@ -50,7 +50,7 @@ export default function ChallengeCard({ challenge, onClick }: ChallengeCardProps
 
   return (
     <div 
-      className="group cursor-pointer overflow-hidden rounded-lg bg-background-black transition-all duration-300 hover:-translate-y-2 hover:shadow-xl flex flex-col h-full border border-neutral-dark/30"
+      className="group cursor-pointer overflow-hidden rounded-lg bg-background-black transition-all duration-300 hover:-translate-y-2 hover:shadow-xl flex flex-col h-full border border-neutral-dark/30 animate-fadeIn"
       onClick={() => onClick(challenge)}
     >
       {/* Image with gradient overlay */}
@@ -69,15 +69,17 @@ export default function ChallengeCard({ challenge, onClick }: ChallengeCardProps
                 <div className="h-8 w-8 animate-spin rounded-full border-4 border-secondary border-t-transparent"></div>
               </div>
             )}
-            <div 
-              className={`h-full w-full bg-cover bg-center transition-transform duration-500 group-hover:scale-110 ${imageLoading ? 'opacity-0' : 'opacity-100'}`}
-              style={{ backgroundImage: `url(${getImageUrl(challenge.image)})` }}
+            <img
+              src={getImageUrl(challenge.image)}
+              alt={challenge.title}
+              className={`h-full w-full object-cover transition-all duration-500 group-hover:scale-110 ${imageLoading ? 'opacity-0' : 'opacity-100'}`}
               onLoad={() => setImageLoading(false)}
               onError={() => {
                 setImageLoading(false);
                 setImageError(true);
               }}
-            ></div>
+              loading="lazy"
+            />
             <div className="absolute inset-0 bg-gradient-to-t from-background-black via-background-black/40 to-transparent opacity-80 group-hover:opacity-70 transition-opacity duration-300"></div>
           </>
         )}

@@ -16,6 +16,7 @@ import {
   X,
   Trash2,
   ArrowLeft,
+  MessageSquare,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
@@ -205,12 +206,11 @@ function AdminProblemsPage() {
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-text-dark dark:text-text-light focus:ring-2 focus:ring-secondary focus:border-secondary"
                 >
                   <option value="all">All Categories</option>
-                  <option value="Climate">Climate</option>
-                  <option value="Digital">Digital</option>
-                  <option value="Health">Health</option>
-                  <option value="Education">Education</option>
-                  <option value="Energy">Energy</option>
-                  <option value="Agriculture">Agriculture</option>
+                  {statsQuery.data?.byCategory.map((categoryData) => (
+                    <option key={categoryData.category} value={categoryData.category}>
+                      {categoryData.category} ({categoryData.count})
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -258,9 +258,13 @@ function AdminProblemsPage() {
                       <tr key={submission.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                         <td className="px-6 py-4">
                           <div>
-                            <div className="text-sm font-medium text-text-dark dark:text-text-light">
+                            <Link
+                              to="/admin/problems/$problemId"
+                              params={{ problemId: submission.id.toString() }}
+                              className="text-sm font-medium text-text-dark dark:text-text-light hover:text-secondary transition-colors"
+                            >
                               {submission.title}
-                            </div>
+                            </Link>
                             <div className="text-sm text-text-muted dark:text-text-light/70">
                               {submission.organization}
                             </div>
@@ -276,10 +280,39 @@ function AdminProblemsPage() {
                           {new Date(submission.createdAt).toLocaleDateString()}
                         </td>
                         <td className="px-6 py-4 text-sm text-text-muted dark:text-text-light/70">
-                          {submission._count.comments}
+                          {submission._count.comments > 0 ? (
+                            <Link
+                              to="/admin/comments"
+                              search={{ problemId: submission.id }}
+                              className="text-secondary hover:text-secondary/80 transition-colors"
+                              title={`View ${submission._count.comments} comments`}
+                            >
+                              {submission._count.comments}
+                            </Link>
+                          ) : (
+                            <span>0</span>
+                          )}
                         </td>
                         <td className="px-6 py-4 text-right">
                           <div className="flex items-center justify-end space-x-2">
+                            <Link
+                              to="/admin/problems/$problemId"
+                              params={{ problemId: submission.id.toString() }}
+                              className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                              title="View Details"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Link>
+                            {submission._count.comments > 0 && (
+                              <Link
+                                to="/admin/comments"
+                                search={{ problemId: submission.id }}
+                                className="p-2 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors"
+                                title={`View ${submission._count.comments} Comments`}
+                              >
+                                <MessageSquare className="h-4 w-4" />
+                              </Link>
+                            )}
                             {submission.status === "pending" && (
                               <>
                                 <button

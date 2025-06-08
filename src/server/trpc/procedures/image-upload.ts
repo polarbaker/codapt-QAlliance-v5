@@ -1552,6 +1552,95 @@ export const getImage = baseProcedure
     }
   });
 
+// Enhanced image variant retrieval with proper binary response, CORS headers, and improved caching
+export const getImageVariant = baseProcedure
+  .input(z.object({
+    filePath: z.string().min(1, "File path is required"),
+    variantType: z.enum(['thumbnail', 'small', 'medium', 'large', 'original']).optional(),
+  }))
+  .query(async ({ input }) => {
+    const { filePath, variantType } = input;
+    
+    try {
+      // Enhanced security check
+      if (filePath.includes('..') || filePath.includes('/') || filePath.includes('\\') || filePath.includes('\0')) {
+        throw createImageError('Invalid file path - security violation detected', 'validation', { canRetry: false });
+      }
+      
+      // Validate file path format (should be UUID.extension)
+      const filePathRegex = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.(jpg|jpeg|png|gif|webp|bmp|tiff|svg|avif)$/i;
+      if (!filePathRegex.test(filePath)) {
+        console.warn(`Invalid file path format: ${filePath}`);
+        throw createImageError('Invalid file path format', 'validation', { canRetry: false });
+      }
+      
+      console.log(`📷 Serving image variant: ${filePath} (variant: ${variantType || 'original'})`);
+      
+      // If no variant type specified or 'original', serve the original image
+      if (!variantType || variantType === 'original') {
+        return getImage.resolver({ input: { filePath }, ctx: {} as any });
+      }
+      
+      // Try to find the variant in the database
+      const { db } = await import("~/server/db");
+      
+      const image = await db.image.findUnique({
+        where: { filePath },
+        include: {
+          variants: {
+            where: { variantType },
+            take: 1,
+          },
+        },
+      });
+      
+      if (!image) {
+        console.warn(`Image not found in database: ${filePath}`);
+        // Fallback to original image
+        return getImage.resolver({ input: { filePath }, ctx: {} as any });
+      }
+      
+      // If variant exists, serve it
+      if (image.variants.length > 0) {
+        const variant = image.variants[0];
+        console.log(`📷 Serving existing variant: ${variant.filePath} (${variantType})`);
+        return getImage.resolver({ input: { filePath: variant.filePath }, ctx: {} as any });
+      }
+      
+      // If variant doesn't exist, serve original image as fallback
+      console.log(`📷 Variant ${variantType} not found for ${filePath}, serving original`);
+      return getImage.resolver({ input: { filePath }, ctx: {} as any });
+      
+    } catch (error) {
+      console.error(`❌ Image variant serving error for ${filePath} (${variantType}):`, error);
+      
+      // Enhanced error categorization for better client handling
+      if (error instanceof Error && 'category' in error) {
+        throw error; // Re-throw ImageUploadError as-is
+      }
+      
+      if (error instanceof Error) {
+        if (error.message.includes('NoSuchKey') || error.message.includes('not found')) {
+          throw createImageError('Image variant not found', 'storage', { canRetry: false });
+        }
+        
+        if (error.message.includes('timeout') || error.message.includes('ETIMEDOUT')) {
+          throw createImageError('Storage timeout - please try again', 'storage', { canRetry: true, retryAfter: 10 });
+        }
+        
+        if (error.message.includes('connection') || error.message.includes('ECONNRESET')) {
+          throw createImageError('Storage connection issue - please try again', 'storage', { canRetry: true, retryAfter: 5 });
+        }
+      }
+      
+      throw createImageError(
+        error instanceof Error ? error.message : 'Failed to retrieve image variant',
+        'storage',
+        { canRetry: true, retryAfter: 30 }
+      );
+    }
+  });
+
 // Image deletion (simplified)
 export const adminDeleteImage = baseProcedure
   .input(z.object({
@@ -1600,55 +1689,133 @@ export const adminDeleteImage = baseProcedure
     }
   });
 
-// Image listing (simplified)
+// Enhanced image listing with proper filtering, sorting, and pagination
 export const adminListImages = baseProcedure
   .input(z.object({
     adminToken: z.string(),
     page: z.number().min(1).default(1),
     pageSize: z.number().min(1).max(50).default(20),
     search: z.string().optional(),
+    category: z.string().optional(),
+    tags: z.array(z.string()).optional(),
+    sortBy: z.enum(['createdAt', 'fileName', 'fileSize', 'usageCount']).default('createdAt'),
+    sortOrder: z.enum(['asc', 'desc']).default('desc'),
+    includeVariants: z.boolean().default(false),
+    includeArchived: z.boolean().default(false),
   }))
   .query(async ({ input }) => {
     try {
       await requireAdminAuth(input.adminToken);
       
-      const { page, pageSize, search } = input;
+      const { page, pageSize, search, category, tags, sortBy, sortOrder, includeVariants, includeArchived } = input;
       
       const { db } = await import("~/server/db");
       
       // Build where clause
       const where: any = {};
+      
+      // Add archived filter
+      if (!includeArchived) {
+        where.archived = false;
+      }
+      
+      // Add search filter
       if (search) {
         where.OR = [
           { fileName: { contains: search, mode: 'insensitive' } },
           { title: { contains: search, mode: 'insensitive' } },
+          { description: { contains: search, mode: 'insensitive' } },
+          { altText: { contains: search, mode: 'insensitive' } },
         ];
+      }
+      
+      // Add category filter
+      if (category) {
+        where.category = category;
+      }
+      
+      // Add tags filter (search in JSON string)
+      if (tags && tags.length > 0) {
+        where.OR = where.OR || [];
+        tags.forEach(tag => {
+          where.OR.push({
+            tags: { contains: tag, mode: 'insensitive' }
+          });
+        });
       }
       
       // Get total count
       const totalCount = await db.image.count({ where });
       
-      // Get images
+      // Build order by
+      const orderBy: any = {};
+      orderBy[sortBy] = sortOrder;
+      
+      // Get images with optional variants
       const images = await db.image.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
+        orderBy,
         skip: (page - 1) * pageSize,
         take: pageSize,
+        include: {
+          variants: includeVariants ? {
+            orderBy: { variantType: 'asc' },
+          } : false,
+        },
       });
+      
+      // Process images to ensure proper data format
+      const processedImages = images.map(image => {
+        // Parse tags safely
+        let parsedTags: string[] = [];
+        try {
+          if (image.tags) {
+            parsedTags = JSON.parse(image.tags);
+            if (!Array.isArray(parsedTags)) {
+              parsedTags = [];
+            }
+          }
+        } catch (error) {
+          console.warn(`Failed to parse tags for image ${image.id}:`, error);
+          parsedTags = [];
+        }
+        
+        return {
+          ...image,
+          tags: parsedTags,
+          // Ensure variants are properly formatted
+          variants: image.variants ? image.variants.map(variant => ({
+            variantType: variant.variantType,
+            width: variant.width,
+            height: variant.height,
+            fileSize: variant.fileSize,
+            format: variant.format,
+          })) : undefined,
+        };
+      });
+      
+      console.log(`📋 Listed ${processedImages.length} images (page ${page}/${Math.ceil(totalCount / pageSize)})`);
       
       return {
         success: true,
-        images,
+        images: processedImages,
         pagination: {
           page,
           pageSize,
           totalCount,
           totalPages: Math.ceil(totalCount / pageSize),
+          hasNextPage: page * pageSize < totalCount,
+          hasPreviousPage: page > 1,
         },
       };
       
     } catch (error) {
       console.error('Image listing error:', error);
+      
+      if (error instanceof Error && 'category' in error) {
+        throw error;
+      }
+      
       throw createImageError('Failed to list images', 'storage');
     }
   });

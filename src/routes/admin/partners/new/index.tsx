@@ -76,6 +76,7 @@ function NewPartnerPage() {
       adminToken: adminToken || "",
       data: {
         ...data,
+        logoUrl: data.logoUrl || undefined, // Handle optional logoUrl
         websiteUrl: data.websiteUrl || undefined,
       },
     });
@@ -304,7 +305,7 @@ function NewPartnerPage() {
                     {/* Logo Upload with Simple Processing */}
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-text-dark dark:text-text-light mb-2">
-                        Logo *
+                        Logo (Optional)
                       </label>
                       
                       <SimplePartnerImageUpload
@@ -329,10 +330,10 @@ function NewPartnerPage() {
                         <p className="mt-1 text-sm text-red-600">{errors.logoUrl.message}</p>
                       )}
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        Simple & reliable: Logos will be automatically optimized and stored securely.
+                        Simple & reliable: Logos will be automatically optimized and stored securely. You can add a logo now or after creating the partner.
                       </p>
                       <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
-                        Note: For new partners, you'll need to create the partner first, then edit it to upload a logo.
+                        Note: For new partners, you can create the partner first and then edit it to upload a logo if preferred.
                       </p>
                     </div>
 

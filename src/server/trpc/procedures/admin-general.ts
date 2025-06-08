@@ -60,6 +60,27 @@ export const adminGetCaseStudies = baseProcedure
     };
   });
 
+export const adminGetCaseStudyById = baseProcedure
+  .input(z.object({
+    adminToken: z.string(),
+    id: z.number().int().positive(),
+  }))
+  .query(async ({ input }) => {
+    await requireAdminAuth(input.adminToken);
+    
+    const { id } = input;
+    
+    const caseStudy = await db.caseStudy.findUnique({
+      where: { id },
+    });
+    
+    if (!caseStudy) {
+      throw new Error('Case study not found');
+    }
+    
+    return caseStudy;
+  });
+
 export const adminCreateCaseStudy = baseProcedure
   .input(z.object({
     adminToken: z.string(),
@@ -69,6 +90,7 @@ export const adminCreateCaseStudy = baseProcedure
     await requireAdminAuth(input.adminToken);
     
     const { data } = input;
+    // data.image will be a base64 string from SimpleCaseStudyImageUpload
     
     const caseStudy = await db.caseStudy.create({
       data,
@@ -91,6 +113,7 @@ export const adminUpdateCaseStudy = baseProcedure
     await requireAdminAuth(input.adminToken);
     
     const { id, data } = input;
+    // data.image (if present) will be a base64 string
     
     const caseStudy = await db.caseStudy.update({
       where: { id },
@@ -167,6 +190,7 @@ export const adminGetNews = baseProcedure
       where: whereClause,
       orderBy: [
         { featured: 'desc' },
+        { order: 'asc' },
         { publishedAt: 'desc' },
       ],
       take: limit + 1,
@@ -184,6 +208,27 @@ export const adminGetNews = baseProcedure
     };
   });
 
+export const adminGetNewsById = baseProcedure
+  .input(z.object({
+    adminToken: z.string(),
+    id: z.number().int().positive(),
+  }))
+  .query(async ({ input }) => {
+    await requireAdminAuth(input.adminToken);
+    
+    const { id } = input;
+    
+    const news = await db.news.findUnique({
+      where: { id },
+    });
+    
+    if (!news) {
+      throw new Error('News article not found');
+    }
+    
+    return news;
+  });
+
 export const adminCreateNews = baseProcedure
   .input(z.object({
     adminToken: z.string(),
@@ -193,11 +238,13 @@ export const adminCreateNews = baseProcedure
     await requireAdminAuth(input.adminToken);
     
     const { data } = input;
+    // data.imageUrl will be a base64 string from SimpleNewsImageUpload
     
     const news = await db.news.create({
       data: {
         ...data,
         publishedAt: new Date(data.publishedAt),
+        order: data.order ?? 0, // Ensure order has a default value
       },
     });
     
@@ -218,10 +265,15 @@ export const adminUpdateNews = baseProcedure
     await requireAdminAuth(input.adminToken);
     
     const { id, data } = input;
+    // data.imageUrl (if present) will be a base64 string
     
     const updateData: any = { ...data };
     if (data.publishedAt) {
       updateData.publishedAt = new Date(data.publishedAt);
+    }
+    // Ensure order is properly handled
+    if (data.order !== undefined) {
+      updateData.order = data.order;
     }
     
     const news = await db.news.update({
@@ -289,8 +341,9 @@ export const adminGetPartners = baseProcedure
     const partners = await db.partner.findMany({
       where: whereClause,
       orderBy: [
-        { order: 'asc' },
-        { createdAt: 'desc' },
+        { updatedAt: 'desc' },  // Most recently updated/added first - ensures updated or added partners take priority
+        { order: 'asc' },       // Then by custom order
+        { createdAt: 'desc' },  // Finally by creation date
       ],
       take: limit + 1,
     });

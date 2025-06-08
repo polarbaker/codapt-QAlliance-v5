@@ -1,4 +1,7 @@
 import { useState } from "react";
+import { useTRPC } from "~/trpc/react";
+import { useQuery } from "@tanstack/react-query";
+import { useBulkSiteContentText } from "~/hooks/useSiteContentText";
 
 interface StageProps {
   number: string;
@@ -38,37 +41,67 @@ function Stage({ number, title, description, isActive, onClick }: StageProps) {
 
 export default function InnovationPipelineSection() {
   const [activeStage, setActiveStage] = useState(0);
+  const trpc = useTRPC();
+  
+  // Fetch innovation pipeline text content
+  const { texts: pipelineTexts } = useBulkSiteContentText([
+    'pipeline_title',
+    'pipeline_description',
+    'pipeline_stage1_title',
+    'pipeline_stage1_description',
+    'pipeline_stage2_title',
+    'pipeline_stage2_description',
+    'pipeline_stage3_title',
+    'pipeline_stage3_description',
+    'pipeline_stage4_title',
+    'pipeline_stage4_description',
+    'pipeline_stage5_title',
+    'pipeline_stage5_description',
+    'pipeline_button_text',
+  ]);
+  
+  // Fetch innovation pipeline image from database
+  const pipelineImageQuery = useQuery(
+    trpc.getSiteContentImage.queryOptions({
+      imageType: 'innovation_pipeline_image',
+    })
+  );
+
+  // Use database image if available, otherwise fall back to hardcoded URL
+  const getPipelineImageUrl = () => {
+    if (pipelineImageQuery.data?.hasImage && pipelineImageQuery.data?.imageData) {
+      return pipelineImageQuery.data.imageData;
+    }
+    return 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=2070&q=80';
+  };
+
+  const pipelineImageUrl = getPipelineImageUrl();
 
   const stages = [
     {
       number: "01",
-      title: "Problem Identification",
-      description:
-        "We work with governments and organizations to identify critical infrastructure challenges that need innovative solutions.",
+      title: pipelineTexts.pipeline_stage1_title,
+      description: pipelineTexts.pipeline_stage1_description,
     },
     {
       number: "02",
-      title: "Innovation Sourcing",
-      description:
-        "We tap into our global network of innovators to find cutting-edge technologies and approaches to address these challenges.",
+      title: pipelineTexts.pipeline_stage2_title,
+      description: pipelineTexts.pipeline_stage2_description,
     },
     {
       number: "03",
-      title: "Challenge Launch",
-      description:
-        "We design and launch structured innovation challenges with clear objectives, timelines, and prize incentives.",
+      title: pipelineTexts.pipeline_stage3_title,
+      description: pipelineTexts.pipeline_stage3_description,
     },
     {
       number: "04",
-      title: "Pilot Execution",
-      description:
-        "Winners receive funding and support to pilot their solutions in real-world environments with our partners.",
+      title: pipelineTexts.pipeline_stage4_title,
+      description: pipelineTexts.pipeline_stage4_description,
     },
     {
       number: "05",
-      title: "Global Scaling",
-      description:
-        "Successful pilots are scaled globally through our network of government and industry partners.",
+      title: pipelineTexts.pipeline_stage5_title,
+      description: pipelineTexts.pipeline_stage5_description,
     },
   ];
 
@@ -82,15 +115,15 @@ export default function InnovationPipelineSection() {
           {/* Left column: Section header */}
           <div>
             <h2 className="mb-8 text-5xl font-extrabold leading-tight text-text-light md:text-6xl">
-              Our Process
+              {pipelineTexts.pipeline_title}
             </h2>
             <p className="mb-12 text-xl font-light text-text-light/80 md:text-2xl">
-              From identifying critical challenges to scaling proven solutions globally, our structured approach transforms innovative ideas into real-world impact.
+              {pipelineTexts.pipeline_description}
             </p>
             
             <div className="hidden lg:block">
               <div className="aspect-square overflow-hidden rounded-lg">
-                <div className="h-full w-full bg-[url('https://images.unsplash.com/photo-1522071820081-009f0129c71c?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=2070&q=80')] bg-cover bg-center"></div>
+                <div className="h-full w-full bg-cover bg-center" style={{ backgroundImage: `url('${pipelineImageUrl}')` }}></div>
               </div>
             </div>
           </div>
@@ -114,7 +147,7 @@ export default function InnovationPipelineSection() {
               href="/challenges"
               className="inline-block rounded-full bg-secondary px-8 py-4 text-lg font-medium text-white transition-all hover:bg-secondary-light"
             >
-              Current Challenges
+              {pipelineTexts.pipeline_button_text}
             </a>
           </div>
         </div>

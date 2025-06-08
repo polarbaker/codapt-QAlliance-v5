@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useState } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useUserStore } from "~/stores/userStore";
 import { useTRPC } from "~/trpc/react";
 import { useMutation } from "@tanstack/react-query";
@@ -15,8 +15,8 @@ import {
   X,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
-import { BulletproofImageUpload } from "~/components/ui/BulletproofImageUpload";
-import { getImageUrl } from "~/utils";
+import { SimpleCaseStudyImageUpload } from "~/components/ui/SimpleCaseStudyImageUpload";
+import { ImagePreview } from "~/components/ui/ImagePreview";
 
 export const Route = createFileRoute("/admin/case-studies/new/")({
   component: NewCaseStudyPage,
@@ -27,24 +27,200 @@ function NewCaseStudyPage() {
   const navigate = useNavigate();
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
-  const [previewImageLoading, setPreviewImageLoading] = useState(false);
-  const [previewImageError, setPreviewImageError] = useState(false);
+  const [previewKey, setPreviewKey] = useState(0); // Force preview re-render
+  const [lastImageUpdate, setLastImageUpdate] = useState<Date | null>(null);
+  const [debugMode] = useState(true); // Enable debugging
   
   const trpc = useTRPC();
   
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting },
+    formState: { errors, isSubmitting, ...formState },
     setValue,
     watch,
+    trigger,
   } = useForm<CaseStudyFormData>({
     resolver: zodResolver(caseStudySchema),
     defaultValues: {
       featured: false,
       tags: "[]",
+      image: "", // Initialize with explicit empty string
     },
   });
+
+  // Enhanced logging with timestamps - memoized to prevent re-creation
+  const logWithTimestamp = useCallback((message: string, data?: any) => {
+    if (debugMode) {
+      console.log(`🔍 DEBUG: NewCaseStudyForm [${new Date().toISOString()}] - ${message}`, data || '');
+    }
+  }, [debugMode]);
+
+  const imageUrl = watch("image");
+
+  // Memoized onChange handler to prevent re-creation on every render
+  const handleImageChange = useCallback((filePath: string | string[] | null) => {
+    logWithTimestamp('SimpleCaseStudyImageUpload onChange called with:', {
+      filePath: filePath,
+      filePathType: typeof filePath,
+      filePathLength: typeof filePath === 'string' ? filePath?.length : (Array.isArray(filePath) ? filePath.length : 0),
+      isString: typeof filePath === 'string',
+      isNonEmptyString: typeof filePath === 'string' && filePath.trim() !== '',
+      trimmedValue: typeof filePath === 'string' ? filePath.trim() : filePath,
+      currentFormImageValue: watch("image"),
+      previewKey: previewKey,
+    });
+    
+    // Ensure filePath is a string before setting
+    const pathValue = typeof filePath === 'string' ? filePath : null;
+    
+    if (pathValue && pathValue.trim() !== '') {
+      logWithTimestamp('About to call setValue with valid pathValue:', {
+        valueToSet: pathValue,
+        shouldValidate: true, 
+        shouldDirty: true,
+        shouldTouch: true,
+      });
+      
+      setValue("image", pathValue, { 
+        shouldValidate: true, 
+        shouldDirty: true,
+        shouldTouch: true
+      });
+      
+      // Force preview update
+      setPreviewKey(prev => prev + 1);
+      setLastImageUpdate(new Date());
+      
+      logWithTimestamp('setValue called, checking immediate state:', {
+        setValueWith: pathValue,
+        newFormImageValue: watch("image"),
+        formErrors: errors,
+        imageFieldError: errors.image,
+        isDirty: formState.isDirty,
+        dirtyFields: formState.dirtyFields,
+        newPreviewKey: previewKey + 1,
+      });
+      
+      // Manual trigger call after setValue
+      const timeoutId = setTimeout(async () => {
+        logWithTimestamp('Manual trigger call for image validation');
+        const isValid = await trigger("image");
+        logWithTimestamp('Manual trigger result:', {
+          isValid: isValid,
+          currentImageValue: watch("image"),
+          imageFieldError: errors.image,
+          formIsValid: formState.isValid,
+        });
+      }, 100);
+      
+    } else if (filePath === null) {
+      // Handle clearing the image
+      setValue("image", "", { 
+        shouldValidate: true, 
+        shouldDirty: true,
+        shouldTouch: true
+      });
+      setPreviewKey(prev => prev + 1);
+    }
+  }, [setValue, trigger, watch, errors, formState, previewKey, logWithTimestamp]);
+
+  // Custom event listener for crosscutting image updates
+  useEffect(() => {
+    const handleImageUpdated = (event: CustomEvent) => {
+      const { filePath: eventFilePath, timestamp, component } = event.detail || {};
+      
+      logWithTimestamp('Received imageUpdated event:', {
+        eventFilePath: eventFilePath,
+        currentImageUrl: imageUrl,
+        eventTimestamp: timestamp,
+        eventComponent: component,
+        shouldUpdate: eventFilePath && (eventFilePath === imageUrl || component === 'SimpleCaseStudyImageUpload'),
+      });
+      
+      // Check if this event is for our current image or if it's a new upload
+      if (eventFilePath && (eventFilePath === imageUrl || component === 'SimpleCaseStudyImageUpload')) {
+        logWithTimestamp('Event matches current context - forcing form and preview update');
+        
+        // Update form state if the path is different
+        if (eventFilePath !== imageUrl && eventFilePath.trim() !== '') {
+          logWithTimestamp('Updating form state from event');
+          setValue("image", eventFilePath, { 
+            shouldValidate: true, 
+            shouldDirty: true,
+            shouldTouch: true
+          });
+        }
+        
+        // Force preview update
+        setPreviewKey(prev => prev + 1);
+        setLastImageUpdate(new Date());
+        
+        // Trigger validation
+        const timeoutId = setTimeout(() => {
+          trigger("image");
+        }, 100);
+        
+        return () => clearTimeout(timeoutId);
+      }
+    };
+
+    window.addEventListener('imageUpdated', handleImageUpdated as EventListener);
+    document.addEventListener('imageUpdated', handleImageUpdated as EventListener);
+    
+    return () => {
+      window.removeEventListener('imageUpdated', handleImageUpdated as EventListener);
+      document.removeEventListener('imageUpdated', handleImageUpdated as EventListener);
+    };
+  }, [imageUrl, setValue, trigger, logWithTimestamp]);
+
+  // Enhanced image field validation watcher
+  useEffect(() => {
+    logWithTimestamp('Case Study NEW form - Image field validation watcher triggered:', {
+      imageUrl: imageUrl,
+      imageUrlType: typeof imageUrl,
+      imageUrlLength: imageUrl?.length,
+      imageUrlTrimmed: imageUrl?.trim(),
+      isEmpty: !imageUrl || imageUrl.trim() === '',
+      formErrors: errors,
+      imageFieldError: errors.image,
+      hasImageValidationError: !!errors.image,
+      formIsValid: formState.isValid,
+      formIsDirty: formState.isDirty,
+      dirtyFields: formState.dirtyFields,
+      previewKey: previewKey,
+    });
+    
+    // Force preview re-render when image URL changes
+    if (imageUrl && imageUrl.trim() !== '') {
+      logWithTimestamp('Image URL changed - forcing preview update');
+      setPreviewKey(prev => prev + 1);
+      setLastImageUpdate(new Date());
+    }
+    
+    // Force re-validation if we have a valid image but still have an error
+    if (imageUrl && imageUrl.trim() !== '' && errors.image) {
+      logWithTimestamp('Detected valid image with validation error, triggering re-validation');
+      const timeoutId = setTimeout(() => {
+        trigger("image");
+      }, 100);
+      return () => clearTimeout(timeoutId);
+    }
+    
+    // Force validation after setValue to ensure form state is updated
+    if (imageUrl && imageUrl.trim() !== '') {
+      const timeoutId = setTimeout(async () => {
+        logWithTimestamp('Forcing validation after image change');
+        const isValid = await trigger("image");
+        logWithTimestamp('Validation result:', {
+          isValid: isValid,
+          currentImageValue: imageUrl,
+          imageFieldError: errors.image,
+        });
+      }, 200);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [imageUrl, errors.image, formState.isValid, trigger, logWithTimestamp]);
 
   const createMutation = useMutation(
     trpc.adminCreateCaseStudy.mutationOptions({
@@ -162,81 +338,31 @@ function NewCaseStudyPage() {
                     {/* Image Upload */}
                     <div className="lg:col-span-2">
                       <label className="block text-sm font-medium text-text-dark dark:text-text-light mb-2">
-                        Image *
+                        Image (Optional)
                       </label>
-                      <BulletproofImageUpload
-                        value={watch("image")}
-                        onChange={(filePath) => {
-                          console.log('🔍 DEBUG: Case Study NEW form - BulletproofImageUpload onChange called with:', {
-                            filePath: filePath,
-                            filePathType: typeof filePath,
-                            filePathLength: typeof filePath === 'string' ? filePath?.length : (Array.isArray(filePath) ? filePath.length : 0),
-                            isString: typeof filePath === 'string',
-                            isNonEmptyString: typeof filePath === 'string' && filePath.trim() !== '',
-                            trimmedValue: typeof filePath === 'string' ? filePath.trim() : filePath,
-                            currentFormImageValue: watch("image"),
-                            timestamp: new Date().toISOString()
-                          });
-                          
-                          // Ensure filePath is a string before setting
-                          const pathValue = typeof filePath === 'string' ? filePath : null;
-                          
-                          if (pathValue && pathValue.trim() !== '') {
-                            console.log('🔍 DEBUG: Case Study NEW form - About to call setValue with valid pathValue:', {
-                              valueToSet: pathValue,
-                              shouldValidate: true, 
-                              shouldDirty: true,
-                              shouldTouch: true,
-                              timestamp: new Date().toISOString()
-                            });
-                            
-                            setValue("image", pathValue, { 
-                              shouldValidate: true, 
-                              shouldDirty: true,
-                              shouldTouch: true
-                            });
-                            
-                            console.log('🔍 DEBUG: Case Study NEW form - setValue called, checking immediate state:', {
-                              setValueWith: pathValue,
-                              newFormImageValue: watch("image"),
-                              formErrors: errors,
-                              imageFieldError: errors.image,
-                              isDirty: formState.isDirty,
-                              dirtyFields: formState.dirtyFields,
-                              timestamp: new Date().toISOString()
-                            });
-                            
-                          } else if (pathValue === null) {
-                            // Handle clearing the image
-                            setValue("image", "", { 
-                              shouldValidate: true, 
-                              shouldDirty: true,
-                              shouldTouch: true
-                            });
-                          }
+                      <SimpleCaseStudyImageUpload
+                        caseStudyId={0} // Use 0 for new case studies
+                        caseStudyTitle="New Case Study"
+                        value={imageUrl}
+                        onChange={handleImageChange}
+                        onUploadComplete={(result) => {
+                          console.log('Upload completed:', result);
+                          toast.success('✅ Image uploaded successfully');
                         }}
-                        placeholder="Upload case study image - bulletproof processing enabled"
-                        className="mb-4"
-                        multiple={false}
-                        enableProgressiveUpload={true}
-                        enableAutoRetry={true}
-                        enableClientOptimization={true}
-                        maxFileSize={200} // 200MB for bulletproof system
                         onUploadError={(error) => {
-                          console.error('❌ DEBUG: Case Study NEW form - BulletproofImageUpload error:', error);
+                          console.error('Upload error:', error);
+                          toast.error(`❌ Upload failed: ${error.message || 'Unknown error'}`);
                         }}
-                        // Enhanced form integration props
-                        onFormValueSet={(filePath) => {
-                          console.log('🔍 DEBUG: Case Study NEW form - BulletproofImageUpload onFormValueSet called:', {
-                            filePath: filePath,
-                            timestamp: new Date().toISOString()
-                          });
-                        }}
-                        retryFormUpdate={true} // Enable retry logic for form value patching
+                        enableAutoRetry={true}
+                        maxRetries={3}
+                        componentId="simple-case-study-upload-new"
                       />
-                      {errors.image && (
-                        <p className="mt-1 text-sm text-red-600">{errors.image.message}</p>
-                      )}
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        Simple & reliable: Images will be automatically optimized and stored securely.
+                      </p>
+                      <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                        Note: For new case studies, you'll need to create the case study first, then edit it to upload an image.
+                      </p>
                     </div>
 
                     {/* Video URL */}
@@ -383,45 +509,27 @@ function NewCaseStudyPage() {
                   Image Preview
                 </h3>
                 <div className="w-full h-48 bg-gray-50 dark:bg-gray-700 rounded-lg flex items-center justify-center p-4 border-2 border-dashed border-gray-300 dark:border-gray-600">
-                  {watch("image") ? (
-                    <>
-                      {previewImageLoading && (
-                        <div className="flex flex-col items-center space-y-2">
-                          <div className="h-8 w-8 animate-spin rounded-full border-4 border-secondary border-t-transparent"></div>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">Loading preview...</p>
-                        </div>
-                      )}
-                      {previewImageError ? (
-                        <div className="flex flex-col items-center space-y-2 text-amber-600">
-                          <BookOpen className="h-8 w-8" />
-                          <p className="text-sm text-center">Preview not available</p>
-                          <p className="text-xs text-center opacity-75">Image will be processed when form is submitted</p>
-                        </div>
-                      ) : (
-                        <img
-                          src={getImageUrl(watch("image"))}
-                          alt="Case study image preview"
-                          className={`max-w-full max-h-full object-cover rounded-lg transition-opacity ${previewImageLoading ? 'opacity-0' : 'opacity-100'}`}
-                          onLoad={() => {
-                            setPreviewImageLoading(false);
-                            setPreviewImageError(false);
-                          }}
-                          onLoadStart={() => {
-                            setPreviewImageLoading(true);
-                            setPreviewImageError(false);
-                          }}
-                          onError={() => {
-                            setPreviewImageLoading(false);
-                            setPreviewImageError(true);
-                          }}
-                          style={{ display: previewImageLoading ? 'none' : 'block' }}
-                        />
-                      )}
-                    </>
-                  ) : (
-                    <div className="text-center text-gray-500 dark:text-gray-400">
-                      <BookOpen className="h-8 w-8 mx-auto mb-2" />
-                      <p className="text-sm">Image preview will appear here</p>
+                  <ImagePreview
+                    imagePath={imageUrl}
+                    alt="Case study image preview"
+                    className="h-48"
+                    placeholderIcon={BookOpen}
+                    placeholderText="Image preview will appear here"
+                    showFileName={true}
+                    key={previewKey} // Force re-render when previewKey changes
+                    updatedAt={lastImageUpdate} // Cache busting
+                    enableEventListening={true} // Enable event listening
+                    debugMode={debugMode} // Enhanced debugging
+                  />
+
+                  {/* Debug info panel */}
+                  {debugMode && (
+                    <div className="mt-4 p-2 bg-gray-50 dark:bg-gray-700 rounded text-xs">
+                      <div>Image URL: {imageUrl || 'None'}</div>
+                      <div>Preview Key: {previewKey}</div>
+                      <div>Last Update: {lastImageUpdate ? lastImageUpdate.toISOString() : 'None'}</div>
+                      <div>Form Valid: {formState.isValid ? '✅' : '❌'}</div>
+                      <div>Image Error: {errors.image ? '❌' : '✅'}</div>
                     </div>
                   )}
                 </div>

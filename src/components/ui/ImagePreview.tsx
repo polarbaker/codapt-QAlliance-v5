@@ -245,7 +245,7 @@ export const ImagePreview = memo(function ImagePreview({
     try {
       let url = '';
       
-      // If it's already a base64 data URL, return it as-is (no cache busting needed)
+      // If it's already a base64 data URL, return it as-is (no cache busting or processing needed)
       if (path.startsWith('data:')) {
         logWithTimestamp('Path is base64 data URL, returning as-is:', {
           pathLength: path.length,

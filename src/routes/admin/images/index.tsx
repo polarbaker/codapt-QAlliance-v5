@@ -82,14 +82,24 @@ function AdminImagesPage() {
   // Fetch images with enhanced filtering
   const imagesQuery = trpc.adminListImages.useQuery({
     adminToken: adminToken || "",
-    ...filters,
+    search: filters.search,
+    category: filters.category,
+    tags: filters.tags,
+    sortBy: filters.sortBy,
+    sortOrder: filters.sortOrder,
+    page: filters.page,
+    pageSize: filters.pageSize,
     includeVariants: true,
+  }, {
+    enabled: !!adminToken,
   });
   
   // Fetch collections
   const collectionsQuery = trpc.adminListImageCollections.useQuery({
     adminToken: adminToken || "",
     includeImages: false,
+  }, {
+    enabled: !!adminToken,
   });
   
   // Delete image mutation
@@ -117,9 +127,10 @@ function AdminImagesPage() {
     },
   });
   
-  const images: ImageData[] = imagesQuery.data?.images.map(img => ({
+  const images: ImageData[] = imagesQuery.data?.images?.map(img => ({
     ...img,
-    tags: Array.isArray(img.tags) ? img.tags : JSON.parse(img.tags || '[]'),
+    // Tags are now properly parsed by the backend, so we can use them directly
+    tags: Array.isArray(img.tags) ? img.tags : [],
   })) || [];
   
   const handleDeleteImage = (image: ImageData) => {
@@ -231,7 +242,7 @@ function AdminImagesPage() {
                 <span className="text-sm font-medium text-text-muted dark:text-text-light/70">Total Images</span>
               </div>
               <p className="text-2xl font-bold text-text-dark dark:text-text-light">
-                {imagesQuery.data?.pagination.totalCount || 0}
+                {imagesQuery.data?.pagination?.totalCount || 0}
               </p>
             </div>
             <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
@@ -258,7 +269,7 @@ function AdminImagesPage() {
                 <span className="text-sm font-medium text-text-muted dark:text-text-light/70">Collections</span>
               </div>
               <p className="text-2xl font-bold text-text-dark dark:text-text-light">
-                {collectionsQuery.data?.collections.length || 0}
+                {collectionsQuery.data?.collections?.length || 0}
               </p>
             </div>
             <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">

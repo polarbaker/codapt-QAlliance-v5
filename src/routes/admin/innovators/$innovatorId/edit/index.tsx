@@ -113,6 +113,9 @@ function EditInnovatorPage() {
   const isLoading = innovatorQuery.isLoading;
   const queryError = innovatorQuery.error;
 
+  // Check if innovator has existing image
+  const hasCurrentImage = Boolean(innovatorData?.avatar && innovatorData.avatar.trim() !== '');
+
   // Form setup
   const {
     register,
@@ -176,7 +179,7 @@ function EditInnovatorPage() {
         name: innovatorData.name || "",
         title: innovatorData.role || "",
         bio: innovatorData.bio || innovatorData.impact || "",
-        image: innovatorData.avatar || "",
+        image: innovatorData.avatar || "", // Keep existing image reference
         achievements,
         linkedinUrl: "",
         twitterUrl: "",
@@ -244,8 +247,12 @@ function EditInnovatorPage() {
     setIsSubmitting(true);
     
     try {
-      // Validate required fields
-      if (!data.image || data.image.trim() === '') {
+      // For edit scenarios, image is optional if the innovator already has one
+      const hasExistingImage = Boolean(innovatorData?.avatar);
+      const hasNewImageUpload = Boolean(data.image && data.image.trim() !== '');
+      
+      // Only require image if there's no existing image and no new upload
+      if (!hasExistingImage && !hasNewImageUpload) {
         toast.error('❌ Image is required. Please upload an image before saving.');
         return;
       }
@@ -260,12 +267,11 @@ function EditInnovatorPage() {
         return;
       }
 
-      // Create update data
-      const updateData = {
+      // Create update data - only include image if a new one was uploaded
+      const updateData: any = {
         name: data.name || "",
         title: data.title || "",
         bio: data.bio || "",
-        image: data.image.trim(),
         achievements,
         linkedinUrl: data.linkedinUrl || undefined,
         twitterUrl: data.twitterUrl || undefined,
@@ -274,6 +280,11 @@ function EditInnovatorPage() {
         hasVideo: data.hasVideo ?? false,
         videoUrl: (data.hasVideo && data.videoUrl) ? data.videoUrl : undefined,
       };
+
+      // Only include image field if a new image was uploaded
+      if (hasNewImageUpload) {
+        updateData.image = data.image.trim();
+      }
 
       await updateMutation.mutateAsync({
         adminToken: adminToken,
@@ -298,7 +309,7 @@ function EditInnovatorPage() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [adminToken, parsedInnovatorId, updateMutation, isSubmitting]);
+  }, [adminToken, parsedInnovatorId, updateMutation, isSubmitting, innovatorData?.avatar]);
 
   // Loading state
   if (isLoading) {
@@ -477,7 +488,7 @@ function EditInnovatorPage() {
                     {/* Image Upload */}
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-text-dark dark:text-text-light mb-2">
-                        Avatar Upload *
+                        Avatar Upload {hasCurrentImage ? '(Optional - Current image will be kept if not changed)' : '*'}
                       </label>
                       
                       <ErrorBoundary

@@ -5,7 +5,6 @@ import BoldStatementSection from "~/components/BoldStatementSection";
 import InnovationPipelineSection from "~/components/InnovationPipelineSection";
 import HallOfInnovatorsSection from "~/components/HallOfInnovatorsSection";
 import DataInsightsSection from "~/components/DataInsightsSection";
-import CommunityEngagementSection from "~/components/CommunityEngagementSection";
 import ChallengeCTASection from "~/components/ChallengeCTASection";
 import ImpactMetricsSection from "~/components/ImpactMetricsSection";
 import InvestorEngagementSection from "~/components/InvestorEngagementSection";
@@ -47,9 +46,6 @@ function Home() {
       
       {/* Problem Submission Section */}
       <ProblemSubmissionSection />
-      
-      {/* Community Engagement Section */}
-      <CommunityEngagementSection />
       
       {/* Investor Engagement Section */}
       <InvestorEngagementSection />

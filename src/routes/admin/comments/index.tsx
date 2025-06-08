@@ -6,6 +6,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { DebouncedSearchInput } from "~/components/ui/DebouncedSearchInput";
 import { Badge } from "~/components/ui/Badge";
 import { toast } from "react-hot-toast";
+import { z } from "zod";
 import {
   MessageSquare,
   Trash2,
@@ -14,16 +15,24 @@ import {
   Calendar,
   Heart,
   ExternalLink,
+  Filter,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
+const commentsSearchSchema = z.object({
+  problemId: z.number().int().positive().optional(),
+});
+
 export const Route = createFileRoute("/admin/comments/")({
   component: AdminCommentsPage,
+  validateSearch: commentsSearchSchema,
 });
 
 function AdminCommentsPage() {
   const { adminToken } = useUserStore();
   const [searchQuery, setSearchQuery] = useState("");
+  const search = Route.useSearch();
+  const { problemId } = search;
   
   const trpc = useTRPC();
   
@@ -31,6 +40,7 @@ function AdminCommentsPage() {
     trpc.adminGetComments.queryOptions({
       adminToken: adminToken || "",
       search: searchQuery || undefined,
+      problemId: problemId,
       limit: 50,
     })
   );
@@ -86,6 +96,27 @@ function AdminCommentsPage() {
               </p>
             </div>
           </div>
+
+          {/* Filter Indicator */}
+          {problemId && (
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Filter className="h-4 w-4 text-blue-600" />
+                  <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                    Showing comments for a specific problem
+                  </span>
+                </div>
+                <Link
+                  to="/admin/problems/$problemId"
+                  params={{ problemId: problemId.toString() }}
+                  className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
+                >
+                  View Problem Details →
+                </Link>
+              </div>
+            </div>
+          )}
 
           {/* Filters */}
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700 mb-8">
@@ -166,16 +197,16 @@ function AdminCommentsPage() {
                       <div className="flex items-center space-x-2 text-sm text-text-muted dark:text-text-light/70">
                         <span>On problem:</span>
                         <Link
-                          to="/admin/problems"
-                          search={{ problemId: comment.problem.id }}
+                          to="/admin/problems/$problemId"
+                          params={{ problemId: comment.problem.id.toString() }}
                           className="text-secondary hover:text-secondary/80 transition-colors font-medium"
                         >
                           {comment.problem.title}
                         </Link>
                       </div>
                       <Link
-                        to="/admin/problems"
-                        search={{ problemId: comment.problem.id }}
+                        to="/admin/problems/$problemId"
+                        params={{ problemId: comment.problem.id.toString() }}
                         className="text-secondary hover:text-secondary/80 transition-colors"
                         title="View Problem"
                       >

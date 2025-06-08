@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useState } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useUserStore } from "~/stores/userStore";
 import { useTRPC } from "~/trpc/react";
 import { useMutation } from "@tanstack/react-query";
@@ -16,8 +16,8 @@ import {
   Calendar,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
-import { BulletproofImageUpload } from "~/components/ui/BulletproofImageUpload";
-import { getImageUrl } from "~/utils";
+import { SimpleNewsImageUpload } from "~/components/ui/SimpleNewsImageUpload";
+import { ImagePreview } from "~/components/ui/ImagePreview";
 
 export const Route = createFileRoute("/admin/news/new/")({
   component: NewNewsPage,
@@ -28,17 +28,19 @@ function NewNewsPage() {
   const navigate = useNavigate();
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
-  const [previewImageLoading, setPreviewImageLoading] = useState(false);
-  const [previewImageError, setPreviewImageError] = useState(false);
+  const [previewKey, setPreviewKey] = useState(0); // Force preview re-render
+  const [lastImageUpdate, setLastImageUpdate] = useState<Date | null>(null);
+  const [debugMode] = useState(true); // Enable debugging
   
   const trpc = useTRPC();
   
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting, isDirty, dirtyFields },
+    formState: { errors, isSubmitting, isDirty, dirtyFields, isValid: formIsValid },
     setValue,
     watch,
+    trigger,
   } = useForm<NewsFormData>({
     resolver: zodResolver(newsSchema),
     defaultValues: {
@@ -46,8 +48,183 @@ function NewNewsPage() {
       tags: "[]",
       publishedAt: new Date().toISOString().split('T')[0],
       category: NEWS_CATEGORIES[0],
+      imageUrl: "", // Initialize with explicit empty string
+      order: 0, // Add default order value
     },
   });
+
+  // Enhanced logging with timestamps - memoized to prevent re-creation
+  const logWithTimestamp = useCallback((message: string, data?: any) => {
+    if (debugMode) {
+      console.log(`🔍 DEBUG: NewNewsForm [${new Date().toISOString()}] - ${message}`, data || '');
+    }
+  }, [debugMode]);
+
+  const imageUrl = watch("imageUrl");
+
+  // Memoized onChange handler to prevent re-creation on every render
+  const handleImageChange = useCallback((filePath: string | string[] | null) => {
+    logWithTimestamp('SimpleNewsImageUpload onChange called with:', {
+      filePath: filePath,
+      filePathType: typeof filePath,
+      filePathLength: typeof filePath === 'string' ? filePath?.length : (Array.isArray(filePath) ? filePath.length : 0),
+      isString: typeof filePath === 'string',
+      isNonEmptyString: typeof filePath === 'string' && filePath.trim() !== '',
+      trimmedValue: typeof filePath === 'string' ? filePath.trim() : filePath,
+      currentFormImageValue: watch("imageUrl"),
+      previewKey: previewKey,
+    });
+    
+    // Ensure filePath is a string before setting
+    const pathValue = typeof filePath === 'string' ? filePath : null;
+    
+    if (pathValue && pathValue.trim() !== '') {
+      logWithTimestamp('About to call setValue with valid pathValue:', {
+        valueToSet: pathValue,
+        shouldValidate: true, 
+        shouldDirty: true,
+        shouldTouch: true,
+      });
+      
+      setValue("imageUrl", pathValue, { 
+        shouldValidate: true, 
+        shouldDirty: true,
+        shouldTouch: true
+      });
+      
+      // Force preview update
+      setPreviewKey(prev => prev + 1);
+      setLastImageUpdate(new Date());
+      
+      logWithTimestamp('setValue called, checking immediate state:', {
+        setValueWith: pathValue,
+        newFormImageValue: watch("imageUrl"),
+        formErrors: errors,
+        imageFieldError: errors.imageUrl,
+        isDirty: isDirty,
+        dirtyFields: dirtyFields,
+        newPreviewKey: previewKey + 1,
+      });
+      
+      // Manual trigger call after setValue
+      const timeoutId = setTimeout(async () => {
+        logWithTimestamp('Manual trigger call for image validation');
+        const isValid = await trigger("imageUrl");
+        logWithTimestamp('Manual trigger result:', {
+          isValid: isValid,
+          currentImageValue: watch("imageUrl"),
+          imageFieldError: errors.imageUrl,
+          formIsValid: formIsValid,
+        });
+      }, 100);
+      
+    } else if (filePath === null) {
+      // Handle clearing the image
+      setValue("imageUrl", "", { 
+        shouldValidate: true, 
+        shouldDirty: true,
+        shouldTouch: true
+      });
+      setPreviewKey(prev => prev + 1);
+    }
+  }, [setValue, trigger, watch, errors, isDirty, dirtyFields, formIsValid, previewKey, logWithTimestamp]);
+
+  // Custom event listener for crosscutting image updates
+  useEffect(() => {
+    const handleImageUpdated = (event: CustomEvent) => {
+      const { filePath: eventFilePath, timestamp, component } = event.detail || {};
+      
+      logWithTimestamp('Received imageUpdated event:', {
+        eventFilePath: eventFilePath,
+        currentImageUrl: imageUrl,
+        eventTimestamp: timestamp,
+        eventComponent: component,
+        shouldUpdate: eventFilePath && (eventFilePath === imageUrl || component === 'SimpleNewsImageUpload'),
+      });
+      
+      // Check if this event is for our current image or if it's a new upload
+      if (eventFilePath && (eventFilePath === imageUrl || component === 'SimpleNewsImageUpload')) {
+        logWithTimestamp('Event matches current context - forcing form and preview update');
+        
+        // Update form state if the path is different
+        if (eventFilePath !== imageUrl && eventFilePath.trim() !== '') {
+          logWithTimestamp('Updating form state from event');
+          setValue("imageUrl", eventFilePath, { 
+            shouldValidate: true, 
+            shouldDirty: true,
+            shouldTouch: true
+          });
+        }
+        
+        // Force preview update
+        setPreviewKey(prev => prev + 1);
+        setLastImageUpdate(new Date());
+        
+        // Trigger validation
+        const timeoutId = setTimeout(() => {
+          trigger("imageUrl");
+        }, 100);
+        
+        return () => clearTimeout(timeoutId);
+      }
+    };
+
+    window.addEventListener('imageUpdated', handleImageUpdated as EventListener);
+    document.addEventListener('imageUpdated', handleImageUpdated as EventListener);
+    
+    return () => {
+      window.removeEventListener('imageUpdated', handleImageUpdated as EventListener);
+      document.removeEventListener('imageUpdated', handleImageUpdated as EventListener);
+    };
+  }, [imageUrl, setValue, trigger, logWithTimestamp]);
+
+  // Enhanced image field validation watcher
+  useEffect(() => {
+    logWithTimestamp('News NEW form - Image field validation watcher triggered:', {
+      imageUrl: imageUrl,
+      imageUrlType: typeof imageUrl,
+      imageUrlLength: imageUrl?.length,
+      imageUrlTrimmed: imageUrl?.trim(),
+      isEmpty: !imageUrl || imageUrl.trim() === '',
+      formErrors: errors,
+      imageFieldError: errors.imageUrl,
+      hasImageValidationError: !!errors.imageUrl,
+      formIsValid: formIsValid,
+      formIsDirty: isDirty,
+      dirtyFields: dirtyFields,
+      previewKey: previewKey,
+    });
+    
+    // Force preview re-render when image URL changes
+    if (imageUrl && imageUrl.trim() !== '') {
+      logWithTimestamp('Image URL changed - forcing preview update');
+      setPreviewKey(prev => prev + 1);
+      setLastImageUpdate(new Date());
+    }
+    
+    // Force re-validation if we have a valid image but still have an error
+    if (imageUrl && imageUrl.trim() !== '' && errors.imageUrl) {
+      logWithTimestamp('Detected valid image with validation error, triggering re-validation');
+      const timeoutId = setTimeout(() => {
+        trigger("imageUrl");
+      }, 100);
+      return () => clearTimeout(timeoutId);
+    }
+    
+    // Force validation after setValue to ensure form state is updated
+    if (imageUrl && imageUrl.trim() !== '') {
+      const timeoutId = setTimeout(async () => {
+        logWithTimestamp('Forcing validation after image change');
+        const isValid = await trigger("imageUrl");
+        logWithTimestamp('Validation result:', {
+          isValid: isValid,
+          currentImageValue: imageUrl,
+          imageFieldError: errors.imageUrl,
+        });
+      }, 200);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [imageUrl, errors.imageUrl, formIsValid, isDirty, dirtyFields, trigger, logWithTimestamp]);
 
   const createMutation = useMutation(
     trpc.adminCreateNews.mutationOptions({
@@ -198,83 +375,36 @@ function NewNewsPage() {
                     </div>
 
                     {/* Image Upload */}
-                    <div>
+                    <div className="lg:col-span-2">
                       <label className="block text-sm font-medium text-text-dark dark:text-text-light mb-2">
                         Image
                       </label>
-                      <BulletproofImageUpload
-                        value={watch("imageUrl") || ""}
-                        onChange={(filePath) => {
-                          console.log('🔍 DEBUG: News NEW form - BulletproofImageUpload onChange called with:', {
-                            filePath: filePath,
-                            filePathType: typeof filePath,
-                            filePathLength: typeof filePath === 'string' ? filePath?.length : (Array.isArray(filePath) ? filePath.length : 0),
-                            isString: typeof filePath === 'string',
-                            isNonEmptyString: typeof filePath === 'string' && filePath.trim() !== '',
-                            trimmedValue: typeof filePath === 'string' ? filePath.trim() : filePath,
-                            currentFormImageUrlValue: watch("imageUrl"),
-                            timestamp: new Date().toISOString()
-                          });
-                          
-                          // Ensure filePath is a string before setting
-                          const pathValue = typeof filePath === 'string' ? filePath : null;
-                          
-                          if (pathValue && pathValue.trim() !== '') {
-                            console.log('🔍 DEBUG: News NEW form - About to call setValue with valid pathValue:', {
-                              valueToSet: pathValue,
-                              shouldValidate: true, 
-                              shouldDirty: true,
-                              shouldTouch: true,
-                              timestamp: new Date().toISOString()
-                            });
-                            
-                            setValue("imageUrl", pathValue, { 
-                              shouldValidate: true, 
-                              shouldDirty: true,
-                              shouldTouch: true
-                            });
-                            
-                            console.log('🔍 DEBUG: News NEW form - setValue called, checking immediate state:', {
-                              setValueWith: pathValue,
-                              newFormImageUrlValue: watch("imageUrl"),
-                              formErrors: errors,
-                              imageUrlFieldError: errors.imageUrl,
-                              isDirty: isDirty,
-                              dirtyFields: dirtyFields,
-                              timestamp: new Date().toISOString()
-                            });
-                            
-                          } else if (pathValue === null) {
-                            // Handle clearing the image
-                            setValue("imageUrl", "", { 
-                              shouldValidate: true, 
-                              shouldDirty: true,
-                              shouldTouch: true
-                            });
-                          }
+                      <SimpleNewsImageUpload
+                        newsId={0} // Use 0 for new news articles
+                        newsTitle="New News Article"
+                        value={imageUrl || ""}
+                        onChange={handleImageChange}
+                        onUploadComplete={(result) => {
+                          console.log('Upload completed:', result);
+                          toast.success('✅ Image uploaded successfully');
                         }}
-                        placeholder="Upload news article image - bulletproof processing enabled"
-                        className="mb-4"
-                        multiple={false}
-                        enableProgressiveUpload={true}
-                        enableAutoRetry={true}
-                        enableClientOptimization={true}
-                        maxFileSize={200} // 200MB for bulletproof system
                         onUploadError={(error) => {
-                          console.error('❌ DEBUG: News NEW form - BulletproofImageUpload error:', error);
+                          console.error('Upload error:', error);
+                          toast.error(`❌ Upload failed: ${error.message || 'Unknown error'}`);
                         }}
-                        // Enhanced form integration props
-                        onFormValueSet={(filePath) => {
-                          console.log('🔍 DEBUG: News NEW form - BulletproofImageUpload onFormValueSet called:', {
-                            filePath: filePath,
-                            timestamp: new Date().toISOString()
-                          });
-                        }}
-                        retryFormUpdate={true} // Enable retry logic for form value patching
+                        enableAutoRetry={true}
+                        maxRetries={3}
+                        componentId="simple-news-upload-new"
                       />
                       {errors.imageUrl && (
                         <p className="mt-1 text-sm text-red-600">{errors.imageUrl.message}</p>
                       )}
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        Simple & reliable: Images will be automatically optimized and stored securely.
+                      </p>
+                      <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                        Note: For new news articles, you'll need to create the article first, then edit it to upload an image.
+                      </p>
                     </div>
 
                     {/* Author */}
@@ -290,6 +420,22 @@ function NewNewsPage() {
                       />
                       {errors.author && (
                         <p className="mt-1 text-sm text-red-600">{errors.author.message}</p>
+                      )}
+                    </div>
+
+                    {/* Order */}
+                    <div>
+                      <label className="block text-sm font-medium text-text-dark dark:text-text-light mb-2">
+                        Order
+                      </label>
+                      <input
+                        type="number"
+                        {...register("order", { valueAsNumber: true })}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-text-dark dark:text-text-light focus:ring-2 focus:ring-secondary focus:border-secondary"
+                        placeholder="Display order (optional)"
+                      />
+                      {errors.order && (
+                        <p className="mt-1 text-sm text-red-600">{errors.order.message}</p>
                       )}
                     </div>
 
@@ -389,45 +535,27 @@ function NewNewsPage() {
                   Image Preview
                 </h3>
                 <div className="w-full h-48 bg-gray-50 dark:bg-gray-700 rounded-lg flex items-center justify-center p-4 border-2 border-dashed border-gray-300 dark:border-gray-600">
-                  {watch("imageUrl") ? (
-                    <>
-                      {previewImageLoading && (
-                        <div className="flex flex-col items-center space-y-2">
-                          <div className="h-8 w-8 animate-spin rounded-full border-4 border-secondary border-t-transparent"></div>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">Loading preview...</p>
-                        </div>
-                      )}
-                      {previewImageError ? (
-                        <div className="flex flex-col items-center space-y-2 text-amber-600">
-                          <Newspaper className="h-8 w-8" />
-                          <p className="text-sm text-center">Preview not available</p>
-                          <p className="text-xs text-center opacity-75">Image will be processed when form is submitted</p>
-                        </div>
-                      ) : (
-                        <img
-                          src={getImageUrl(watch("imageUrl"))}
-                          alt="News article image preview"
-                          className={`max-w-full max-h-full object-cover rounded-lg transition-opacity ${previewImageLoading ? 'opacity-0' : 'opacity-100'}`}
-                          onLoad={() => {
-                            setPreviewImageLoading(false);
-                            setPreviewImageError(false);
-                          }}
-                          onLoadStart={() => {
-                            setPreviewImageLoading(true);
-                            setPreviewImageError(false);
-                          }}
-                          onError={() => {
-                            setPreviewImageLoading(false);
-                            setPreviewImageError(true);
-                          }}
-                          style={{ display: previewImageLoading ? 'none' : 'block' }}
-                        />
-                      )}
-                    </>
-                  ) : (
-                    <div className="text-center text-gray-500 dark:text-gray-400">
-                      <Newspaper className="h-8 w-8 mx-auto mb-2" />
-                      <p className="text-sm">Image preview will appear here</p>
+                  <ImagePreview
+                    imagePath={imageUrl}
+                    alt="News article image preview"
+                    className="h-48"
+                    placeholderIcon={Newspaper}
+                    placeholderText="Image preview will appear here"
+                    showFileName={true}
+                    key={previewKey} // Force re-render when previewKey changes
+                    updatedAt={lastImageUpdate} // Cache busting
+                    enableEventListening={true} // Enable event listening
+                    debugMode={debugMode} // Enhanced debugging
+                  />
+
+                  {/* Debug info panel */}
+                  {debugMode && (
+                    <div className="mt-4 p-2 bg-gray-50 dark:bg-gray-700 rounded text-xs">
+                      <div>Image URL: {imageUrl || 'None'}</div>
+                      <div>Preview Key: {previewKey}</div>
+                      <div>Last Update: {lastImageUpdate ? lastImageUpdate.toISOString() : 'None'}</div>
+                      <div>Form Valid: {formIsValid ? '✅' : '❌'}</div>
+                      <div>Image Error: {errors.imageUrl ? '❌' : '✅'}</div>
                     </div>
                   )}
                 </div>

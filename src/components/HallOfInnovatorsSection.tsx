@@ -1,9 +1,10 @@
 import { useState, Fragment, useEffect, useCallback } from "react";
-import { Play, X, Award, User, RefreshCw } from "lucide-react";
+import { X, Award, User, RefreshCw } from "lucide-react";
 import { useTRPC } from "~/trpc/react";
 import { useQuery } from "@tanstack/react-query";
 import { Dialog, Transition } from "@headlessui/react";
 import { getCacheBustedImageUrl, isValidImagePath } from "~/utils";
+import { useBulkSiteContentText } from "~/hooks/useSiteContentText";
 
 // Type for innovator data from API
 interface InnovatorData {
@@ -132,15 +133,6 @@ function InnovatorCard({ innovator, onClick }: InnovatorCardProps) {
               />
             )}
             <div className="absolute inset-0 bg-gradient-to-t from-background-black via-background-black/40 to-transparent"></div>
-          </div>
-        )}
-        
-        {/* Play button for videos */}
-        {innovator.hasVideo && !imageError && (
-          <div className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-300 group-hover:opacity-100">
-            <button className="flex h-16 w-16 items-center justify-center rounded-full bg-secondary text-white transition-transform hover:scale-110">
-              <Play size={32} className="ml-1" />
-            </button>
           </div>
         )}
       </div>
@@ -285,60 +277,49 @@ function InnovatorModal({ innovator, isOpen, onClose }: InnovatorModalProps) {
                 </div>
                 
                 <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
+                  {/* Left column: Large image display instead of video */}
                   <div>
-                    {innovator.videoUrl ? (
-                      <div className="aspect-video overflow-hidden rounded-lg">
-                        <iframe
-                          className="h-full w-full"
-                          src={innovator.videoUrl}
-                          title={`${innovator.name} Video`}
-                          frameBorder="0"
-                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                          allowFullScreen
-                        ></iframe>
-                      </div>
-                    ) : (
-                      <div className="aspect-video overflow-hidden rounded-lg bg-neutral-dark/20 relative">
-                        {modalImageError ? (
-                          <div className="h-full w-full flex flex-col items-center justify-center space-y-2">
-                            <User className="h-16 w-16 text-text-light/40" />
-                            <p className="text-sm text-text-light/60">Image not available</p>
-                            {modalRetryCount < 3 && (
-                              <button
-                                onClick={handleModalRetry}
-                                className="text-xs text-blue-400 hover:text-blue-300 flex items-center space-x-1"
-                              >
-                                <RefreshCw className="h-3 w-3" />
-                                <span>Retry ({modalRetryCount}/3)</span>
-                              </button>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="relative h-full w-full">
-                            {modalImageLoading && (
-                              <div className="absolute inset-0 flex items-center justify-center bg-neutral-dark/20 z-10">
-                                <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-t-2 border-secondary"></div>
-                              </div>
-                            )}
-                            {modalImageUrl && (
-                              <img
-                                data-modal-innovator-id={innovator.id}
-                                src={modalImageUrl}
-                                alt={`${innovator.name} - ${innovator.role}`}
-                                className={`h-full w-full object-cover transition-opacity duration-300 ${
-                                  modalImageLoading ? 'opacity-0' : 'opacity-100'
-                                }`}
-                                onError={handleModalImageError}
-                                onLoad={handleModalImageLoad}
-                                onLoadStart={handleModalImageLoadStart}
-                              />
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
+                    <div className="aspect-[4/5] overflow-hidden rounded-lg bg-neutral-dark/20 relative">
+                      {modalImageError ? (
+                        <div className="h-full w-full flex flex-col items-center justify-center space-y-2">
+                          <User className="h-16 w-16 text-text-light/40" />
+                          <p className="text-sm text-text-light/60">Image not available</p>
+                          {modalRetryCount < 3 && (
+                            <button
+                              onClick={handleModalRetry}
+                              className="text-xs text-blue-400 hover:text-blue-300 flex items-center space-x-1"
+                            >
+                              <RefreshCw className="h-3 w-3" />
+                              <span>Retry ({modalRetryCount}/3)</span>
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="relative h-full w-full">
+                          {modalImageLoading && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-neutral-dark/20 z-10">
+                              <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-t-2 border-secondary"></div>
+                            </div>
+                          )}
+                          {modalImageUrl && (
+                            <img
+                              data-modal-innovator-id={innovator.id}
+                              src={modalImageUrl}
+                              alt={`${innovator.name} - ${innovator.role}`}
+                              className={`h-full w-full object-cover transition-opacity duration-300 ${
+                                modalImageLoading ? 'opacity-0' : 'opacity-100'
+                              }`}
+                              onError={handleModalImageError}
+                              onLoad={handleModalImageLoad}
+                              onLoadStart={handleModalImageLoadStart}
+                            />
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                   
+                  {/* Right column: Innovator details */}
                   <div>
                     <div className="mb-4 flex items-center">
                       <div className="mr-4 h-12 w-12 rounded-full overflow-hidden bg-neutral-dark/20 relative">
@@ -412,6 +393,13 @@ export default function HallOfInnovatorsSection() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const trpc = useTRPC();
   
+  // Fetch innovators section text content
+  const { texts: innovatorsTexts } = useBulkSiteContentText([
+    'innovators_title',
+    'innovators_description',
+    'innovators_button_text',
+  ]);
+  
   // Fetch innovators using tRPC
   const innovatorsQuery = useQuery(
     trpc.getInnovators.queryOptions(
@@ -448,10 +436,10 @@ export default function HallOfInnovatorsSection() {
       <div className="mx-auto max-w-7xl container-padding">
         <div className="mb-16 max-w-3xl">
           <h2 className="mb-8 text-5xl font-extrabold leading-tight text-text-dark dark:text-text-light md:text-6xl">
-            Meet Our Innovators
+            {innovatorsTexts.innovators_title}
           </h2>
           <p className="text-xl font-light text-text-dark/80 dark:text-text-light/80 md:text-2xl">
-            Brilliant minds from around the world transforming how we approach humanity's most pressing challenges.
+            {innovatorsTexts.innovators_description}
           </p>
         </div>
 
@@ -495,7 +483,7 @@ export default function HallOfInnovatorsSection() {
             className="inline-block rounded-full bg-secondary px-8 py-4 text-lg font-medium text-white transition-all hover:bg-secondary-light hover:scale-105"
             aria-label="View all innovators in our network"
           >
-            View All Innovators
+            {innovatorsTexts.innovators_button_text}
           </a>
         </div>
       </div>

@@ -40,9 +40,10 @@ export const adminGetInnovators = baseProcedure
     const innovators = await db.innovator.findMany({
       where: whereClause,
       orderBy: [
-        { featured: 'desc' },
-        { order: 'asc' },
-        { createdAt: 'desc' },
+        { updatedAt: 'desc' },  // Most recently updated/added first - ensures updated or added innovators take priority
+        { featured: 'desc' },   // Then featured status
+        { order: 'asc' },       // Then by custom order
+        { createdAt: 'desc' },  // Finally by creation date
       ],
       take: limit + 1,
     });
@@ -87,7 +88,7 @@ export const adminCreateInnovator = baseProcedure
       name: z.string().min(1).max(100),
       title: z.string().min(1).max(150), // Frontend sends 'title', maps to 'role'
       bio: z.string().min(1),
-      image: z.string().min(1), // Changed from .url() to accept file paths
+      image: z.string().optional(), // Made optional for creation since SimpleInnovatorImageUpload needs an ID
       achievements: z.array(z.string()).min(1),
       linkedinUrl: z.string().url().optional().or(z.literal("")),
       twitterUrl: z.string().url().optional().or(z.literal("")),
@@ -102,25 +103,54 @@ export const adminCreateInnovator = baseProcedure
     
     const { data } = input;
     
+    console.log(`🔄 ADMIN CREATE: Starting innovator creation:`, {
+      name: data.name,
+      title: data.title,
+      hasImage: !!data.image,
+      imageValue: data.image,
+    });
+    
+    // Prepare innovator data
+    const innovatorData: any = {
+      name: data.name,
+      role: data.title, // Map title to role
+      impact: data.bio, // Map bio to impact for now, but we should also store bio
+      bio: data.bio, // Store the full bio
+      achievements: JSON.stringify(data.achievements),
+      hasVideo: data.hasVideo || false,
+      videoUrl: data.hasVideo && data.videoUrl ? data.videoUrl : null,
+      featured: data.featured,
+      order: 0, // Default order
+    };
+    
+    // Only set avatar if image is provided
+    if (data.image && data.image.trim() !== '') {
+      console.log(`🖼️ ADMIN CREATE: Image provided for new innovator:`, {
+        imageValue: data.image,
+        imageLength: data.image.length,
+      });
+      innovatorData.avatar = data.image;
+    } else {
+      console.log(`📝 ADMIN CREATE: No image provided - innovator will be created without avatar`);
+      // Don't set avatar field, let it default to null/empty
+    }
+    
     const innovator = await db.innovator.create({
-      data: {
-        name: data.name,
-        role: data.title, // Map title to role
-        impact: data.bio, // Map bio to impact for now, but we should also store bio
-        avatar: data.image, // Map image to avatar
-        bio: data.bio, // Store the full bio
-        achievements: JSON.stringify(data.achievements),
-        hasVideo: data.hasVideo || false,
-        videoUrl: data.hasVideo && data.videoUrl ? data.videoUrl : null,
-        featured: data.featured,
-        order: 0, // Default order
-      },
+      data: innovatorData,
+    });
+    
+    console.log(`✅ ADMIN CREATE: Successfully created innovator:`, {
+      innovatorId: innovator.id,
+      innovatorName: innovator.name,
+      hasAvatar: !!innovator.avatar,
     });
     
     return {
       success: true,
       innovator,
-      message: 'Innovator created successfully',
+      message: data.image ? 
+        'Innovator created successfully with avatar' : 
+        'Innovator created successfully. You can add an avatar by editing the innovator.',
     };
   });
 

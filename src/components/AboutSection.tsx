@@ -1,13 +1,32 @@
 import { useState, useCallback } from "react";
-import toast from "react-hot-toast";
 import { Building } from "lucide-react";
 import { useTRPC } from "~/trpc/react";
 import { useQuery } from "@tanstack/react-query";
 import { getCacheBustedImageUrl, isValidImagePath, normalizeImageUrl, getAbsoluteImageUrl } from "~/utils";
+import { useBulkSiteContentText } from "~/hooks/useSiteContentText";
 
 export default function AboutSection() {
   const [tRPCError, setTRPCError] = useState<string | null>(null);
   const trpc = useTRPC();
+  
+  // Fetch about section text content
+  const { texts: aboutTexts } = useBulkSiteContentText([
+    'about_title',
+    'about_tagline',
+    'about_mission_title',
+    'about_mission_paragraph1',
+    'about_mission_paragraph2',
+    'about_approach_title',
+    'about_approach_step1',
+    'about_approach_step2',
+    'about_approach_step3',
+    'about_approach_step4',
+    'about_approach_step5',
+    'about_partners_title',
+    'about_no_partners_message1',
+    'about_no_partners_message2',
+    'about_button_text',
+  ]);
   
   // Create query options with error handling
   let partnersQueryOptions;
@@ -143,11 +162,6 @@ export default function AboutSection() {
     setImageLoading(prev => new Set(prev).add(partnerId));
   }, []);
 
-  // Memoized click handlers
-  const handleVideoClick = useCallback(() => {
-    toast.info("Video preview coming soon! Check back later for our story.");
-  }, []);
-
   const handleExploreClick = useCallback((e: React.MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault();
     document.getElementById('pipeline')?.scrollIntoView({ behavior: 'smooth' });
@@ -162,90 +176,63 @@ export default function AboutSection() {
         {/* Section header */}
         <div className="mb-24 max-w-3xl">
           <h2 className="mb-8 text-5xl font-extrabold leading-tight text-text-dark dark:text-text-light md:text-6xl">
-            Who We Are
+            {aboutTexts.about_title}
           </h2>
           <p className="text-xl font-light text-text-dark/80 dark:text-text-light/80 md:text-2xl">
-            Quantum Alliance bridges innovation gaps by connecting frontier technology with real-world problems.
+            {aboutTexts.about_tagline}
           </p>
         </div>
 
-        {/* Main content in a full-width layout */}
-        <div className="mb-24 grid grid-cols-1 gap-24 lg:grid-cols-2">
-          {/* Left column: Mission & Vision */}
-          <div>
+        {/* Main content in a restructured layout without video */}
+        <div className="mb-24 grid grid-cols-1 gap-24 lg:grid-cols-3">
+          {/* Left column: Mission & Vision - expanded to take more space */}
+          <div className="lg:col-span-2">
             <div className="mb-12">
               <h3 className="mb-6 text-3xl font-bold text-text-dark dark:text-text-light">
-                Our Mission
+                {aboutTexts.about_mission_title}
               </h3>
               <p className="mb-8 text-lg text-text-dark/80 dark:text-text-light/80">
-                We create structured challenges to address global needs in climate, digital infrastructure, and more. Our approach connects innovators directly with the organizations and governments that need their solutions most.
+                {aboutTexts.about_mission_paragraph1}
               </p>
               <p className="text-lg text-text-dark/80 dark:text-text-light/80">
-                By focusing on real-world implementation and scale, we ensure that breakthrough technologies don't just remain interesting ideas, but become transformative solutions deployed where they're needed most.
+                {aboutTexts.about_mission_paragraph2}
               </p>
             </div>
 
             <div>
               <h3 className="mb-6 text-3xl font-bold text-text-dark dark:text-text-light">
-                Our Approach
+                {aboutTexts.about_approach_title}
               </h3>
               <ul className="space-y-4 text-lg text-text-dark/80 dark:text-text-light/80">
                 <li className="flex items-start">
                   <span className="mr-4 mt-1 text-xl font-bold text-secondary">01</span>
-                  <span>Identify critical infrastructure challenges with global partners</span>
+                  <span>{aboutTexts.about_approach_step1}</span>
                 </li>
                 <li className="flex items-start">
                   <span className="mr-4 mt-1 text-xl font-bold text-secondary">02</span>
-                  <span>Source innovative solutions from our global network</span>
+                  <span>{aboutTexts.about_approach_step2}</span>
                 </li>
                 <li className="flex items-start">
                   <span className="mr-4 mt-1 text-xl font-bold text-secondary">03</span>
-                  <span>Structure challenges with clear objectives and incentives</span>
+                  <span>{aboutTexts.about_approach_step3}</span>
                 </li>
                 <li className="flex items-start">
                   <span className="mr-4 mt-1 text-xl font-bold text-secondary">04</span>
-                  <span>Support pilot implementations in real-world environments</span>
+                  <span>{aboutTexts.about_approach_step4}</span>
                 </li>
                 <li className="flex items-start">
                   <span className="mr-4 mt-1 text-xl font-bold text-secondary">05</span>
-                  <span>Scale successful solutions through our global network</span>
+                  <span>{aboutTexts.about_approach_step5}</span>
                 </li>
               </ul>
             </div>
           </div>
 
-          {/* Right column: Video and Partners */}
-          <div>
-            {/* Video Section */}
-            <div className="mb-12 aspect-video overflow-hidden rounded-lg">
-              <div className="relative h-full w-full bg-[url('https://images.unsplash.com/photo-1551434678-e076c223a692?ixlib=rb-1.2.1&auto=format&fit=crop&w=2850&q=80')] bg-cover bg-center">
-                <div className="absolute inset-0 bg-gradient-to-t from-background-black to-transparent opacity-60"></div>
-                <div className="flex h-full w-full items-center justify-center">
-                  <button 
-                    onClick={handleVideoClick}
-                    className="flex h-20 w-20 items-center justify-center rounded-full bg-secondary text-white transition-transform hover:scale-110"
-                    aria-label="Play video about Quantum Alliance's story"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="ml-1">
-                      <polygon points="5 3 19 12 5 21 5 3" />
-                    </svg>
-                  </button>
-                </div>
-                <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-background-black to-transparent p-6">
-                  <h4 className="text-xl font-bold text-text-light">
-                    Our Story: From Concept to Global Impact
-                  </h4>
-                  <p className="mt-2 text-sm text-text-light/80">
-                    Learn how Quantum Alliance is transforming the way we solve global challenges through structured innovation.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Partners Section */}
+          {/* Right column: Partners Section - expanded */}
+          <div className="lg:col-span-1">
             <div>
-              <h3 className="mb-6 text-2xl font-bold text-text-dark dark:text-text-light">
-                Our Partners
+              <h3 className="mb-8 text-3xl font-bold text-text-dark dark:text-text-light">
+                {aboutTexts.about_partners_title}
               </h3>
               {tRPCError ? (
                 <div className="rounded-lg bg-yellow-50 p-4 text-center text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400">
@@ -267,7 +254,7 @@ export default function AboutSection() {
                 </div>
               ) : partnersData?.partners && partnersData.partners.length > 0 ? (
                 <div 
-                  className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8 items-center justify-items-center"
+                  className="grid grid-cols-1 sm:grid-cols-2 gap-8 items-center justify-items-center"
                   aria-label="Partner Logos"
                 >
                   {partnersData.partners.map((partner) => {
@@ -279,8 +266,8 @@ export default function AboutSection() {
                     return (
                       <div key={partner.id} className="flex items-center justify-center relative">
                         {hasImageError || !partnerLogoUrl ? (
-                          <div className="h-[60px] w-24 bg-gray-100 dark:bg-gray-800 rounded border flex flex-col items-center justify-center space-y-1">
-                            <Building className="h-6 w-6 text-gray-400" />
+                          <div className="h-[80px] w-32 bg-gray-100 dark:bg-gray-800 rounded border flex flex-col items-center justify-center space-y-1">
+                            <Building className="h-8 w-8 text-gray-400" />
                             {retryCount < 3 && partnerLogoUrl && (
                               <button
                                 onClick={() => {
@@ -318,7 +305,7 @@ export default function AboutSection() {
                                   data-partner-id={partner.id}
                                   src={partnerLogoUrl} 
                                   alt={partner.altText} 
-                                  className={`max-h-[60px] max-w-full w-auto h-auto object-contain grayscale hover:grayscale-0 transition-all ${
+                                  className={`max-h-[80px] max-w-full w-auto h-auto object-contain grayscale hover:grayscale-0 transition-all ${
                                     isImageLoading ? 'opacity-0' : 'opacity-100'
                                   }`}
                                   onError={() => handleImageError(partner.id, partner.logoUrl)}
@@ -333,7 +320,7 @@ export default function AboutSection() {
                                 data-partner-id={partner.id}
                                 src={partnerLogoUrl} 
                                 alt={partner.altText} 
-                                className={`max-h-[60px] max-w-full w-auto h-auto object-contain grayscale transition-all ${
+                                className={`max-h-[80px] max-w-full w-auto h-auto object-contain grayscale transition-all ${
                                   isImageLoading ? 'opacity-0' : 'opacity-100'
                                 }`}
                                 onError={() => handleImageError(partner.id, partner.logoUrl)}
@@ -352,8 +339,8 @@ export default function AboutSection() {
               ) : (
                 <div className="py-8 text-center text-text-dark/60 dark:text-text-light/60">
                   <Building className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                  <p>No partners available at the moment.</p>
-                  <p className="text-sm mt-1">Check back soon for updates.</p>
+                  <p>{aboutTexts.about_no_partners_message1}</p>
+                  <p className="text-sm mt-1">{aboutTexts.about_no_partners_message2}</p>
                 </div>
               )}
             </div>
@@ -367,7 +354,7 @@ export default function AboutSection() {
             className="inline-block rounded-full bg-secondary px-8 py-4 text-lg font-medium text-white transition-all hover:bg-secondary-light"
             onClick={handleExploreClick}
           >
-            Explore Our Process
+            {aboutTexts.about_button_text}
           </a>
         </div>
       </div>

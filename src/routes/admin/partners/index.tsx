@@ -37,6 +37,7 @@ function AdminPartnersPage() {
   const [visibilityFilter, setVisibilityFilter] = useState<"all" | "visible" | "hidden">("all");
   const [selectedPartners, setSelectedPartners] = useState<number[]>([]);
   const [isReorderMode, setIsReorderMode] = useState(false);
+  const [failedImages, setFailedImages] = useState<Set<number>>(new Set());
   
   const trpc = useTRPC();
   
@@ -85,6 +86,18 @@ function AdminPartnersPage() {
       },
     })
   );
+
+  const handleImageError = (partnerId: number) => {
+    setFailedImages(prev => new Set(prev).add(partnerId));
+  };
+
+  const handleImageLoad = (partnerId: number) => {
+    setFailedImages(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(partnerId);
+      return newSet;
+    });
+  };
 
   const handleDelete = (id: number, name: string) => {
     if (confirm(`Are you sure you want to delete "${name}"?`)) {
@@ -291,19 +304,19 @@ function AdminPartnersPage() {
                 >
                   <div className="relative">
                     <div className="w-full h-32 bg-gray-50 dark:bg-gray-700 flex items-center justify-center p-4">
-                      <img
-                        src={getCacheBustedImageUrl(partner.logoUrl, partner.updatedAt)}
-                        alt={partner.altText}
-                        className="max-w-full max-h-full object-contain"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          target.style.display = 'none';
-                          const parent = target.parentElement;
-                          if (parent) {
-                            parent.innerHTML = `<div class="flex items-center justify-center w-full h-full"><Building class="h-8 w-8 text-gray-400" /></div>`;
-                          }
-                        }}
-                      />
+                      {failedImages.has(partner.id) ? (
+                        <div className="flex items-center justify-center w-full h-full">
+                          <Building className="h-8 w-8 text-gray-400" />
+                        </div>
+                      ) : (
+                        <img
+                          src={getCacheBustedImageUrl(partner.logoUrl, partner.updatedAt)}
+                          alt={partner.altText}
+                          className="max-w-full max-h-full object-contain"
+                          onLoad={() => handleImageLoad(partner.id)}
+                          onError={() => handleImageError(partner.id)}
+                        />
+                      )}
                     </div>
                     
                     {/* Selection Checkbox */}

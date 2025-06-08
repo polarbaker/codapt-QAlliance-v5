@@ -18,7 +18,7 @@ export const caseStudySchema = z.object({
   title: z.string().min(1, "Title is required").max(200, "Title must be less than 200 characters"),
   summary: z.string().min(1, "Summary is required").max(500, "Summary must be less than 500 characters"),
   content: z.string().min(1, "Content is required"),
-  image: z.string().min(1, "Image is required"), // Now expects file path, not URL
+  image: z.string().optional(), // Made optional to allow creating case studies without images initially
   video: urlSchema.optional(),
   pdfUrl: urlSchema.optional(),
   tags: jsonArraySchema("Tags"),
@@ -33,7 +33,7 @@ export const challengeSchema = z.object({
   category: z.string().min(1, "Category is required"),
   region: z.string().min(1, "Region is required"),
   status: z.string().min(1, "Status is required"),
-  image: z.string().min(1, "Image is required"), // Now expects file path, not URL
+  image: z.string().optional(), // Make image optional for new challenges
   description: z.string().min(1, "Description is required"),
   prize: z.string().min(1, "Prize is required").max(100, "Prize must be less than 100 characters"),
   openDate: z.string().optional(),
@@ -50,11 +50,12 @@ export const newsSchema = z.object({
   excerpt: z.string().min(1, "Excerpt is required").max(500, "Excerpt must be less than 500 characters"),
   content: z.string().min(1, "Content is required"),
   category: z.string().min(1, "Category is required"),
-  imageUrl: z.string().optional(), // Now expects file path, not URL
+  imageUrl: z.string().optional(), // Optional for flexibility
   author: z.string().max(100, "Author name must be less than 100 characters").optional(),
   tags: jsonArraySchema("Tags"),
   featured: z.boolean().default(false),
   publishedAt: z.string().min(1, "Published date is required"),
+  order: z.number().int().min(0).optional(), // Add missing order field
 });
 
 // Innovator validation schema
@@ -73,12 +74,29 @@ export const innovatorSchema = z.object({
   order: z.number().int().min(0).optional(),
 });
 
-// Enhanced innovator form schema for admin forms
+// Enhanced innovator form schema for admin forms - flexible for both create and edit
 export const innovatorFormSchema = z.object({
   name: z.string().min(1, "Name is required").max(100, "Name must be less than 100 characters"),
   title: z.string().min(1, "Title is required").max(150, "Title must be less than 150 characters"),
   bio: z.string().min(1, "Bio is required"),
-  image: z.string().min(1, "Image is required"), // Now expects file path, not URL
+  image: z.string().optional(), // Made optional for edit scenarios - validation handled in form logic
+  achievements: z.array(z.object({
+    value: z.string().min(1, "Achievement cannot be empty")
+  })).min(1, "At least one achievement is required"),
+  linkedinUrl: z.string().url("Please enter a valid LinkedIn URL").optional().or(z.literal("")),
+  twitterUrl: z.string().url("Please enter a valid Twitter URL").optional().or(z.literal("")),
+  websiteUrl: z.string().url("Please enter a valid website URL").optional().or(z.literal("")),
+  featured: z.boolean().default(false),
+  hasVideo: z.boolean().default(false),
+  videoUrl: z.string().url("Please enter a valid video URL").optional().or(z.literal("")),
+});
+
+// Separate schema for creating new innovators where image is optional
+export const innovatorCreateFormSchema = z.object({
+  name: z.string().min(1, "Name is required").max(100, "Name must be less than 100 characters"),
+  title: z.string().min(1, "Title is required").max(150, "Title must be less than 150 characters"),
+  bio: z.string().min(1, "Bio is required"),
+  image: z.string().optional(), // Made optional since SimpleInnovatorImageUpload needs an innovator ID
   achievements: z.array(z.object({
     value: z.string().min(1, "Achievement cannot be empty")
   })).min(1, "At least one achievement is required"),
@@ -93,7 +111,7 @@ export const innovatorFormSchema = z.object({
 // Partner validation schema
 export const partnerSchema = z.object({
   name: z.string().min(1, "Name is required").max(100, "Name must be less than 100 characters"),
-  logoUrl: z.string().min(1, "Logo is required"), // Now expects file path, not URL
+  logoUrl: z.string().optional(), // Made optional to allow creating partners without logos initially
   websiteUrl: z.string().url("Please enter a valid website URL").optional().or(z.literal("")),
   altText: z.string().min(1, "Alt text is required").max(200, "Alt text must be less than 200 characters"),
   visible: z.boolean().default(true),
@@ -175,12 +193,572 @@ export const imageSearchSchema = z.object({
   includeArchived: z.boolean().default(false),
 });
 
+// Site content text types that can be managed
+export const SITE_CONTENT_TEXT_TYPES = [
+  // Hero Section
+  'hero_title_part1',
+  'hero_title_part2', 
+  'hero_description',
+  'hero_button1_text',
+  'hero_button2_text',
+  'hero_stat_number',
+  'hero_stat_label',
+  'hero_scroll_text',
+  
+  // Bold Statement Section
+  'bold_statement_text',
+  'bold_statement_button',
+  'bold_statement_stat',
+  
+  // About Section
+  'about_title',
+  'about_tagline',
+  'about_mission_title',
+  'about_mission_paragraph1',
+  'about_mission_paragraph2',
+  'about_approach_title',
+  'about_approach_step1',
+  'about_approach_step2',
+  'about_approach_step3',
+  'about_approach_step4',
+  'about_approach_step5',
+  'about_partners_title',
+  'about_no_partners_message1',
+  'about_no_partners_message2',
+  'about_button_text',
+  
+  // Innovation Pipeline Section
+  'pipeline_title',
+  'pipeline_description',
+  'pipeline_stage1_title',
+  'pipeline_stage1_description',
+  'pipeline_stage2_title',
+  'pipeline_stage2_description',
+  'pipeline_stage3_title',
+  'pipeline_stage3_description',
+  'pipeline_stage4_title',
+  'pipeline_stage4_description',
+  'pipeline_stage5_title',
+  'pipeline_stage5_description',
+  'pipeline_button_text',
+  
+  // Hall of Innovators Section
+  'innovators_title',
+  'innovators_description',
+  'innovators_button_text',
+  
+  // Impact Metrics Section
+  'impact_title',
+  'impact_description',
+  'impact_metric1_label',
+  'impact_metric2_label',
+  'impact_metric3_label',
+  'impact_metric4_label',
+  'impact_featured_title',
+  'impact_featured_heading',
+  'impact_featured_paragraph',
+  'impact_button_text',
+  
+  // Data Insights Section
+  'insights_title',
+  'insights_description',
+  'insights_funds_title',
+  'insights_funds_heading',
+  'insights_funds_paragraph',
+  'insights_distribution_title',
+  'insights_distribution_heading',
+  'insights_distribution_paragraph',
+  'insights_button_text',
+  'insights_download_toast',
+  
+  // Challenge CTA Section
+  'challenge_cta_heading',
+  'challenge_cta_subheading',
+  'challenge_cta_card1_title',
+  'challenge_cta_card1_description',
+  'challenge_cta_card1_button',
+  'challenge_cta_card2_title',
+  'challenge_cta_card2_description',
+  'challenge_cta_card2_button',
+  
+  // Community Engagement Section
+  'community_title',
+  'community_description',
+  'community_featured_title',
+  'community_featured_heading',
+  'community_featured_paragraph',
+  'community_featured_author',
+  'community_featured_role',
+  'community_featured_button',
+  'community_featured_fallback',
+  'community_featured_retry',
+  'community_forum_title',
+  'community_refresh_button',
+  'community_profile_title',
+  'community_edit_button',
+  'community_cancel_button',
+  'community_display_name_label',
+  'community_display_name_placeholder',
+  'community_avatar_color_label',
+  'community_save_profile_button',
+  'community_member_status',
+  'community_name_requirement',
+  'community_no_comments_message',
+  'community_reply_button',
+  'community_share_button',
+  'community_reply_toast',
+  'community_share_toast',
+  'community_form_title',
+  'community_textarea_placeholder',
+  'community_post_button',
+  'community_posting_button',
+  'community_comment_requirement',
+  
+  // Investor Engagement Section
+  'investor_title',
+  'investor_description',
+  'investor_perspective_title',
+  'investor_quote',
+  'investor_author',
+  'investor_role',
+  'investor_calculator_title',
+  'investor_calculator_heading',
+  'investor_amount_label',
+  'investor_return_label',
+  'investor_people_label',
+  'investor_countries_label',
+  'investor_button_text',
+  'investor_modal_title',
+  'investor_submit_button',
+  'investor_submitting_button',
+  'investor_success_toast',
+  
+  // Join Us Section
+  'join_title',
+  'join_description',
+  'join_newsletter_title',
+  'join_newsletter_description',
+  'join_email_label',
+  'join_email_placeholder',
+  'join_privacy_text',
+  'join_contact_title',
+  'join_contact_description',
+  'join_community_title',
+  'join_members_label',
+  'join_subscribers_label',
+  'join_continents_label',
+  
+  // Social Media Section
+  'social_title',
+  'social_description',
+  'social_testimonials_title',
+  'social_feed_title',
+  'social_cta_heading',
+  'social_cta_paragraph',
+  'social_cta_button',
+  
+  // Footer Section
+  'footer_brand_name',
+  'footer_description',
+  'footer_quick_links_title',
+  'footer_about_link',
+  'footer_case_studies_link',
+  'footer_impact_link',
+  'footer_news_link',
+  'footer_newsletter_title',
+  'footer_newsletter_description',
+  'footer_email_placeholder',
+  'footer_subscribe_toast',
+  'footer_invalid_email_toast',
+  'footer_copyright_text',
+  'footer_privacy_link',
+  'footer_terms_link',
+  'footer_cookie_link',
+] as const;
+
+export type SiteContentTextType = typeof SITE_CONTENT_TEXT_TYPES[number];
+
+// Text content type labels for admin interface
+export const SITE_CONTENT_TEXT_LABELS: Record<SiteContentTextType, string> = {
+  // Hero Section
+  'hero_title_part1': 'Hero Title (Part 1)',
+  'hero_title_part2': 'Hero Title (Part 2)',
+  'hero_description': 'Hero Description',
+  'hero_button1_text': 'Hero Button 1 Text',
+  'hero_button2_text': 'Hero Button 2 Text',
+  'hero_stat_number': 'Hero Stat Number',
+  'hero_stat_label': 'Hero Stat Label',
+  'hero_scroll_text': 'Hero Scroll Text',
+  
+  // Bold Statement Section
+  'bold_statement_text': 'Bold Statement Text',
+  'bold_statement_button': 'Bold Statement Button',
+  'bold_statement_stat': 'Bold Statement Statistic',
+  
+  // About Section
+  'about_title': 'About Section Title',
+  'about_tagline': 'About Section Tagline',
+  'about_mission_title': 'Mission Title',
+  'about_mission_paragraph1': 'Mission Paragraph 1',
+  'about_mission_paragraph2': 'Mission Paragraph 2',
+  'about_approach_title': 'Approach Title',
+  'about_approach_step1': 'Approach Step 1',
+  'about_approach_step2': 'Approach Step 2',
+  'about_approach_step3': 'Approach Step 3',
+  'about_approach_step4': 'Approach Step 4',
+  'about_approach_step5': 'Approach Step 5',
+  'about_partners_title': 'Partners Title',
+  'about_no_partners_message1': 'No Partners Message 1',
+  'about_no_partners_message2': 'No Partners Message 2',
+  'about_button_text': 'About Button Text',
+  
+  // Innovation Pipeline Section
+  'pipeline_title': 'Pipeline Section Title',
+  'pipeline_description': 'Pipeline Description',
+  'pipeline_stage1_title': 'Pipeline Stage 1 Title',
+  'pipeline_stage1_description': 'Pipeline Stage 1 Description',
+  'pipeline_stage2_title': 'Pipeline Stage 2 Title',
+  'pipeline_stage2_description': 'Pipeline Stage 2 Description',
+  'pipeline_stage3_title': 'Pipeline Stage 3 Title',
+  'pipeline_stage3_description': 'Pipeline Stage 3 Description',
+  'pipeline_stage4_title': 'Pipeline Stage 4 Title',
+  'pipeline_stage4_description': 'Pipeline Stage 4 Description',
+  'pipeline_stage5_title': 'Pipeline Stage 5 Title',
+  'pipeline_stage5_description': 'Pipeline Stage 5 Description',
+  'pipeline_button_text': 'Pipeline Button Text',
+  
+  // Hall of Innovators Section
+  'innovators_title': 'Innovators Section Title',
+  'innovators_description': 'Innovators Description',
+  'innovators_button_text': 'Innovators Button Text',
+  
+  // Impact Metrics Section
+  'impact_title': 'Impact Section Title',
+  'impact_description': 'Impact Description',
+  'impact_metric1_label': 'Impact Metric 1 Label',
+  'impact_metric2_label': 'Impact Metric 2 Label',
+  'impact_metric3_label': 'Impact Metric 3 Label',
+  'impact_metric4_label': 'Impact Metric 4 Label',
+  'impact_featured_title': 'Featured Impact Title',
+  'impact_featured_heading': 'Featured Impact Heading',
+  'impact_featured_paragraph': 'Featured Impact Paragraph',
+  'impact_button_text': 'Impact Button Text',
+  
+  // Data Insights Section
+  'insights_title': 'Insights Section Title',
+  'insights_description': 'Insights Description',
+  'insights_funds_title': 'Funds Raised Title',
+  'insights_funds_heading': 'Funds Raised Heading',
+  'insights_funds_paragraph': 'Funds Raised Paragraph',
+  'insights_distribution_title': 'Distribution Title',
+  'insights_distribution_heading': 'Distribution Heading',
+  'insights_distribution_paragraph': 'Distribution Paragraph',
+  'insights_button_text': 'Insights Button Text',
+  'insights_download_toast': 'Download Toast Message',
+  
+  // Challenge CTA Section
+  'challenge_cta_heading': 'Challenge CTA Heading',
+  'challenge_cta_subheading': 'Challenge CTA Subheading',
+  'challenge_cta_card1_title': 'CTA Card 1 Title',
+  'challenge_cta_card1_description': 'CTA Card 1 Description',
+  'challenge_cta_card1_button': 'CTA Card 1 Button',
+  'challenge_cta_card2_title': 'CTA Card 2 Title',
+  'challenge_cta_card2_description': 'CTA Card 2 Description',
+  'challenge_cta_card2_button': 'CTA Card 2 Button',
+  
+  // Community Engagement Section
+  'community_title': 'Community Section Title',
+  'community_description': 'Community Description',
+  'community_featured_title': 'Featured Story Title',
+  'community_featured_heading': 'Featured Story Heading',
+  'community_featured_paragraph': 'Featured Story Paragraph',
+  'community_featured_author': 'Featured Story Author',
+  'community_featured_role': 'Featured Story Role',
+  'community_featured_button': 'Featured Story Button',
+  'community_featured_fallback': 'Featured Story Fallback',
+  'community_featured_retry': 'Featured Story Retry',
+  'community_forum_title': 'Discussion Forum Title',
+  'community_refresh_button': 'Refresh Button',
+  'community_profile_title': 'User Profile Title',
+  'community_edit_button': 'Edit Button',
+  'community_cancel_button': 'Cancel Button',
+  'community_display_name_label': 'Display Name Label',
+  'community_display_name_placeholder': 'Display Name Placeholder',
+  'community_avatar_color_label': 'Avatar Color Label',
+  'community_save_profile_button': 'Save Profile Button',
+  'community_member_status': 'Member Status',
+  'community_name_requirement': 'Name Requirement Message',
+  'community_no_comments_message': 'No Comments Message',
+  'community_reply_button': 'Reply Button',
+  'community_share_button': 'Share Button',
+  'community_reply_toast': 'Reply Toast Message',
+  'community_share_toast': 'Share Toast Message',
+  'community_form_title': 'Comment Form Title',
+  'community_textarea_placeholder': 'Comment Textarea Placeholder',
+  'community_post_button': 'Post Comment Button',
+  'community_posting_button': 'Posting Button',
+  'community_comment_requirement': 'Comment Requirement Message',
+  
+  // Investor Engagement Section
+  'investor_title': 'Investor Section Title',
+  'investor_description': 'Investor Description',
+  'investor_perspective_title': 'Investor Perspective Title',
+  'investor_quote': 'Investor Quote',
+  'investor_author': 'Investor Author',
+  'investor_role': 'Investor Role',
+  'investor_calculator_title': 'Calculator Title',
+  'investor_calculator_heading': 'Calculator Heading',
+  'investor_amount_label': 'Investment Amount Label',
+  'investor_return_label': 'Estimated Return Label',
+  'investor_people_label': 'People Impacted Label',
+  'investor_countries_label': 'Countries Reached Label',
+  'investor_button_text': 'Investor Button Text',
+  'investor_modal_title': 'Investor Modal Title',
+  'investor_submit_button': 'Submit Button',
+  'investor_submitting_button': 'Submitting Button',
+  'investor_success_toast': 'Success Toast Message',
+  
+  // Join Us Section
+  'join_title': 'Join Us Section Title',
+  'join_description': 'Join Us Description',
+  'join_newsletter_title': 'Newsletter Title',
+  'join_newsletter_description': 'Newsletter Description',
+  'join_email_label': 'Email Label',
+  'join_email_placeholder': 'Email Placeholder',
+  'join_privacy_text': 'Privacy Text',
+  'join_contact_title': 'Contact Form Title',
+  'join_contact_description': 'Contact Form Description',
+  'join_community_title': 'Community Stats Title',
+  'join_members_label': 'Community Members Label',
+  'join_subscribers_label': 'Newsletter Subscribers Label',
+  'join_continents_label': 'Continents Reached Label',
+  
+  // Social Media Section
+  'social_title': 'Social Section Title',
+  'social_description': 'Social Description',
+  'social_testimonials_title': 'Testimonials Title',
+  'social_feed_title': 'Social Feed Title',
+  'social_cta_heading': 'Social CTA Heading',
+  'social_cta_paragraph': 'Social CTA Paragraph',
+  'social_cta_button': 'Social CTA Button',
+  
+  // Footer Section
+  'footer_brand_name': 'Footer Brand Name',
+  'footer_description': 'Footer Description',
+  'footer_quick_links_title': 'Quick Links Title',
+  'footer_about_link': 'About Us Link',
+  'footer_case_studies_link': 'Case Studies Link',
+  'footer_impact_link': 'Impact Link',
+  'footer_news_link': 'News & Events Link',
+  'footer_newsletter_title': 'Footer Newsletter Title',
+  'footer_newsletter_description': 'Footer Newsletter Description',
+  'footer_email_placeholder': 'Footer Email Placeholder',
+  'footer_subscribe_toast': 'Subscribe Toast Message',
+  'footer_invalid_email_toast': 'Invalid Email Toast',
+  'footer_copyright_text': 'Copyright Text',
+  'footer_privacy_link': 'Privacy Policy Link',
+  'footer_terms_link': 'Terms of Service Link',
+  'footer_cookie_link': 'Cookie Policy Link',
+};
+
+// Site content text validation schema
+export const siteContentTextSchema = z.object({
+  adminToken: z.string(),
+  contentType: z.enum(SITE_CONTENT_TEXT_TYPES),
+  textData: z.string().min(1, "Text content is required").max(5000, "Text content must be less than 5000 characters"),
+  description: z.string().max(500, "Description must be less than 500 characters").optional(),
+});
+
+// Default text content values
+export const SITE_CONTENT_TEXT_DEFAULTS: Record<SiteContentTextType, string> = {
+  // Hero Section
+  'hero_title_part1': 'Bridging',
+  'hero_title_part2': 'Innovation Gaps',
+  'hero_description': 'We mobilize what matters: Startups solving the world\'s most urgent challenges — from climate resilience to digital infrastructure — across 6 continents.',
+  'hero_button1_text': 'Join the Alliance',
+  'hero_button2_text': 'Explore Challenges',
+  'hero_stat_number': '6',
+  'hero_stat_label': 'Continents',
+  'hero_scroll_text': 'Scroll',
+  
+  // Bold Statement Section
+  'bold_statement_text': 'We turn urgent infrastructure needs into scalable solutions.',
+  'bold_statement_button': 'Discover Our Vision',
+  'bold_statement_stat': '1M+ Prize Pool Activated',
+  
+  // About Section
+  'about_title': 'Who We Are',
+  'about_tagline': 'Quantum Alliance bridges innovation gaps by connecting frontier technology with real-world problems.',
+  'about_mission_title': 'Our Mission',
+  'about_mission_paragraph1': 'We create structured challenges to address global needs in climate, digital infrastructure, and more. Our approach connects innovators directly with the organizations and governments that need their solutions most.',
+  'about_mission_paragraph2': 'By focusing on real-world implementation and scale, we ensure that breakthrough technologies don\'t just remain interesting ideas, but become transformative solutions deployed where they\'re needed most.',
+  'about_approach_title': 'Our Approach',
+  'about_approach_step1': 'Identify critical infrastructure challenges with global partners',
+  'about_approach_step2': 'Source innovative solutions from our global network',
+  'about_approach_step3': 'Structure challenges with clear objectives and incentives',
+  'about_approach_step4': 'Support pilot implementations in real-world environments',
+  'about_approach_step5': 'Scale successful solutions through our global network',
+  'about_partners_title': 'Our Partners',
+  'about_no_partners_message1': 'No partners available at the moment.',
+  'about_no_partners_message2': 'Check back soon for updates.',
+  'about_button_text': 'Explore Our Process',
+  
+  // Innovation Pipeline Section
+  'pipeline_title': 'Our Process',
+  'pipeline_description': 'From identifying critical challenges to scaling proven solutions globally, our structured approach transforms innovative ideas into real-world impact.',
+  'pipeline_stage1_title': 'Problem Identification',
+  'pipeline_stage1_description': 'We work with governments and organizations to identify critical infrastructure challenges that need innovative solutions.',
+  'pipeline_stage2_title': 'Solution Sourcing',
+  'pipeline_stage2_description': 'Our global network of innovators and startups provides cutting-edge solutions to address these challenges.',
+  'pipeline_stage3_title': 'Challenge Design',
+  'pipeline_stage3_description': 'We structure challenges with clear objectives, success criteria, and meaningful incentives for participants.',
+  'pipeline_stage4_title': 'Pilot Implementation',
+  'pipeline_stage4_description': 'Selected solutions are tested in real-world environments with our partner organizations.',
+  'pipeline_stage5_title': 'Global Scaling',
+  'pipeline_stage5_description': 'Proven solutions are scaled across our global network to maximize impact and reach.',
+  'pipeline_button_text': 'Current Challenges',
+  
+  // Hall of Innovators Section
+  'innovators_title': 'Meet Our Innovators',
+  'innovators_description': 'Brilliant minds from around the world transforming how we approach humanity\'s most pressing challenges.',
+  'innovators_button_text': 'View All Innovators',
+  
+  // Impact Metrics Section
+  'impact_title': 'Our Global Impact',
+  'impact_description': 'Driving innovation and collaboration across the globe to solve humanity\'s most pressing challenges.',
+  'impact_metric1_label': 'Prize Pool Activated',
+  'impact_metric2_label': 'Continents Engaged',
+  'impact_metric3_label': 'Government Partners',
+  'impact_metric4_label': 'Innovators in Network',
+  'impact_featured_title': 'Featured Impact',
+  'impact_featured_heading': 'From Local Solution to Global Impact',
+  'impact_featured_paragraph': 'Learn how one startup\'s water purification technology went from a local pilot to serving over 100,000 people across three continents. Their innovative approach reduced costs by 60% while increasing access to clean water in drought-affected regions.',
+  'impact_button_text': 'See Case Studies',
+  
+  // Data Insights Section
+  'insights_title': 'Impact Data',
+  'insights_description': 'Measuring our global impact through transparent data and real-world outcomes.',
+  'insights_funds_title': 'Funds Raised',
+  'insights_funds_heading': '$350M+ in Funding for Innovators',
+  'insights_funds_paragraph': 'Our innovators have raised significant capital to scale their solutions globally, with a steady increase year over year.',
+  'insights_distribution_title': 'Global Distribution',
+  'insights_distribution_heading': 'Partnerships Across 6 Continents',
+  'insights_distribution_paragraph': 'Our global reach ensures diverse perspectives and solutions that address challenges in various contexts.',
+  'insights_button_text': 'Download Impact Report',
+  'insights_download_toast': 'Impact Report download started! Check your downloads folder for the complete data analysis.',
+  
+  // Challenge CTA Section
+  'challenge_cta_heading': 'Want to Solve the Next Global Challenge?',
+  'challenge_cta_subheading': 'Innovate, build, and deploy solutions that address humanity\'s most pressing needs. Your breakthrough can change the world.',
+  'challenge_cta_card1_title': 'Submit Your Solution',
+  'challenge_cta_card1_description': 'Are you an innovator with a game-changing solution? We provide the platform and resources to bring your ideas to life.',
+  'challenge_cta_card1_button': 'Apply Now',
+  'challenge_cta_card2_title': 'Become a Challenge Partner',
+  'challenge_cta_card2_description': 'Governments, NGOs, and corporations can define challenges, access top talent, and implement innovative solutions.',
+  'challenge_cta_card2_button': 'Partner With Us',
+  
+  // Community Engagement Section
+  'community_title': 'Community',
+  'community_description': 'Connect with fellow innovators, share insights, and collaborate on solutions to global challenges.',
+  'community_featured_title': 'Featured Story',
+  'community_featured_heading': 'From Prototype to Global Impact: The Water Access Initiative',
+  'community_featured_paragraph': 'When Maria Gonzalez entered the Water Access Challenge last year, she had no idea her prototype would soon provide clean water to over 50,000 people across three continents...',
+  'community_featured_author': 'Maria Gonzalez',
+  'community_featured_role': 'Water Access Initiative',
+  'community_featured_button': 'Read Full Story',
+  'community_featured_fallback': 'Image temporarily unavailable',
+  'community_featured_retry': 'Try again',
+  'community_forum_title': 'Discussion Forum',
+  'community_refresh_button': 'Refresh',
+  'community_profile_title': 'Your Profile',
+  'community_edit_button': 'Edit',
+  'community_cancel_button': 'Cancel',
+  'community_display_name_label': 'Display Name',
+  'community_display_name_placeholder': 'Enter your name',
+  'community_avatar_color_label': 'Avatar Color',
+  'community_save_profile_button': 'Save Profile',
+  'community_member_status': 'Community Member',
+  'community_name_requirement': 'Set your name to join the conversation',
+  'community_no_comments_message': 'No comments yet. Be the first to start the conversation!',
+  'community_reply_button': 'Reply',
+  'community_share_button': 'Share',
+  'community_reply_toast': 'Reply feature coming soon!',
+  'community_share_toast': 'Share feature coming soon!',
+  'community_form_title': 'Join the Conversation',
+  'community_textarea_placeholder': 'Share your thoughts or ask a question...',
+  'community_post_button': 'Post Comment',
+  'community_posting_button': 'Posting...',
+  'community_comment_requirement': 'Comment must be at least 5 characters',
+  
+  // Investor Engagement Section
+  'investor_title': 'Investor Impact',
+  'investor_description': 'Join our network of impact investors funding solutions to global challenges with both financial and social returns.',
+  'investor_perspective_title': 'Investor Perspective',
+  'investor_quote': 'Investing in Quantum Alliance means backing real solutions that scale globally while generating strong returns.',
+  'investor_author': 'Jane Smith',
+  'investor_role': 'Managing Partner, Global Impact Fund',
+  'investor_calculator_title': 'Impact Calculator',
+  'investor_calculator_heading': 'Calculate Your Impact',
+  'investor_amount_label': 'Investment Amount',
+  'investor_return_label': 'Estimated Return',
+  'investor_people_label': 'People Impacted',
+  'investor_countries_label': 'Countries Reached',
+  'investor_button_text': 'Join the Investor Network',
+  'investor_modal_title': 'Join Our Investors',
+  'investor_submit_button': 'Join Our Investor Network',
+  'investor_submitting_button': 'Submitting...',
+  'investor_success_toast': 'Your registration has been submitted successfully!',
+  
+  // Join Us Section
+  'join_title': 'Join Us',
+  'join_description': 'Be part of our mission to solve humanity\'s most pressing challenges through innovation and collaboration.',
+  'join_newsletter_title': 'Subscribe to Our Newsletter',
+  'join_newsletter_description': 'Stay updated with the latest challenges and innovations',
+  'join_email_label': 'Email Address',
+  'join_email_placeholder': 'your.email@example.com',
+  'join_privacy_text': 'We respect your privacy. You can unsubscribe at any time.',
+  'join_contact_title': 'Send Us a Message',
+  'join_contact_description': 'Questions, partnerships, or feedback? We\'d love to hear from you.',
+  'join_community_title': 'Join Our Growing Community',
+  'join_members_label': 'Community Members',
+  'join_subscribers_label': 'Newsletter Subscribers',
+  'join_continents_label': 'Continents Reached',
+  
+  // Social Media Section
+  'social_title': 'Join the Conversation',
+  'social_description': 'Connect with our global community of innovators, partners, and supporters.',
+  'social_testimonials_title': 'Testimonials',
+  'social_feed_title': 'Social Feed',
+  'social_cta_heading': 'Ready to make an impact?',
+  'social_cta_paragraph': 'Join our community of innovators, supporters, and partners to help solve humanity\'s most pressing challenges.',
+  'social_cta_button': 'Join the Conversation',
+  
+  // Footer Section
+  'footer_brand_name': 'Quantum Alliance',
+  'footer_description': 'Bridging innovation gaps by connecting frontier technology with real-world problems across the globe.',
+  'footer_quick_links_title': 'Quick Links',
+  'footer_about_link': 'About Us',
+  'footer_case_studies_link': 'Case Studies',
+  'footer_impact_link': 'Impact',
+  'footer_news_link': 'News & Events',
+  'footer_newsletter_title': 'Stay Updated',
+  'footer_newsletter_description': 'Subscribe to our newsletter for the latest challenges, success stories, and events.',
+  'footer_email_placeholder': 'Your email address',
+  'footer_subscribe_toast': 'Thanks for subscribing! You\'ll receive our latest updates and opportunities.',
+  'footer_invalid_email_toast': 'Please enter a valid email address',
+  'footer_copyright_text': 'All rights reserved.',
+  'footer_privacy_link': 'Privacy Policy',
+  'footer_terms_link': 'Terms of Service',
+  'footer_cookie_link': 'Cookie Policy',
+};
+
 // Type exports for form data
 export type CaseStudyFormData = z.infer<typeof caseStudySchema>;
 export type ChallengeFormData = z.infer<typeof challengeSchema>;
 export type NewsFormData = z.infer<typeof newsSchema>;
 export type InnovatorFormData = z.infer<typeof innovatorSchema>;
 export type InnovatorFormSchemaData = z.infer<typeof innovatorFormSchema>;
+export type InnovatorCreateFormSchemaData = z.infer<typeof innovatorCreateFormSchema>;
 export type PartnerFormData = z.infer<typeof partnerSchema>;
 export type AdminLoginFormData = z.infer<typeof adminLoginSchema>;
 export type FileUploadFormData = z.infer<typeof fileUploadSchema>;
@@ -191,6 +769,7 @@ export type ImageCollectionFormData = z.infer<typeof imageCollectionSchema>;
 export type BulkImageUploadFormData = z.infer<typeof bulkImageUploadSchema>;
 export type ImageVariantFormData = z.infer<typeof imageVariantSchema>;
 export type ImageSearchFormData = z.infer<typeof imageSearchSchema>;
+export type SiteContentTextFormData = z.infer<typeof siteContentTextSchema>;
 
 // Utility functions for validation
 export const validateJsonArray = (value: string): string[] => {

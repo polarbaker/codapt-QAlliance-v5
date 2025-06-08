@@ -1,11 +1,78 @@
 import { ChevronDown } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
+import { useTRPC } from "~/trpc/react";
+import { useQuery } from "@tanstack/react-query";
+import { useBulkSiteContentText } from "~/hooks/useSiteContentText";
 
 export default function HeroSection() {
   const [isVisible, setIsVisible] = useState(true);
   const [scrollY, setScrollY] = useState(0);
   const [backgroundImageError, setBackgroundImageError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const [backgroundImageUrl, setBackgroundImageUrl] = useState("https://images.unsplash.com/photo-1518709268805-4e9042af2176?ixlib=rb-4.0.3&auto=format&fit=crop&w=2072&q=80");
+  const maxRetries = 2;
   const heroRef = useRef<HTMLDivElement>(null);
+
+  const trpc = useTRPC();
+  
+  // Fetch hero text content
+  const { texts: heroTexts, isLoading: isLoadingTexts } = useBulkSiteContentText([
+    'hero_title_part1',
+    'hero_title_part2',
+    'hero_description',
+    'hero_button1_text',
+    'hero_button2_text',
+    'hero_stat_number',
+    'hero_stat_label',
+    'hero_scroll_text',
+  ]);
+  
+  // Fetch hero background image from database
+  const heroImageQuery = useQuery(
+    trpc.getSiteContentImage.queryOptions({
+      imageType: 'hero_background',
+    })
+  );
+
+  // Use database image if available, otherwise fall back to hardcoded URL
+  const getBackgroundImageUrl = () => {
+    // If we have a custom image from the database, use it
+    if (heroImageQuery.data?.hasImage && heroImageQuery.data?.imageData) {
+      return heroImageQuery.data.imageData;
+    }
+    
+    // Otherwise, use the current backgroundImageUrl state (with fallbacks)
+    return backgroundImageUrl;
+  };
+
+  const currentBackgroundUrl = getBackgroundImageUrl();
+
+  const handleBackgroundImageError = () => {
+    if (retryCount < maxRetries) {
+      // Try alternative working URLs for technology/innovation theme
+      const fallbackUrls = [
+        "https://images.unsplash.com/photo-1517077304055-6e89abbf09b0?ixlib=rb-4.0.3&auto=format&fit=crop&w=2072&q=80", // Network/tech
+        "https://images.unsplash.com/photo-1519389950473-47ba0277781c?ixlib=rb-4.0.3&auto=format&fit=crop&w=2072&q=80", // Technology/coding
+        "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?ixlib=rb-4.0.3&auto=format&fit=crop&w=2072&q=80"  // Innovation/tech
+      ];
+      
+      const nextUrl = fallbackUrls[retryCount];
+      if (nextUrl) {
+        setRetryCount(prev => prev + 1);
+        setBackgroundImageUrl(nextUrl);
+        setBackgroundImageError(false);
+        return;
+      }
+    }
+    
+    setBackgroundImageError(true);
+  };
+
+  const handleManualRetry = () => {
+    setRetryCount(0);
+    setBackgroundImageUrl("https://images.unsplash.com/photo-1518709268805-4e9042af2176?ixlib=rb-4.0.3&auto=format&fit=crop&w=2072&q=80");
+    setBackgroundImageError(false);
+  };
 
   useEffect(() => {
     const handleScroll = () => {
@@ -29,7 +96,7 @@ export default function HeroSection() {
       ref={heroRef}
       className="relative flex min-h-screen w-full flex-col justify-center overflow-hidden bg-background-black pt-20"
     >
-      {/* Background video/image with parallax effect */}
+      {/* Background image with parallax effect */}
       <div 
         className="absolute inset-0 z-0 opacity-40"
         style={{ 
@@ -40,11 +107,12 @@ export default function HeroSection() {
           <div className="h-full w-full bg-gradient-to-br from-background-black via-neutral-dark to-background-black"></div>
         ) : (
           <img
-            src="https://images.unsplash.com/photo-1451187580459-43490279c0fa?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=2072&q=80"
+            src={currentBackgroundUrl}
             alt="Technology and innovation background"
             className="h-full w-full object-cover"
-            onError={() => setBackgroundImageError(true)}
+            onError={handleBackgroundImageError}
             loading="eager"
+            crossOrigin="anonymous"
           />
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-background-black via-background-black/60 to-transparent"></div>
@@ -64,11 +132,11 @@ export default function HeroSection() {
         <div className="grid grid-cols-1 items-center gap-12 lg:grid-cols-2">
           <div className="animate-fade-in">
             <h1 className="mb-6 text-5xl font-extrabold leading-none tracking-tight text-text-light sm:text-6xl md:text-7xl xl:text-8xl">
-              <span className="block">Bridging</span>
-              <span className="bg-gradient-to-r from-secondary to-accent bg-clip-text text-transparent">Innovation Gaps</span>
+              <span className="block">{heroTexts.hero_title_part1}</span>
+              <span className="bg-gradient-to-r from-secondary to-accent bg-clip-text text-transparent">{heroTexts.hero_title_part2}</span>
             </h1>
             <p className="mb-10 max-w-2xl text-xl font-light text-text-light/80 md:text-2xl">
-              We mobilize what matters: Startups solving the world's most urgent challenges — from climate resilience to digital infrastructure — across 6 continents.
+              {heroTexts.hero_description}
             </p>
             
             <div className="flex flex-wrap gap-4">
@@ -82,7 +150,7 @@ export default function HeroSection() {
                 aria-label="Join the Quantum Alliance"
               >
                 <span className="flex items-center">
-                  Join the Alliance
+                  {heroTexts.hero_button1_text}
                   <svg 
                     className="ml-2 h-5 w-5 transform transition-transform duration-300 group-hover:translate-x-1" 
                     fill="none" 
@@ -99,7 +167,7 @@ export default function HeroSection() {
                 aria-label="Explore current challenges"
               >
                 <span className="flex items-center">
-                  Explore Challenges
+                  {heroTexts.hero_button2_text}
                   <svg 
                     className="ml-2 h-5 w-5 transform transition-transform duration-300 group-hover:translate-x-1" 
                     fill="none" 
@@ -118,14 +186,14 @@ export default function HeroSection() {
             <div className="animate-fade-in [animation-delay:300ms]">
               <div className="relative">
                 <span className="block text-center text-[10rem] font-black leading-none text-secondary drop-shadow-lg">
-                  6
+                  {heroTexts.hero_stat_number}
                 </span>
                 <div className="absolute inset-0 flex items-center justify-center opacity-20">
-                  <span className="text-[20rem] font-black text-white">6</span>
+                  <span className="text-[20rem] font-black text-white">{heroTexts.hero_stat_number}</span>
                 </div>
               </div>
               <span className="block text-center text-2xl font-light uppercase tracking-widest text-text-light">
-                Continents
+                {heroTexts.hero_stat_label}
               </span>
             </div>
           </div>
@@ -146,7 +214,7 @@ export default function HeroSection() {
             document.getElementById('statement')?.scrollIntoView({ behavior: 'smooth' });
           }}
         >
-          <span className="mb-2 text-sm font-light tracking-wider group-hover:text-secondary transition-colors">Scroll</span>
+          <span className="mb-2 text-sm font-light tracking-wider group-hover:text-secondary transition-colors">{heroTexts.hero_scroll_text}</span>
           <div className="relative h-10 w-10 flex items-center justify-center overflow-hidden">
             <ChevronDown size={24} className="animate-bounce absolute group-hover:text-secondary transition-colors" />
           </div>

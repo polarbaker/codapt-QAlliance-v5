@@ -1,6 +1,5 @@
 import React, { useState, useRef } from 'react';
 import { useTRPC } from '~/trpc/react';
-import { useMutation } from '@tanstack/react-query';
 import { useUserStore } from '~/stores/userStore';
 import { 
   validateImageFile, 
@@ -30,6 +29,9 @@ interface ImageUploadProps {
   multiple?: boolean;
   maxImages?: number;
   showMetadata?: boolean;
+  showMetadataEditor?: boolean;
+  generateVariants?: boolean;
+  showCollectionCreator?: boolean;
 }
 
 export function ImageUpload({
@@ -42,6 +44,9 @@ export function ImageUpload({
   multiple = false,
   maxImages = 3, // Conservative limit
   showMetadata = false,
+  showMetadataEditor = false,
+  generateVariants = false,
+  showCollectionCreator = false,
 }: ImageUploadProps) {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
@@ -57,102 +62,97 @@ export function ImageUpload({
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { adminToken } = useUserStore();
-  const trpc = useTRPC();
   
   // Single upload mutation
-  const uploadMutation = useMutation(
-    trpc.adminUploadImage.mutationOptions({
-      onSuccess: (data) => {
-        onChange(data.filePath);
-        setSelectedFiles([]);
-        setPreviewUrls([]);
-        setUploadProgress('');
-        setMetadata([]);
+  const uploadMutation = useTRPC().adminUploadImage.useMutation({
+    onSuccess: (data) => {
+      onChange(data.filePath);
+      setSelectedFiles([]);
+      setPreviewUrls([]);
+      setUploadProgress('');
+      setMetadata([]);
+      
+      toast.success(`✅ Image uploaded successfully!`, { duration: 4000 });
+      
+      // Show processing info
+      if (data.metadata) {
+        const originalMB = (data.metadata.originalSize / (1024 * 1024)).toFixed(1);
+        const processedMB = (data.metadata.processedSize / (1024 * 1024)).toFixed(1);
+        const timeSeconds = (data.metadata.processingTime / 1000).toFixed(1);
         
-        toast.success(`✅ Image uploaded successfully!`, { duration: 4000 });
-        
-        // Show processing info
-        if (data.metadata) {
-          const originalMB = (data.metadata.originalSize / (1024 * 1024)).toFixed(1);
-          const processedMB = (data.metadata.processedSize / (1024 * 1024)).toFixed(1);
-          const timeSeconds = (data.metadata.processingTime / 1000).toFixed(1);
-          
-          setTimeout(() => {
-            toast(`📊 Processed in ${timeSeconds}s: ${originalMB}MB → ${processedMB}MB`, {
-              duration: 3000,
-              style: { background: '#f0f9ff', color: '#0369a1' }
-            });
-          }, 1000);
-        }
-      },
-      onError: (error) => {
-        setUploadProgress('');
-        console.error('Upload error:', error);
-        
-        const errorInfo = getUploadErrorMessage(error.message || 'Upload failed');
-        
-        toast.error(`❌ ${errorInfo.message}`, { duration: 8000 });
-        
-        if (errorInfo.suggestions.length > 0 && errorInfo.canRetry) {
-          setTimeout(() => {
-            toast(`💡 ${errorInfo.suggestions[0]}`, {
-              duration: 6000,
-              style: { background: '#dbeafe', color: '#1e40af' }
-            });
-          }, 2000);
-        }
-      },
-    })
-  );
+        setTimeout(() => {
+          toast(`📊 Processed in ${timeSeconds}s: ${originalMB}MB → ${processedMB}MB`, {
+            duration: 3000,
+            style: { background: '#f0f9ff', color: '#0369a1' }
+          });
+        }, 1000);
+      }
+    },
+    onError: (error) => {
+      setUploadProgress('');
+      console.error('Upload error:', error);
+      
+      const errorInfo = getUploadErrorMessage(error.message || 'Upload failed');
+      
+      toast.error(`❌ ${errorInfo.message}`, { duration: 8000 });
+      
+      if (errorInfo.suggestions.length > 0 && errorInfo.canRetry) {
+        setTimeout(() => {
+          toast(`💡 ${errorInfo.suggestions[0]}`, {
+            duration: 6000,
+            style: { background: '#dbeafe', color: '#1e40af' }
+          });
+        }, 2000);
+      }
+    },
+  });
 
   // Bulk upload mutation
-  const bulkUploadMutation = useMutation(
-    trpc.adminBulkUploadImages.mutationOptions({
-      onSuccess: (data) => {
-        if (multiple) {
-          const successPaths = data.results.map((r: any) => r.filePath).filter(Boolean);
-          onChange(successPaths);
-        } else if (data.results.length > 0) {
-          onChange(data.results[0].filePath);
-        }
+  const bulkUploadMutation = useTRPC().adminBulkUploadImages.useMutation({
+    onSuccess: (data) => {
+      if (multiple) {
+        const successPaths = data.results.map((r: any) => r.filePath).filter(Boolean);
+        onChange(successPaths);
+      } else if (data.results.length > 0) {
+        onChange(data.results[0].filePath);
+      }
+      
+      setSelectedFiles([]);
+      setPreviewUrls([]);
+      setUploadProgress('');
+      setMetadata([]);
+      
+      const timeSeconds = (data.processingTime / 1000).toFixed(1);
+      
+      if (data.errorCount > 0) {
+        toast.error(`${data.successCount} uploaded, ${data.errorCount} failed in ${timeSeconds}s`, { duration: 8000 });
         
-        setSelectedFiles([]);
-        setPreviewUrls([]);
-        setUploadProgress('');
-        setMetadata([]);
-        
-        const timeSeconds = (data.processingTime / 1000).toFixed(1);
-        
-        if (data.errorCount > 0) {
-          toast.error(`${data.successCount} uploaded, ${data.errorCount} failed in ${timeSeconds}s`, { duration: 8000 });
-          
-          data.errors?.forEach((error: any, index: number) => {
-            setTimeout(() => {
-              toast.error(`❌ ${error.fileName}: ${error.error}`, { duration: 6000 });
-            }, (index + 1) * 1000);
-          });
-        } else {
-          toast.success(`🎉 All ${data.successCount} images uploaded in ${timeSeconds}s!`, { duration: 5000 });
-        }
-      },
-      onError: (error) => {
-        setUploadProgress('');
-        console.error('Bulk upload error:', error);
-        
-        const errorInfo = getUploadErrorMessage(error.message || 'Bulk upload failed');
-        toast.error(`❌ ${errorInfo.message}`, { duration: 8000 });
-        
-        if (errorInfo.canRetry && selectedFiles.length > 1) {
+        data.errors?.forEach((error: any, index: number) => {
           setTimeout(() => {
-            toast('💡 Try uploading fewer images at once (1-2 maximum)', {
-              duration: 6000,
-              style: { background: '#dbeafe', color: '#1e40af' }
-            });
-          }, 2000);
-        }
-      },
-    })
-  );
+            toast.error(`❌ ${error.fileName}: ${error.error}`, { duration: 6000 });
+          }, (index + 1) * 1000);
+        });
+      } else {
+        toast.success(`🎉 All ${data.successCount} images uploaded in ${timeSeconds}s!`, { duration: 5000 });
+      }
+    },
+    onError: (error) => {
+      setUploadProgress('');
+      console.error('Bulk upload error:', error);
+      
+      const errorInfo = getUploadErrorMessage(error.message || 'Bulk upload failed');
+      toast.error(`❌ ${errorInfo.message}`, { duration: 8000 });
+      
+      if (errorInfo.canRetry && selectedFiles.length > 1) {
+        setTimeout(() => {
+          toast('💡 Try uploading fewer images at once (1-2 maximum)', {
+            duration: 6000,
+            style: { background: '#dbeafe', color: '#1e40af' }
+          });
+        }, 2000);
+      }
+    },
+  });
   
   const handleFileSelect = async (files: FileList | File[]) => {
     const fileArray = Array.from(files);
@@ -256,8 +256,8 @@ export function ImageUpload({
         altText: '',
       })));
       
-      // Auto-upload if metadata not required
-      if (!showMetadata) {
+      // Auto-upload if metadata editor not required
+      if (!showMetadataEditor) {
         setTimeout(() => handleUpload(), 500);
       }
       
