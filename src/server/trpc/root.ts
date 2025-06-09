@@ -86,9 +86,17 @@ export const appRouter = createTRPCRouter({
   
   // Admin procedures - Image Management
   adminUploadImage: imageUploadProcs.adminUploadImage,
+  emergencyUploadImage: imageUploadProcs.emergencyUploadImage,
   adminBulkUploadImages: imageUploadProcs.adminBulkUploadImages,
   adminDeleteImage: imageUploadProcs.adminDeleteImage,
   adminListImages: imageUploadProcs.adminListImages,
+  
+  // Admin procedures - Image Cleanup and Maintenance
+  adminScanOrphanedFiles: imageUploadProcs.adminScanOrphanedFiles,
+  adminScanOrphanedRecords: imageUploadProcs.adminScanOrphanedRecords,
+  adminCleanupOrphanedFiles: imageUploadProcs.adminCleanupOrphanedFiles,
+  adminCleanupOrphanedRecords: imageUploadProcs.adminCleanupOrphanedRecords,
+  adminComprehensiveCleanup: imageUploadProcs.adminComprehensiveCleanup,
   
   // Admin procedures - Image Collections
   adminListImageCollections: imageCollectionProcs.adminListImageCollections,

@@ -57,6 +57,15 @@ const bulkImageUploadInputSchema = z.object({
   })).min(1).max(3), // Reduced to 3 for reliability
 });
 
+// Helper function for file size formatting
+const formatFileSize = (bytes: number): string => {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
+
 // Enhanced error creation with specific handling for different error types
 const createImageError = (
   message: string, 
@@ -1641,51 +1650,299 @@ export const getImageVariant = baseProcedure
     }
   });
 
-// Image deletion (simplified)
+// Enhanced image deletion with comprehensive cleanup
 export const adminDeleteImage = baseProcedure
   .input(z.object({
     adminToken: z.string(),
     filePath: z.string().min(1, "File path is required"),
   }))
   .mutation(async ({ input }) => {
+    const deletionId = `deletion_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const startTime = Date.now();
+    
     try {
+      console.log(`🗑️ ENHANCED DELETION: Starting deletion process for ${input.filePath} (ID: ${deletionId})`);
+      
+      // Enhanced authentication with detailed logging
       await requireAdminAuth(input.adminToken);
+      console.log(`✅ ENHANCED DELETION: Authentication verified for ${input.filePath} (${deletionId})`);
       
       const { filePath } = input;
-      console.log(`Deleting image: ${filePath}`);
       
-      // Delete from storage
-      try {
-        await minioClient.removeObject(BUCKET_NAME, filePath);
-        console.log(`Deleted from storage: ${filePath}`);
-      } catch (storageError) {
-        console.error(`Storage deletion failed for ${filePath}:`, storageError);
-        // Continue with database cleanup even if storage deletion fails
+      // Enhanced security validation
+      if (filePath.includes('..') || filePath.includes('/') || filePath.includes('\\') || filePath.includes('\0')) {
+        throw createImageError('Invalid file path - security violation detected', 'validation', { canRetry: false });
       }
       
-      // Delete from database
-      try {
-        const { db } = await import("~/server/db");
+      // Validate file path format (should be UUID.extension)
+      const filePathRegex = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.(jpg|jpeg|png|gif|webp|bmp|tiff|svg|avif)$/i;
+      if (!filePathRegex.test(filePath)) {
+        console.warn(`⚠️ ENHANCED DELETION: Invalid file path format: ${filePath} (${deletionId})`);
+        throw createImageError('Invalid file path format', 'validation', { canRetry: false });
+      }
+      
+      console.log(`🔍 ENHANCED DELETION: Getting image record and variants for ${filePath} (${deletionId})`);
+      
+      // Get image record with all variants from database first
+      const { db } = await import("~/server/db");
+      
+      const imageRecord = await db.image.findUnique({
+        where: { filePath },
+        include: {
+          variants: true, // Include all variants for cleanup
+        },
+      });
+      
+      if (!imageRecord) {
+        console.warn(`⚠️ ENHANCED DELETION: Image not found in database: ${filePath} (${deletionId})`);
+        // Still try to delete from storage in case it's orphaned
+        try {
+          await minioClient.removeObject(BUCKET_NAME, filePath);
+          console.log(`🧹 ENHANCED DELETION: Cleaned up orphaned file from storage: ${filePath} (${deletionId})`);
+        } catch (storageError) {
+          console.warn(`⚠️ ENHANCED DELETION: Orphaned file not found in storage: ${filePath} (${deletionId})`);
+        }
         
-        await db.image.delete({
+        return {
+          success: true,
+          message: 'Image not found in database but any orphaned files were cleaned up',
+          details: {
+            deletionId,
+            filePath,
+            foundInDatabase: false,
+            cleanedOrphanedFiles: true,
+          },
+        };
+      }
+      
+      console.log(`📊 ENHANCED DELETION: Found image record (${deletionId}):`, {
+        imageId: imageRecord.id,
+        fileName: imageRecord.fileName,
+        filePath: imageRecord.filePath,
+        fileSize: imageRecord.fileSize,
+        variantCount: imageRecord.variants.length,
+        variants: imageRecord.variants.map(v => ({ type: v.variantType, path: v.filePath, size: v.fileSize })),
+      });
+      
+      // Collect all files to delete (main image + all variants)
+      const filesToDelete = [
+        {
+          path: imageRecord.filePath,
+          type: 'main',
+          size: imageRecord.fileSize,
+        },
+        ...imageRecord.variants.map(variant => ({
+          path: variant.filePath,
+          type: `variant-${variant.variantType}`,
+          size: variant.fileSize,
+        })),
+      ];
+      
+      console.log(`📋 ENHANCED DELETION: Files to delete (${deletionId}):`, {
+        totalFiles: filesToDelete.length,
+        mainFile: filesToDelete[0],
+        variants: filesToDelete.slice(1),
+        totalSize: filesToDelete.reduce((sum, file) => sum + file.size, 0),
+      });
+      
+      // Phase 1: Delete all files from storage (main image + variants)
+      const storageResults = [];
+      let storageErrorCount = 0;
+      
+      console.log(`🗑️ ENHANCED DELETION: Phase 1 - Deleting files from storage (${deletionId})`);
+      
+      for (const fileToDelete of filesToDelete) {
+        try {
+          console.log(`🗑️ ENHANCED DELETION: Deleting from storage: ${fileToDelete.path} (${fileToDelete.type}) (${deletionId})`);
+          
+          await minioClient.removeObject(BUCKET_NAME, fileToDelete.path);
+          
+          console.log(`✅ ENHANCED DELETION: Successfully deleted from storage: ${fileToDelete.path} (${fileToDelete.type}) (${deletionId})`);
+          
+          storageResults.push({
+            path: fileToDelete.path,
+            type: fileToDelete.type,
+            success: true,
+            size: fileToDelete.size,
+          });
+          
+        } catch (storageError: any) {
+          console.error(`❌ ENHANCED DELETION: Storage deletion failed for ${fileToDelete.path} (${fileToDelete.type}) (${deletionId}):`, {
+            error: storageError instanceof Error ? storageError.message : 'Unknown error',
+            code: storageError?.code,
+            statusCode: storageError?.statusCode,
+          });
+          
+          storageErrorCount++;
+          storageResults.push({
+            path: fileToDelete.path,
+            type: fileToDelete.type,
+            success: false,
+            error: storageError instanceof Error ? storageError.message : 'Unknown error',
+            size: fileToDelete.size,
+          });
+        }
+      }
+      
+      console.log(`📊 ENHANCED DELETION: Storage deletion summary (${deletionId}):`, {
+        totalFiles: filesToDelete.length,
+        successfulDeletions: storageResults.filter(r => r.success).length,
+        failedDeletions: storageErrorCount,
+        storageResults,
+      });
+      
+      // Phase 2: Delete from database (this will cascade to variants automatically)
+      console.log(`🗑️ ENHANCED DELETION: Phase 2 - Deleting from database (${deletionId})`);
+      
+      try {
+        const deletedRecord = await db.image.delete({
           where: { filePath },
+          include: {
+            variants: true, // Include variants to see what was deleted
+          },
         });
         
-        console.log(`Deleted from database: ${filePath}`);
+        console.log(`✅ ENHANCED DELETION: Successfully deleted from database (${deletionId}):`, {
+          imageId: deletedRecord.id,
+          fileName: deletedRecord.fileName,
+          filePath: deletedRecord.filePath,
+          variantsDeleted: deletedRecord.variants.length,
+        });
         
       } catch (dbError) {
-        console.error(`Database deletion failed for ${filePath}:`, dbError);
-        throw createImageError('Failed to delete image record', 'storage');
+        console.error(`❌ ENHANCED DELETION: Database deletion failed for ${filePath} (${deletionId}):`, {
+          error: dbError instanceof Error ? dbError.message : 'Unknown error',
+          stack: dbError instanceof Error ? dbError.stack : 'No stack trace',
+        });
+        
+        // If database deletion fails but storage deletion succeeded, we have orphaned files
+        const successfulStorageDeletions = storageResults.filter(r => r.success);
+        if (successfulStorageDeletions.length > 0) {
+          console.error(`💥 ENHANCED DELETION: CRITICAL - Database deletion failed but storage files were deleted! Orphaned database record: ${filePath} (${deletionId})`);
+          
+          // TODO: Could implement a cleanup job to handle orphaned database records
+          throw createImageError(
+            'Database deletion failed but files were removed from storage. Contact support to clean up orphaned database record.',
+            'storage',
+            {
+              canRetry: false,
+              suggestions: [
+                'Contact support to clean up the orphaned database record',
+                'The image files have been successfully removed from storage'
+              ],
+              details: { 
+                deletionId, 
+                filePath,
+                orphanedRecord: true,
+                storageResults,
+                dbError: dbError instanceof Error ? dbError.message : 'Unknown'
+              }
+            }
+          );
+        }
+        
+        throw createImageError(
+          'Failed to delete image record from database',
+          'storage',
+          {
+            suggestions: [
+              'Try the deletion again',
+              'Check if the image still exists',
+              'Contact support if the problem persists'
+            ],
+            details: { 
+              deletionId, 
+              filePath,
+              dbError: dbError instanceof Error ? dbError.message : 'Unknown',
+              storageResults
+            }
+          }
+        );
+      }
+      
+      const totalTime = Date.now() - startTime;
+      
+      // Final success summary
+      const successSummary = {
+        deletionId,
+        filePath,
+        imageId: imageRecord.id,
+        fileName: imageRecord.fileName,
+        totalFiles: filesToDelete.length,
+        storageResults,
+        successfulStorageDeletions: storageResults.filter(r => r.success).length,
+        failedStorageDeletions: storageErrorCount,
+        databaseDeleted: true,
+        variantsDeleted: imageRecord.variants.length,
+        totalSizeDeleted: filesToDelete.reduce((sum, file) => sum + file.size, 0),
+        processingTime: totalTime,
+        timestamp: new Date().toISOString(),
+      };
+      
+      console.log(`✅ ENHANCED DELETION: Deletion completed successfully (${deletionId}):`, successSummary);
+      
+      // Determine success level based on storage deletion results
+      let message = 'Image deleted successfully';
+      let warnings: string[] = [];
+      
+      if (storageErrorCount > 0) {
+        message = `Image deleted with ${storageErrorCount} storage file(s) that could not be removed`;
+        warnings = [
+          `${storageErrorCount} file(s) could not be deleted from storage but database record was cleaned up`,
+          'Some orphaned files may remain in storage',
+        ];
+        
+        // Log the specific files that failed for manual cleanup
+        const failedFiles = storageResults.filter(r => !r.success);
+        console.warn(`⚠️ ENHANCED DELETION: Manual cleanup may be needed for these files (${deletionId}):`, failedFiles);
       }
       
       return {
         success: true,
-        message: 'Image deleted successfully',
+        message,
+        warnings: warnings.length > 0 ? warnings : undefined,
+        details: successSummary,
       };
       
     } catch (error) {
-      console.error(`Image deletion error for ${input.filePath}:`, error);
-      throw error;
+      const totalTime = Date.now() - startTime;
+      
+      console.error(`❌ ENHANCED DELETION: Deletion failed for ${input.filePath} (${deletionId}) after ${totalTime}ms:`, {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        category: (error as ImageUploadError)?.category,
+        canRetry: (error as ImageUploadError)?.canRetry,
+        stack: error instanceof Error ? error.stack : 'No stack trace',
+      });
+      
+      // Re-throw ImageUploadError as-is for proper client handling
+      if (error instanceof Error && 'category' in error) {
+        const deletionError = error as ImageUploadError;
+        
+        // Add deletion context to error details
+        deletionError.details = {
+          ...deletionError.details,
+          deletionId,
+          filePath: input.filePath,
+          processingTime: totalTime,
+          timestamp: new Date().toISOString(),
+        };
+        
+        throw deletionError;
+      }
+      
+      // Wrap unexpected errors
+      throw createImageError(
+        error instanceof Error ? error.message : 'Image deletion failed unexpectedly',
+        'processing',
+        {
+          suggestions: [
+            'Try deleting the image again',
+            'Check if the image still exists',
+            'Contact support if the problem persists'
+          ],
+          details: { deletionId, filePath: input.filePath, processingTime: totalTime }
+        }
+      );
     }
   });
 
@@ -1770,7 +2027,11 @@ export const adminListImages = baseProcedure
         let parsedTags: string[] = [];
         try {
           if (image.tags) {
-            parsedTags = JSON.parse(image.tags);
+            if (typeof image.tags === 'string') {
+              parsedTags = JSON.parse(image.tags);
+            } else if (Array.isArray(image.tags)) {
+              parsedTags = image.tags;
+            }
             if (!Array.isArray(parsedTags)) {
               parsedTags = [];
             }
@@ -1817,5 +2078,966 @@ export const adminListImages = baseProcedure
       }
       
       throw createImageError('Failed to list images', 'storage');
+    }
+  });
+
+// Scan for orphaned files in storage (files without database records)
+export const adminScanOrphanedFiles = baseProcedure
+  .input(z.object({
+    adminToken: z.string(),
+    bucketName: z.string().optional().default(BUCKET_NAME),
+    maxFiles: z.number().min(1).max(1000).default(100),
+    dryRun: z.boolean().default(true),
+  }))
+  .query(async ({ input }) => {
+    const scanId = `scan_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const startTime = Date.now();
+    
+    try {
+      await requireAdminAuth(input.adminToken);
+      
+      console.log(`🔍 ORPHANED FILES SCAN: Starting scan for orphaned files (ID: ${scanId})`);
+      
+      const { bucketName, maxFiles, dryRun } = input;
+      const { db } = await import("~/server/db");
+      
+      // Get all files from storage
+      const storageFiles: Array<{
+        name: string;
+        size: number;
+        lastModified: Date;
+        etag: string;
+      }> = [];
+      
+      try {
+        const objectStream = minioClient.listObjects(bucketName, '', true);
+        let fileCount = 0;
+        
+        for await (const obj of objectStream) {
+          if (fileCount >= maxFiles) {
+            console.log(`📊 ORPHANED FILES SCAN: Reached max files limit (${maxFiles}), stopping scan`);
+            break;
+          }
+          
+          if (obj.name && obj.size !== undefined) {
+            storageFiles.push({
+              name: obj.name,
+              size: obj.size,
+              lastModified: obj.lastModified || new Date(),
+              etag: obj.etag || '',
+            });
+            fileCount++;
+          }
+        }
+        
+        console.log(`📊 ORPHANED FILES SCAN: Found ${storageFiles.length} files in storage`);
+      } catch (storageError) {
+        console.error(`❌ ORPHANED FILES SCAN: Storage listing failed:`, storageError);
+        throw createImageError(
+          `Failed to list storage files: ${storageError instanceof Error ? storageError.message : 'Unknown error'}`,
+          'storage',
+          {
+            suggestions: [
+              'Check storage system connectivity',
+              'Verify bucket permissions',
+              'Try again in a few moments'
+            ]
+          }
+        );
+      }
+      
+      // Get all file paths from database
+      const dbImages = await db.image.findMany({
+        select: {
+          id: true,
+          filePath: true,
+          fileSize: true,
+          createdAt: true,
+        },
+      });
+      
+      const dbFilePaths = new Set(dbImages.map(img => img.filePath));
+      console.log(`📊 ORPHANED FILES SCAN: Found ${dbFilePaths.size} file paths in database`);
+      
+      // Find orphaned files (in storage but not in database)
+      const orphanedFiles = storageFiles.filter(file => !dbFilePaths.has(file.name));
+      
+      // Categorize orphaned files
+      const categorizedOrphans = {
+        temporaryFiles: orphanedFiles.filter(file => 
+          file.name.includes('temp-') || 
+          file.name.includes('chunk-') ||
+          file.name.startsWith('progressive_') ||
+          file.name.startsWith('emergency_')
+        ),
+        possibleFailedUploads: orphanedFiles.filter(file => 
+          !file.name.includes('temp-') && 
+          !file.name.includes('chunk-') &&
+          !file.name.startsWith('progressive_') &&
+          !file.name.startsWith('emergency_') &&
+          /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.(jpg|jpeg|png|gif|webp|bmp|tiff|svg|avif)$/i.test(file.name)
+        ),
+        unknownFiles: orphanedFiles.filter(file => 
+          !file.name.includes('temp-') && 
+          !file.name.includes('chunk-') &&
+          !file.name.startsWith('progressive_') &&
+          !file.name.startsWith('emergency_') &&
+          !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.(jpg|jpeg|png|gif|webp|bmp|tiff|svg|avif)$/i.test(file.name)
+        ),
+      };
+      
+      // Calculate sizes
+      const totalOrphanedSize = orphanedFiles.reduce((sum, file) => sum + file.size, 0);
+      const tempFilesSize = categorizedOrphans.temporaryFiles.reduce((sum, file) => sum + file.size, 0);
+      const failedUploadsSize = categorizedOrphans.possibleFailedUploads.reduce((sum, file) => sum + file.size, 0);
+      const unknownFilesSize = categorizedOrphans.unknownFiles.reduce((sum, file) => sum + file.size, 0);
+      
+      const scanResults = {
+        scanId,
+        scanTime: Date.now() - startTime,
+        dryRun,
+        bucketName,
+        totalStorageFiles: storageFiles.length,
+        totalDatabaseRecords: dbImages.length,
+        orphanedFiles: {
+          total: orphanedFiles.length,
+          totalSize: totalOrphanedSize,
+          categories: {
+            temporaryFiles: {
+              count: categorizedOrphans.temporaryFiles.length,
+              size: tempFilesSize,
+              files: categorizedOrphans.temporaryFiles.slice(0, 10), // Limit to first 10 for response size
+            },
+            possibleFailedUploads: {
+              count: categorizedOrphans.possibleFailedUploads.length,
+              size: failedUploadsSize,
+              files: categorizedOrphans.possibleFailedUploads.slice(0, 10),
+            },
+            unknownFiles: {
+              count: categorizedOrphans.unknownFiles.length,
+              size: unknownFilesSize,
+              files: categorizedOrphans.unknownFiles.slice(0, 10),
+            },
+          },
+        },
+        recommendations: [] as string[],
+      };
+      
+      // Generate recommendations
+      if (categorizedOrphans.temporaryFiles.length > 0) {
+        scanResults.recommendations.push(`Clean up ${categorizedOrphans.temporaryFiles.length} temporary files (${formatFileSize(tempFilesSize)})`);
+      }
+      if (categorizedOrphans.possibleFailedUploads.length > 0) {
+        scanResults.recommendations.push(`Review ${categorizedOrphans.possibleFailedUploads.length} possible failed uploads (${formatFileSize(failedUploadsSize)})`);
+      }
+      if (categorizedOrphans.unknownFiles.length > 0) {
+        scanResults.recommendations.push(`Investigate ${categorizedOrphans.unknownFiles.length} unknown files (${formatFileSize(unknownFilesSize)})`);
+      }
+      
+      console.log(`✅ ORPHANED FILES SCAN: Completed scan (${scanId}) in ${scanResults.scanTime}ms:`, {
+        totalOrphaned: orphanedFiles.length,
+        totalSize: formatFileSize(totalOrphanedSize),
+        temporary: categorizedOrphans.temporaryFiles.length,
+        failedUploads: categorizedOrphans.possibleFailedUploads.length,
+        unknown: categorizedOrphans.unknownFiles.length,
+      });
+      
+      return {
+        success: true,
+        ...scanResults,
+      };
+      
+    } catch (error) {
+      console.error(`❌ ORPHANED FILES SCAN: Failed (${scanId}):`, error);
+      
+      if (error instanceof Error && 'category' in error) {
+        throw error;
+      }
+      
+      throw createImageError(
+        `Orphaned files scan failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        'processing',
+        {
+          suggestions: [
+            'Check storage system connectivity',
+            'Verify admin permissions',
+            'Try again with a smaller maxFiles limit'
+          ]
+        }
+      );
+    }
+  });
+
+// Scan for orphaned database records (records without storage files)
+export const adminScanOrphanedRecords = baseProcedure
+  .input(z.object({
+    adminToken: z.string(),
+    bucketName: z.string().optional().default(BUCKET_NAME),
+    maxRecords: z.number().min(1).max(1000).default(100),
+    dryRun: z.boolean().default(true),
+  }))
+  .query(async ({ input }) => {
+    const scanId = `record_scan_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const startTime = Date.now();
+    
+    try {
+      await requireAdminAuth(input.adminToken);
+      
+      console.log(`🔍 ORPHANED RECORDS SCAN: Starting scan for orphaned database records (ID: ${scanId})`);
+      
+      const { bucketName, maxRecords, dryRun } = input;
+      const { db } = await import("~/server/db");
+      
+      // Get database records (limited)
+      const dbImages = await db.image.findMany({
+        select: {
+          id: true,
+          filePath: true,
+          fileSize: true,
+          fileName: true,
+          createdAt: true,
+        },
+        take: maxRecords,
+        orderBy: { createdAt: 'desc' },
+      });
+      
+      console.log(`📊 ORPHANED RECORDS SCAN: Checking ${dbImages.length} database records`);
+      
+      // Check each record for corresponding storage file
+      const orphanedRecords = [];
+      const verificationErrors = [];
+      
+      for (const record of dbImages) {
+        try {
+          const exists = await minioClient.statObject(bucketName, record.filePath);
+          // If we get here, file exists
+          continue;
+        } catch (error: any) {
+          if (error.code === 'NoSuchKey' || error.statusCode === 404) {
+            orphanedRecords.push({
+              id: record.id,
+              filePath: record.filePath,
+              fileName: record.fileName,
+              fileSize: record.fileSize,
+              createdAt: record.createdAt,
+              error: 'File not found in storage',
+            });
+          } else {
+            verificationErrors.push({
+              id: record.id,
+              filePath: record.filePath,
+              error: error instanceof Error ? error.message : 'Unknown verification error',
+            });
+          }
+        }
+      }
+      
+      // Calculate impact
+      const totalOrphanedSize = orphanedRecords.reduce((sum, record) => sum + record.fileSize, 0);
+      
+      // Categorize by age
+      const now = new Date();
+      const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+      const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      
+      const categorizedOrphans = {
+        recent: orphanedRecords.filter(record => new Date(record.createdAt) > oneHourAgo),
+        today: orphanedRecords.filter(record => {
+          const createdAt = new Date(record.createdAt);
+          return createdAt <= oneHourAgo && createdAt > oneDayAgo;
+        }),
+        thisWeek: orphanedRecords.filter(record => {
+          const createdAt = new Date(record.createdAt);
+          return createdAt <= oneDayAgo && createdAt > oneWeekAgo;
+        }),
+        older: orphanedRecords.filter(record => new Date(record.createdAt) <= oneWeekAgo),
+      };
+      
+      const scanResults = {
+        scanId,
+        scanTime: Date.now() - startTime,
+        dryRun,
+        bucketName,
+        totalRecordsChecked: dbImages.length,
+        orphanedRecords: {
+          total: orphanedRecords.length,
+          totalSize: totalOrphanedSize,
+          categories: {
+            recent: {
+              count: categorizedOrphans.recent.length,
+              description: 'Created in the last hour (may be temporary)',
+              records: categorizedOrphans.recent.slice(0, 5),
+            },
+            today: {
+              count: categorizedOrphans.today.length,
+              description: 'Created today',
+              records: categorizedOrphans.today.slice(0, 5),
+            },
+            thisWeek: {
+              count: categorizedOrphans.thisWeek.length,
+              description: 'Created this week',
+              records: categorizedOrphans.thisWeek.slice(0, 5),
+            },
+            older: {
+              count: categorizedOrphans.older.length,
+              description: 'Older than one week',
+              records: categorizedOrphans.older.slice(0, 5),
+            },
+          },
+        },
+        verificationErrors: verificationErrors.length,
+        recommendations: [] as string[],
+      };
+      
+      // Generate recommendations
+      if (categorizedOrphans.recent.length > 0) {
+        scanResults.recommendations.push(`Monitor ${categorizedOrphans.recent.length} recent orphaned records (may resolve automatically)`);
+      }
+      if (categorizedOrphans.today.length > 0) {
+        scanResults.recommendations.push(`Review ${categorizedOrphans.today.length} orphaned records from today`);
+      }
+      if (categorizedOrphans.thisWeek.length > 0) {
+        scanResults.recommendations.push(`Clean up ${categorizedOrphans.thisWeek.length} orphaned records from this week`);
+      }
+      if (categorizedOrphans.older.length > 0) {
+        scanResults.recommendations.push(`Clean up ${categorizedOrphans.older.length} old orphaned records (safe to delete)`);
+      }
+      if (verificationErrors.length > 0) {
+        scanResults.recommendations.push(`Investigate ${verificationErrors.length} verification errors`);
+      }
+      
+      console.log(`✅ ORPHANED RECORDS SCAN: Completed scan (${scanId}) in ${scanResults.scanTime}ms:`, {
+        totalOrphaned: orphanedRecords.length,
+        totalSize: formatFileSize(totalOrphanedSize),
+        recent: categorizedOrphans.recent.length,
+        today: categorizedOrphans.today.length,
+        thisWeek: categorizedOrphans.thisWeek.length,
+        older: categorizedOrphans.older.length,
+        errors: verificationErrors.length,
+      });
+      
+      return {
+        success: true,
+        ...scanResults,
+      };
+      
+    } catch (error) {
+      console.error(`❌ ORPHANED RECORDS SCAN: Failed (${scanId}):`, error);
+      
+      if (error instanceof Error && 'category' in error) {
+        throw error;
+      }
+      
+      throw createImageError(
+        `Orphaned records scan failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        'processing',
+        {
+          suggestions: [
+            'Check database connectivity',
+            'Verify admin permissions',
+            'Try again with a smaller maxRecords limit'
+          ]
+        }
+      );
+    }
+  });
+
+// Clean up orphaned files from storage
+export const adminCleanupOrphanedFiles = baseProcedure
+  .input(z.object({
+    adminToken: z.string(),
+    bucketName: z.string().optional().default(BUCKET_NAME),
+    fileNames: z.array(z.string()).min(1).max(50),
+    dryRun: z.boolean().default(true),
+    force: z.boolean().default(false),
+  }))
+  .mutation(async ({ input }) => {
+    const cleanupId = `cleanup_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const startTime = Date.now();
+    
+    try {
+      await requireAdminAuth(input.adminToken);
+      
+      const { bucketName, fileNames, dryRun, force } = input;
+      
+      console.log(`🧹 ORPHANED FILES CLEANUP: Starting cleanup of ${fileNames.length} files (ID: ${cleanupId}, dryRun: ${dryRun})`);
+      
+      if (!force && !dryRun) {
+        throw createImageError(
+          'Cleanup requires either dryRun=true or force=true for safety',
+          'validation',
+          {
+            canRetry: false,
+            suggestions: [
+              'Use dryRun=true to preview the cleanup',
+              'Use force=true to confirm you want to delete files permanently'
+            ]
+          }
+        );
+      }
+      
+      const { db } = await import("~/server/db");
+      const results = {
+        cleanupId,
+        dryRun,
+        totalFiles: fileNames.length,
+        processed: 0,
+        deleted: 0,
+        errors: 0,
+        skipped: 0,
+        totalSizeDeleted: 0,
+        details: [] as Array<{
+          fileName: string;
+          status: 'deleted' | 'error' | 'skipped' | 'would_delete';
+          size?: number;
+          error?: string;
+          reason?: string;
+        }>,
+      };
+      
+      for (const fileName of fileNames) {
+        try {
+          results.processed++;
+          
+          // Security check - only allow UUID-format files and known temporary patterns
+          const isValidFile = 
+            /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.(jpg|jpeg|png|gif|webp|bmp|tiff|svg|avif)$/i.test(fileName) ||
+            fileName.includes('temp-') ||
+            fileName.includes('chunk-') ||
+            fileName.startsWith('progressive_') ||
+            fileName.startsWith('emergency_');
+          
+          if (!isValidFile) {
+            results.skipped++;
+            results.details.push({
+              fileName,
+              status: 'skipped',
+              reason: 'Invalid file name format - security check failed',
+            });
+            continue;
+          }
+          
+          // Double-check that file is not in database (safety check)
+          const dbRecord = await db.image.findFirst({
+            where: { filePath: fileName },
+            select: { id: true },
+          });
+          
+          if (dbRecord) {
+            results.skipped++;
+            results.details.push({
+              fileName,
+              status: 'skipped',
+              reason: 'File found in database - not orphaned',
+            });
+            continue;
+          }
+          
+          // Get file info before deletion
+          let fileSize = 0;
+          try {
+            const stat = await minioClient.statObject(bucketName, fileName);
+            fileSize = stat.size;
+          } catch (statError) {
+            // File might not exist, but we'll try to delete anyway
+            console.warn(`Could not get file stats for ${fileName}:`, statError);
+          }
+          
+          if (dryRun) {
+            results.details.push({
+              fileName,
+              status: 'would_delete',
+              size: fileSize,
+              reason: 'Would be deleted in real run',
+            });
+          } else {
+            // Actually delete the file
+            try {
+              await minioClient.removeObject(bucketName, fileName);
+              results.deleted++;
+              results.totalSizeDeleted += fileSize;
+              results.details.push({
+                fileName,
+                status: 'deleted',
+                size: fileSize,
+              });
+              console.log(`✅ CLEANUP: Deleted orphaned file: ${fileName} (${formatFileSize(fileSize)})`);
+            } catch (deleteError) {
+              results.errors++;
+              results.details.push({
+                fileName,
+                status: 'error',
+                size: fileSize,
+                error: deleteError instanceof Error ? deleteError.message : 'Unknown delete error',
+              });
+              console.error(`❌ CLEANUP: Failed to delete ${fileName}:`, deleteError);
+            }
+          }
+          
+        } catch (error) {
+          results.errors++;
+          results.details.push({
+            fileName,
+            status: 'error',
+            error: error instanceof Error ? error.message : 'Unknown processing error',
+          });
+          console.error(`❌ CLEANUP: Error processing ${fileName}:`, error);
+        }
+      }
+      
+      const totalTime = Date.now() - startTime;
+      
+      const summary = {
+        ...results,
+        processingTime: totalTime,
+        summary: dryRun 
+          ? `Dry run completed: ${results.processed} files processed, ${results.details.filter(d => d.status === 'would_delete').length} would be deleted (${formatFileSize(results.details.filter(d => d.status === 'would_delete').reduce((sum, d) => sum + (d.size || 0), 0))})`
+          : `Cleanup completed: ${results.deleted} files deleted (${formatFileSize(results.totalSizeDeleted)}), ${results.errors} errors, ${results.skipped} skipped`,
+      };
+      
+      console.log(`✅ ORPHANED FILES CLEANUP: Completed (${cleanupId}) in ${totalTime}ms:`, {
+        processed: results.processed,
+        deleted: results.deleted,
+        errors: results.errors,
+        skipped: results.skipped,
+        totalSizeDeleted: formatFileSize(results.totalSizeDeleted),
+      });
+      
+      return {
+        success: true,
+        ...summary,
+      };
+      
+    } catch (error) {
+      console.error(`❌ ORPHANED FILES CLEANUP: Failed (${cleanupId}):`, error);
+      
+      if (error instanceof Error && 'category' in error) {
+        throw error;
+      }
+      
+      throw createImageError(
+        `Orphaned files cleanup failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        'processing',
+        {
+          suggestions: [
+            'Check storage system connectivity',
+            'Verify admin permissions',
+            'Try with a smaller batch of files'
+          ]
+        }
+      );
+    }
+  });
+
+// Clean up orphaned database records
+export const adminCleanupOrphanedRecords = baseProcedure
+  .input(z.object({
+    adminToken: z.string(),
+    recordIds: z.array(z.number()).min(1).max(50),
+    dryRun: z.boolean().default(true),
+    force: z.boolean().default(false),
+  }))
+  .mutation(async ({ input }) => {
+    const cleanupId = `record_cleanup_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const startTime = Date.now();
+    
+    try {
+      await requireAdminAuth(input.adminToken);
+      
+      const { recordIds, dryRun, force } = input;
+      
+      console.log(`🧹 ORPHANED RECORDS CLEANUP: Starting cleanup of ${recordIds.length} records (ID: ${cleanupId}, dryRun: ${dryRun})`);
+      
+      if (!force && !dryRun) {
+        throw createImageError(
+          'Cleanup requires either dryRun=true or force=true for safety',
+          'validation',
+          {
+            canRetry: false,
+            suggestions: [
+              'Use dryRun=true to preview the cleanup',
+              'Use force=true to confirm you want to delete records permanently'
+            ]
+          }
+        );
+      }
+      
+      const { db } = await import("~/server/db");
+      const results = {
+        cleanupId,
+        dryRun,
+        totalRecords: recordIds.length,
+        processed: 0,
+        deleted: 0,
+        errors: 0,
+        skipped: 0,
+        details: [] as Array<{
+          recordId: number;
+          fileName?: string;
+          filePath?: string;
+          status: 'deleted' | 'error' | 'skipped' | 'would_delete';
+          error?: string;
+          reason?: string;
+        }>,
+      };
+      
+      for (const recordId of recordIds) {
+        try {
+          results.processed++;
+          
+          // Get record details
+          const record = await db.image.findUnique({
+            where: { id: recordId },
+            select: {
+              id: true,
+              fileName: true,
+              filePath: true,
+              fileSize: true,
+            },
+          });
+          
+          if (!record) {
+            results.skipped++;
+            results.details.push({
+              recordId,
+              status: 'skipped',
+              reason: 'Record not found in database',
+            });
+            continue;
+          }
+          
+          // Double-check that file is actually missing from storage (safety check)
+          try {
+            await minioClient.statObject(BUCKET_NAME, record.filePath);
+            // If we get here, file exists - don't delete the record
+            results.skipped++;
+            results.details.push({
+              recordId,
+              fileName: record.fileName,
+              filePath: record.filePath,
+              status: 'skipped',
+              reason: 'File found in storage - not orphaned',
+            });
+            continue;
+          } catch (storageError: any) {
+            if (storageError.code !== 'NoSuchKey' && storageError.statusCode !== 404) {
+              // Storage error, not a missing file
+              results.errors++;
+              results.details.push({
+                recordId,
+                fileName: record.fileName,
+                filePath: record.filePath,
+                status: 'error',
+                error: `Storage verification error: ${storageError.message}`,
+              });
+              continue;
+            }
+            // File is indeed missing, proceed with cleanup
+          }
+          
+          if (dryRun) {
+            results.details.push({
+              recordId,
+              fileName: record.fileName,
+              filePath: record.filePath,
+              status: 'would_delete',
+              reason: 'Would be deleted in real run',
+            });
+          } else {
+            // Actually delete the record (this will cascade to variants)
+            try {
+              await db.image.delete({
+                where: { id: recordId },
+              });
+              results.deleted++;
+              results.details.push({
+                recordId,
+                fileName: record.fileName,
+                filePath: record.filePath,
+                status: 'deleted',
+              });
+              console.log(`✅ CLEANUP: Deleted orphaned record: ${record.fileName} (ID: ${recordId})`);
+            } catch (deleteError) {
+              results.errors++;
+              results.details.push({
+                recordId,
+                fileName: record.fileName,
+                filePath: record.filePath,
+                status: 'error',
+                error: deleteError instanceof Error ? deleteError.message : 'Unknown delete error',
+              });
+              console.error(`❌ CLEANUP: Failed to delete record ${recordId}:`, deleteError);
+            }
+          }
+          
+        } catch (error) {
+          results.errors++;
+          results.details.push({
+            recordId,
+            status: 'error',
+            error: error instanceof Error ? error.message : 'Unknown processing error',
+          });
+          console.error(`❌ CLEANUP: Error processing record ${recordId}:`, error);
+        }
+      }
+      
+      const totalTime = Date.now() - startTime;
+      
+      const summary = {
+        ...results,
+        processingTime: totalTime,
+        summary: dryRun 
+          ? `Dry run completed: ${results.processed} records processed, ${results.details.filter(d => d.status === 'would_delete').length} would be deleted`
+          : `Cleanup completed: ${results.deleted} records deleted, ${results.errors} errors, ${results.skipped} skipped`,
+      };
+      
+      console.log(`✅ ORPHANED RECORDS CLEANUP: Completed (${cleanupId}) in ${totalTime}ms:`, {
+        processed: results.processed,
+        deleted: results.deleted,
+        errors: results.errors,
+        skipped: results.skipped,
+      });
+      
+      return {
+        success: true,
+        ...summary,
+      };
+      
+    } catch (error) {
+      console.error(`❌ ORPHANED RECORDS CLEANUP: Failed (${cleanupId}):`, error);
+      
+      if (error instanceof Error && 'category' in error) {
+        throw error;
+      }
+      
+      throw createImageError(
+        `Orphaned records cleanup failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        'processing',
+        {
+          suggestions: [
+            'Check database connectivity',
+            'Verify admin permissions',
+            'Try with a smaller batch of records'
+          ]
+        }
+      );
+    }
+  });
+
+// Comprehensive cleanup procedure that combines all cleanup operations
+export const adminComprehensiveCleanup = baseProcedure
+  .input(z.object({
+    adminToken: z.string(),
+    operations: z.object({
+      scanOrphanedFiles: z.boolean().default(true),
+      scanOrphanedRecords: z.boolean().default(true),
+      cleanupTempFiles: z.boolean().default(true),
+      cleanupOldOrphans: z.boolean().default(false),
+    }),
+    limits: z.object({
+      maxFiles: z.number().min(1).max(1000).default(100),
+      maxRecords: z.number().min(1).max(1000).default(100),
+      maxCleanupItems: z.number().min(1).max(50).default(20),
+    }),
+    dryRun: z.boolean().default(true),
+    force: z.boolean().default(false),
+  }))
+  .mutation(async ({ input }) => {
+    const cleanupId = `comprehensive_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const startTime = Date.now();
+    
+    try {
+      await requireAdminAuth(input.adminToken);
+      
+      console.log(`🧹 COMPREHENSIVE CLEANUP: Starting comprehensive cleanup (ID: ${cleanupId})`);
+      
+      const { operations, limits, dryRun, force } = input;
+      const results = {
+        cleanupId,
+        startTime: new Date().toISOString(),
+        dryRun,
+        operations: operations,
+        orphanedFilesResults: null as any,
+        orphanedRecordsResults: null as any,
+        tempFilesCleanup: null as any,
+        oldOrphansCleanup: null as any,
+        summary: {
+          totalOperations: 0,
+          completedOperations: 0,
+          errors: 0,
+          totalFilesIdentified: 0,
+          totalRecordsIdentified: 0,
+          totalCleanedUp: 0,
+          totalSizeReclaimed: 0,
+        },
+        recommendations: [] as string[],
+      };
+      
+      // Step 1: Scan for orphaned files
+      if (operations.scanOrphanedFiles) {
+        results.summary.totalOperations++;
+        try {
+          console.log(`🔍 COMPREHENSIVE CLEANUP: Scanning for orphaned files...`);
+          results.orphanedFilesResults = await adminScanOrphanedFiles.resolver({
+            input: {
+              adminToken: input.adminToken,
+              maxFiles: limits.maxFiles,
+              dryRun: true, // Always dry run for scanning
+            },
+            ctx: {} as any,
+          });
+          
+          results.summary.totalFilesIdentified = results.orphanedFilesResults.orphanedFiles.total;
+          results.summary.completedOperations++;
+          
+          if (results.orphanedFilesResults.orphanedFiles.total > 0) {
+            results.recommendations.push(
+              `Found ${results.orphanedFilesResults.orphanedFiles.total} orphaned files (${formatFileSize(results.orphanedFilesResults.orphanedFiles.totalSize)})`
+            );
+          }
+        } catch (error) {
+          console.error('Orphaned files scan failed:', error);
+          results.summary.errors++;
+        }
+      }
+      
+      // Step 2: Scan for orphaned records
+      if (operations.scanOrphanedRecords) {
+        results.summary.totalOperations++;
+        try {
+          console.log(`🔍 COMPREHENSIVE CLEANUP: Scanning for orphaned records...`);
+          results.orphanedRecordsResults = await adminScanOrphanedRecords.resolver({
+            input: {
+              adminToken: input.adminToken,
+              maxRecords: limits.maxRecords,
+              dryRun: true, // Always dry run for scanning
+            },
+            ctx: {} as any,
+          });
+          
+          results.summary.totalRecordsIdentified = results.orphanedRecordsResults.orphanedRecords.total;
+          results.summary.completedOperations++;
+          
+          if (results.orphanedRecordsResults.orphanedRecords.total > 0) {
+            results.recommendations.push(
+              `Found ${results.orphanedRecordsResults.orphanedRecords.total} orphaned database records`
+            );
+          }
+        } catch (error) {
+          console.error('Orphaned records scan failed:', error);
+          results.summary.errors++;
+        }
+      }
+      
+      // Step 3: Clean up temporary files (if not dry run)
+      if (operations.cleanupTempFiles && results.orphanedFilesResults && !dryRun && force) {
+        results.summary.totalOperations++;
+        try {
+          const tempFiles = results.orphanedFilesResults.orphanedFiles.categories.temporaryFiles.files
+            .slice(0, limits.maxCleanupItems)
+            .map((file: any) => file.name);
+          
+          if (tempFiles.length > 0) {
+            console.log(`🧹 COMPREHENSIVE CLEANUP: Cleaning up ${tempFiles.length} temporary files...`);
+            results.tempFilesCleanup = await adminCleanupOrphanedFiles.resolver({
+              input: {
+                adminToken: input.adminToken,
+                fileNames: tempFiles,
+                dryRun: false,
+                force: true,
+              },
+              ctx: {} as any,
+            });
+            
+            results.summary.totalCleanedUp += results.tempFilesCleanup.deleted;
+            results.summary.totalSizeReclaimed += results.tempFilesCleanup.totalSizeDeleted;
+          }
+          
+          results.summary.completedOperations++;
+        } catch (error) {
+          console.error('Temp files cleanup failed:', error);
+          results.summary.errors++;
+        }
+      }
+      
+      // Step 4: Clean up old orphaned records (if enabled and not dry run)
+      if (operations.cleanupOldOrphans && results.orphanedRecordsResults && !dryRun && force) {
+        results.summary.totalOperations++;
+        try {
+          const oldRecords = results.orphanedRecordsResults.orphanedRecords.categories.older.records
+            .slice(0, limits.maxCleanupItems)
+            .map((record: any) => record.id);
+          
+          if (oldRecords.length > 0) {
+            console.log(`🧹 COMPREHENSIVE CLEANUP: Cleaning up ${oldRecords.length} old orphaned records...`);
+            results.oldOrphansCleanup = await adminCleanupOrphanedRecords.resolver({
+              input: {
+                adminToken: input.adminToken,
+                recordIds: oldRecords,
+                dryRun: false,
+                force: true,
+              },
+              ctx: {} as any,
+            });
+            
+            results.summary.totalCleanedUp += results.oldOrphansCleanup.deleted;
+          }
+          
+          results.summary.completedOperations++;
+        } catch (error) {
+          console.error('Old orphans cleanup failed:', error);
+          results.summary.errors++;
+        }
+      }
+      
+      // Generate final recommendations
+      if (dryRun) {
+        results.recommendations.push('This was a dry run - no files were actually deleted');
+        if (results.summary.totalFilesIdentified > 0 || results.summary.totalRecordsIdentified > 0) {
+          results.recommendations.push('Run with dryRun=false and force=true to perform actual cleanup');
+        }
+      }
+      
+      if (results.summary.errors > 0) {
+        results.recommendations.push(`${results.summary.errors} operations failed - check logs for details`);
+      }
+      
+      const totalTime = Date.now() - startTime;
+      
+      console.log(`✅ COMPREHENSIVE CLEANUP: Completed (${cleanupId}) in ${totalTime}ms:`, {
+        operations: results.summary.completedOperations,
+        errors: results.summary.errors,
+        filesIdentified: results.summary.totalFilesIdentified,
+        recordsIdentified: results.summary.totalRecordsIdentified,
+        cleanedUp: results.summary.totalCleanedUp,
+        sizeReclaimed: formatFileSize(results.summary.totalSizeReclaimed),
+      });
+      
+      return {
+        success: true,
+        ...results,
+        processingTime: totalTime,
+        endTime: new Date().toISOString(),
+      };
+      
+    } catch (error) {
+      console.error(`❌ COMPREHENSIVE CLEANUP: Failed (${cleanupId}):`, error);
+      
+      if (error instanceof Error && 'category' in error) {
+        throw error;
+      }
+      
+      throw createImageError(
+        `Comprehensive cleanup failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        'processing',
+        {
+          suggestions: [
+            'Check system connectivity and permissions',
+            'Try running individual cleanup operations',
+            'Reduce the limits and try again'
+          ]
+        }
+      );
     }
   });

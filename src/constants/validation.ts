@@ -561,14 +561,6 @@ export const SITE_CONTENT_TEXT_LABELS: Record<SiteContentTextType, string> = {
   'footer_cookie_link': 'Cookie Policy Link',
 };
 
-// Site content text validation schema
-export const siteContentTextSchema = z.object({
-  adminToken: z.string(),
-  contentType: z.enum(SITE_CONTENT_TEXT_TYPES),
-  textData: z.string().min(1, "Text content is required").max(5000, "Text content must be less than 5000 characters"),
-  description: z.string().max(500, "Description must be less than 500 characters").optional(),
-});
-
 // Default text content values
 export const SITE_CONTENT_TEXT_DEFAULTS: Record<SiteContentTextType, string> = {
   // Hero Section
@@ -751,6 +743,98 @@ export const SITE_CONTENT_TEXT_DEFAULTS: Record<SiteContentTextType, string> = {
   'footer_terms_link': 'Terms of Service',
   'footer_cookie_link': 'Cookie Policy',
 };
+
+// Site content image types that can be managed by admins
+export const SITE_CONTENT_IMAGE_TYPES = [
+  'hero_background',
+  'bold_statement_background', 
+  'innovation_pipeline_image',
+  'impact_metrics_featured_image',
+  'challenge_cta_background',
+  'community_engagement_featured_image'
+] as const;
+
+export type SiteContentImageType = typeof SITE_CONTENT_IMAGE_TYPES[number];
+
+// Detailed labels and descriptions for site content image types
+export const SITE_CONTENT_IMAGE_LABELS: Record<SiteContentImageType, string> = {
+  'hero_background': 'Hero Section Background',
+  'bold_statement_background': 'Bold Statement Background',
+  'innovation_pipeline_image': 'Innovation Pipeline Image',
+  'impact_metrics_featured_image': 'Impact Metrics Featured Image',
+  'challenge_cta_background': 'Challenge CTA Background',
+  'community_engagement_featured_image': 'Community Engagement Featured Image',
+};
+
+// Detailed descriptions explaining where each image appears on the website
+export const SITE_CONTENT_IMAGE_DESCRIPTIONS: Record<SiteContentImageType, string> = {
+  'hero_background': 'Large background image displayed behind the main hero section on the homepage. This is the first image visitors see when they arrive at the site. Should be high-quality and wide (recommended: 2000x1200px or larger).',
+  'bold_statement_background': 'Background image used in the bold statement section that appears after the hero. This image sits behind the main statement text and should complement the messaging. Displays as a square/rectangular image on the right side.',
+  'innovation_pipeline_image': 'Featured image that appears alongside the innovation pipeline process steps. This image helps illustrate the innovation process and appears as a square image on the left side of the pipeline section.',
+  'impact_metrics_featured_image': 'Featured image in the impact metrics section that showcases a success story or case study. This image appears next to the featured impact story text and should represent positive outcomes or results.',
+  'challenge_cta_background': 'Background image for the challenge call-to-action section that encourages visitors to participate. This image appears as a subtle background behind the CTA cards and should convey innovation and collaboration.',
+  'community_engagement_featured_image': 'Featured image in the community section that represents community stories or case studies. This image appears alongside the featured community story and should show people, collaboration, or positive impact.',
+};
+
+// Usage context for each image to help admins understand the visual context
+export const SITE_CONTENT_IMAGE_CONTEXT: Record<SiteContentImageType, {
+  section: string;
+  placement: string;
+  dimensions: string;
+  style: string;
+  fallbackUrl: string;
+}> = {
+  'hero_background': {
+    section: 'Homepage Hero Section',
+    placement: 'Full-width background behind main headline and call-to-action buttons',
+    dimensions: 'Responsive (recommended: 2000x1200px minimum)',
+    style: 'Darkened overlay applied, so image should have good contrast',
+    fallbackUrl: 'Technology/innovation themed stock photo'
+  },
+  'bold_statement_background': {
+    section: 'Bold Statement Section', 
+    placement: 'Right side of the section as a square/rectangular featured image',
+    dimensions: 'Square aspect ratio (recommended: 800x800px)',
+    style: 'Color overlay applied, works well with any image',
+    fallbackUrl: 'Infrastructure/building themed stock photo'
+  },
+  'innovation_pipeline_image': {
+    section: 'Innovation Pipeline Process Section',
+    placement: 'Left side of the section showing process visualization',
+    dimensions: 'Square aspect ratio (recommended: 600x600px)', 
+    style: 'Clean display without overlays',
+    fallbackUrl: 'Team collaboration/meeting stock photo'
+  },
+  'impact_metrics_featured_image': {
+    section: 'Impact Metrics Section',
+    placement: 'Right side next to featured impact story',
+    dimensions: 'Video aspect ratio 16:9 (recommended: 800x450px)',
+    style: 'Clean display in rounded container',
+    fallbackUrl: 'Success/achievement themed stock photo'
+  },
+  'challenge_cta_background': {
+    section: 'Challenge Call-to-Action Section',
+    placement: 'Subtle background behind CTA cards',
+    dimensions: 'Wide background (recommended: 1600x900px)',
+    style: 'Low opacity overlay, should not interfere with text readability',
+    fallbackUrl: 'Innovation/technology workspace stock photo'
+  },
+  'community_engagement_featured_image': {
+    section: 'Community Engagement Section',
+    placement: 'Featured story image on the left side',
+    dimensions: 'Video aspect ratio 16:9 (recommended: 800x450px)',
+    style: 'Clean display in rounded container with loading states',
+    fallbackUrl: 'Water access/community impact stock photo'
+  },
+};
+
+// Site content text validation schema
+export const siteContentTextSchema = z.object({
+  adminToken: z.string(),
+  contentType: z.enum(SITE_CONTENT_TEXT_TYPES),
+  textData: z.string().min(1, "Text content is required").max(5000, "Text content must be less than 5000 characters"),
+  description: z.string().max(500, "Description must be less than 500 characters").optional(),
+});
 
 // Type exports for form data
 export type CaseStudyFormData = z.infer<typeof caseStudySchema>;

@@ -14,28 +14,13 @@ import {
   FileImage,
   ZapOff,
 } from 'lucide-react';
-
-// Define the available site content image types
-const SITE_CONTENT_IMAGE_TYPES = [
-  'hero_background',
-  'bold_statement_background', 
-  'innovation_pipeline_image',
-  'impact_metrics_featured_image',
-  'challenge_cta_background',
-  'community_engagement_featured_image'
-] as const;
-
-type SiteContentImageType = typeof SITE_CONTENT_IMAGE_TYPES[number];
-
-// User-friendly labels for image types
-const IMAGE_TYPE_LABELS: Record<SiteContentImageType, string> = {
-  'hero_background': 'Hero Section Background',
-  'bold_statement_background': 'Bold Statement Background',
-  'innovation_pipeline_image': 'Innovation Pipeline Image',
-  'impact_metrics_featured_image': 'Impact Metrics Featured Image',
-  'challenge_cta_background': 'Challenge CTA Background',
-  'community_engagement_featured_image': 'Community Engagement Featured Image',
-};
+import {
+  SITE_CONTENT_IMAGE_TYPES,
+  SITE_CONTENT_IMAGE_LABELS,
+  SITE_CONTENT_IMAGE_DESCRIPTIONS,
+  SITE_CONTENT_IMAGE_CONTEXT,
+  type SiteContentImageType,
+} from '~/constants/validation';
 
 interface SiteContentImageUploadProps {
   imageType: SiteContentImageType;
@@ -271,10 +256,14 @@ export const SiteContentImageUpload = memo(function SiteContentImageUpload({
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            {IMAGE_TYPE_LABELS[imageType]}
+            {SITE_CONTENT_IMAGE_LABELS[imageType]}
           </h3>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-            {hasCurrentImage ? 'Image is active' : 'Using default image'}
+            {hasCurrentImage ? 'Custom image is active' : 'Using default image'}
+          </p>
+          {/* Add detailed description */}
+          <p className="text-xs text-gray-500 dark:text-gray-500 mt-2 max-w-md">
+            {SITE_CONTENT_IMAGE_DESCRIPTIONS[imageType]}
           </p>
         </div>
         {hasCurrentImage && (
@@ -287,6 +276,28 @@ export const SiteContentImageUpload = memo(function SiteContentImageUpload({
             Remove
           </button>
         )}
+      </div>
+
+      {/* Context Information Panel */}
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+        <div className="flex items-start space-x-3">
+          <div className="flex-shrink-0">
+            <div className="w-8 h-8 bg-blue-100 dark:bg-blue-800/50 rounded-lg flex items-center justify-center">
+              <ImageIcon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            </div>
+          </div>
+          <div className="flex-1 text-sm">
+            <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">
+              Where this image appears:
+            </h4>
+            <div className="space-y-1 text-blue-800 dark:text-blue-200">
+              <p><strong>Section:</strong> {SITE_CONTENT_IMAGE_CONTEXT[imageType].section}</p>
+              <p><strong>Placement:</strong> {SITE_CONTENT_IMAGE_CONTEXT[imageType].placement}</p>
+              <p><strong>Recommended size:</strong> {SITE_CONTENT_IMAGE_CONTEXT[imageType].dimensions}</p>
+              <p><strong>Style notes:</strong> {SITE_CONTENT_IMAGE_CONTEXT[imageType].style}</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Progress Indicator */}
@@ -316,7 +327,7 @@ export const SiteContentImageUpload = memo(function SiteContentImageUpload({
           <div className="relative bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden">
             <img
               src={currentImage?.imageData || ''}
-              alt={IMAGE_TYPE_LABELS[imageType]}
+              alt={SITE_CONTENT_IMAGE_LABELS[imageType]}
               className="w-full h-48 object-cover"
             />
             {currentImageQuery.isLoading && (

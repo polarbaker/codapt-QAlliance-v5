@@ -5,7 +5,7 @@ import { useUserStore } from "~/stores/userStore";
 import { useTRPC } from "~/trpc/react";
 import { SiteContentImageUpload } from "~/components/ui/SiteContentImageUpload";
 import { SiteContentTextEditor } from "~/components/ui/SiteContentTextEditor";
-import { SITE_CONTENT_TEXT_TYPES, SITE_CONTENT_TEXT_LABELS } from "~/constants/validation";
+import { SITE_CONTENT_TEXT_TYPES, SITE_CONTENT_TEXT_LABELS, SITE_CONTENT_IMAGE_CONTEXT } from "~/constants/validation";
 import { 
   Monitor, 
   Image as ImageIcon, 
@@ -413,71 +413,246 @@ function SiteContentPage() {
         <div className="mb-12">
           <div className="mb-6">
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-              Image Content Management
+              Default Images Management
             </h2>
-            <p className="text-gray-600 dark:text-gray-400">
-              Manage images displayed throughout the main website. Upload new images to replace defaults.
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
+              Manage the default images displayed throughout the main website. These images appear in key sections and help create the visual identity of your site.
             </p>
-          </div>
-
-          {/* Image Upload Grid */}
-          {siteContentQuery.data && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {siteContentQuery.data.images.map((image) => (
-                <div
-                  key={image.imageType}
-                  className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
-                >
-                  <div className="p-6">
-                    <SiteContentImageUpload
-                      imageType={image.imageType as any}
-                      onImageUpdated={(hasImage) => handleImageUpdated(hasImage, image.imageType)}
-                    />
-                  </div>
-                  
-                  {/* Image Status Footer */}
-                  <div className="px-6 py-4 bg-gray-50 dark:bg-gray-700/50 border-t border-gray-200 dark:border-gray-600">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        {image.hasImage ? (
-                          <>
-                            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                            <span className="text-sm font-medium text-green-700 dark:text-green-400">
-                              Active
-                            </span>
-                            {image.imageSize && (
-                              <span className="text-xs text-gray-500 dark:text-gray-400">
-                                • {image.imageSize}
-                              </span>
-                            )}
-                          </>
-                        ) : (
-                          <>
-                            <div className="w-2 h-2 bg-amber-500 rounded-full"></div>
-                            <span className="text-sm font-medium text-amber-700 dark:text-amber-400">
-                              Using default
-                            </span>
-                          </>
-                        )}
-                      </div>
-                      
-                      {image.updatedAt && (
-                        <div className="flex items-center space-x-1 text-xs text-gray-500 dark:text-gray-400">
-                          <Clock className="h-3 w-3" />
-                          <span>{new Date(image.updatedAt).toLocaleDateString()}</span>
-                        </div>
-                      )}
-                    </div>
-                    
-                    {image.fileName && (
-                      <p className="mt-2 text-xs text-gray-600 dark:text-gray-400 truncate">
-                        <Eye className="h-3 w-3 inline mr-1" />
-                        {image.fileName}
-                      </p>
-                    )}
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+              <div className="flex items-start space-x-3">
+                <div className="flex-shrink-0">
+                  <div className="w-8 h-8 bg-amber-100 dark:bg-amber-800/50 rounded-lg flex items-center justify-center">
+                    <Info className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                   </div>
                 </div>
-              ))}
+                <div className="flex-1 text-sm">
+                  <h4 className="font-semibold text-amber-900 dark:text-amber-100 mb-2">
+                    About Default Images
+                  </h4>
+                  <p className="text-amber-800 dark:text-amber-200 mb-3">
+                    When you upload a custom image, it replaces the default stock photo for that section. 
+                    If you remove a custom image, the system will automatically fall back to a curated default image.
+                  </p>
+                  <ul className="text-amber-800 dark:text-amber-200 space-y-1 text-xs">
+                    <li>• Each image is automatically optimized for web performance</li>
+                    <li>• Images are resized and compressed to ensure fast loading</li>
+                    <li>• All images should be high-quality and relevant to the section</li>
+                    <li>• Consider how the image will look with text overlays where applicable</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Image Content Grid with Section Grouping */}
+          {siteContentQuery.data && (
+            <div className="space-y-8">
+              {/* Hero & Landing Images */}
+              <div className="bg-gray-50 dark:bg-gray-900/50 rounded-xl p-6">
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                  Hero & Landing Page Images
+                </h3>
+                <p className="text-gray-600 dark:text-gray-400 mb-6">
+                  These images appear prominently on the homepage and create the first impression for visitors.
+                </p>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {siteContentQuery.data.images
+                    .filter(image => ['hero_background', 'bold_statement_background'].includes(image.imageType))
+                    .map((image) => (
+                      <div
+                        key={image.imageType}
+                        className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
+                      >
+                        <div className="p-6">
+                          <SiteContentImageUpload
+                            imageType={image.imageType as any}
+                            onImageUpdated={(hasImage) => handleImageUpdated(hasImage, image.imageType)}
+                          />
+                        </div>
+                        
+                        {/* Image Status Footer */}
+                        <div className="px-6 py-4 bg-gray-50 dark:bg-gray-700/50 border-t border-gray-200 dark:border-gray-600">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                              {image.hasImage ? (
+                                <>
+                                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                  <span className="text-sm font-medium text-green-700 dark:text-green-400">
+                                    Custom image active
+                                  </span>
+                                  {image.imageSize && (
+                                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                                      • {image.imageSize}
+                                    </span>
+                                  )}
+                                </>
+                              ) : (
+                                <>
+                                  <div className="w-2 h-2 bg-amber-500 rounded-full"></div>
+                                  <span className="text-sm font-medium text-amber-700 dark:text-amber-400">
+                                    Using default image
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                            
+                            {image.updatedAt && (
+                              <div className="flex items-center space-x-1 text-xs text-gray-500 dark:text-gray-400">
+                                <Clock className="h-3 w-3" />
+                                <span>{new Date(image.updatedAt).toLocaleDateString()}</span>
+                              </div>
+                            )}
+                          </div>
+                          
+                          {image.fileName && (
+                            <p className="mt-2 text-xs text-gray-600 dark:text-gray-400 truncate">
+                              <Eye className="h-3 w-3 inline mr-1" />
+                              {image.fileName}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+
+              {/* Content Section Images */}
+              <div className="bg-gray-50 dark:bg-gray-900/50 rounded-xl p-6">
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                  Content Section Images
+                </h3>
+                <p className="text-gray-600 dark:text-gray-400 mb-6">
+                  These images support specific content sections and help illustrate key concepts and stories.
+                </p>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {siteContentQuery.data.images
+                    .filter(image => ['innovation_pipeline_image', 'impact_metrics_featured_image', 'community_engagement_featured_image'].includes(image.imageType))
+                    .map((image) => (
+                      <div
+                        key={image.imageType}
+                        className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
+                      >
+                        <div className="p-6">
+                          <SiteContentImageUpload
+                            imageType={image.imageType as any}
+                            onImageUpdated={(hasImage) => handleImageUpdated(hasImage, image.imageType)}
+                          />
+                        </div>
+                        
+                        {/* Image Status Footer */}
+                        <div className="px-6 py-4 bg-gray-50 dark:bg-gray-700/50 border-t border-gray-200 dark:border-gray-600">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                              {image.hasImage ? (
+                                <>
+                                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                  <span className="text-sm font-medium text-green-700 dark:text-green-400">
+                                    Custom image active
+                                  </span>
+                                  {image.imageSize && (
+                                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                                      • {image.imageSize}
+                                    </span>
+                                  )}
+                                </>
+                              ) : (
+                                <>
+                                  <div className="w-2 h-2 bg-amber-500 rounded-full"></div>
+                                  <span className="text-sm font-medium text-amber-700 dark:text-amber-400">
+                                    Using default image
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                            
+                            {image.updatedAt && (
+                              <div className="flex items-center space-x-1 text-xs text-gray-500 dark:text-gray-400">
+                                <Clock className="h-3 w-3" />
+                                <span>{new Date(image.updatedAt).toLocaleDateString()}</span>
+                              </div>
+                            )}
+                          </div>
+                          
+                          {image.fileName && (
+                            <p className="mt-2 text-xs text-gray-600 dark:text-gray-400 truncate">
+                              <Eye className="h-3 w-3 inline mr-1" />
+                              {image.fileName}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+
+              {/* Background Images */}
+              <div className="bg-gray-50 dark:bg-gray-900/50 rounded-xl p-6">
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                  Background Images
+                </h3>
+                <p className="text-gray-600 dark:text-gray-400 mb-6">
+                  These images appear as subtle backgrounds behind content sections and should not interfere with text readability.
+                </p>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {siteContentQuery.data.images
+                    .filter(image => ['challenge_cta_background'].includes(image.imageType))
+                    .map((image) => (
+                      <div
+                        key={image.imageType}
+                        className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
+                      >
+                        <div className="p-6">
+                          <SiteContentImageUpload
+                            imageType={image.imageType as any}
+                            onImageUpdated={(hasImage) => handleImageUpdated(hasImage, image.imageType)}
+                          />
+                        </div>
+                        
+                        {/* Image Status Footer */}
+                        <div className="px-6 py-4 bg-gray-50 dark:bg-gray-700/50 border-t border-gray-200 dark:border-gray-600">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                              {image.hasImage ? (
+                                <>
+                                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                  <span className="text-sm font-medium text-green-700 dark:text-green-400">
+                                    Custom image active
+                                  </span>
+                                  {image.imageSize && (
+                                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                                      • {image.imageSize}
+                                    </span>
+                                  )}
+                                </>
+                              ) : (
+                                <>
+                                  <div className="w-2 h-2 bg-amber-500 rounded-full"></div>
+                                  <span className="text-sm font-medium text-amber-700 dark:text-amber-400">
+                                    Using default image
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                            
+                            {image.updatedAt && (
+                              <div className="flex items-center space-x-1 text-xs text-gray-500 dark:text-gray-400">
+                                <Clock className="h-3 w-3" />
+                                <span>{new Date(image.updatedAt).toLocaleDateString()}</span>
+                              </div>
+                            )}
+                          </div>
+                          
+                          {image.fileName && (
+                            <p className="mt-2 text-xs text-gray-600 dark:text-gray-400 truncate">
+                              <Eye className="h-3 w-3 inline mr-1" />
+                              {image.fileName}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
             </div>
           )}
         </div>

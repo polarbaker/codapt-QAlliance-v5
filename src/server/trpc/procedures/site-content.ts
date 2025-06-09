@@ -2,19 +2,8 @@ import { baseProcedure } from "~/server/trpc/main";
 import { requireAdminAuth } from "./auth";
 import * as z from "zod";
 import sharp from "sharp";
-import { SITE_CONTENT_TEXT_TYPES, SITE_CONTENT_TEXT_DEFAULTS, siteContentTextSchema } from "~/constants/validation";
+import { SITE_CONTENT_TEXT_TYPES, SITE_CONTENT_TEXT_DEFAULTS, siteContentTextSchema, SITE_CONTENT_IMAGE_TYPES, type SiteContentImageType } from "~/constants/validation";
 
-// Define the types of site content images that can be managed
-const SITE_CONTENT_IMAGE_TYPES = [
-  'hero_background',
-  'bold_statement_background', 
-  'innovation_pipeline_image',
-  'impact_metrics_featured_image',
-  'challenge_cta_background',
-  'community_engagement_featured_image'
-] as const;
-
-type SiteContentImageType = typeof SITE_CONTENT_IMAGE_TYPES[number];
 type SiteContentTextType = typeof SITE_CONTENT_TEXT_TYPES[number];
 
 // Process image for site content storage (similar to simple image storage)
@@ -165,14 +154,14 @@ export const uploadSiteContentImage = baseProcedure
       const { db } = await import("~/server/db");
       
       const updatedContent = await db.siteContent.upsert({
-        where: { imageType: input.imageType },
+        where: { contentType: input.imageType },
         update: {
           imageData: processed.base64Data,
           fileName: input.fileName,
           updatedAt: new Date(),
         },
         create: {
-          imageType: input.imageType,
+          contentType: input.imageType,
           imageData: processed.base64Data,
           fileName: input.fileName,
         },
@@ -213,10 +202,10 @@ export const getSiteContentImage = baseProcedure
       const { db } = await import("~/server/db");
       
       const content = await db.siteContent.findUnique({
-        where: { imageType: input.imageType },
+        where: { contentType: input.imageType },
         select: {
           id: true,
-          imageType: true,
+          contentType: true,
           imageData: true,
           fileName: true,
           updatedAt: true,
@@ -251,7 +240,7 @@ export const removeSiteContentImage = baseProcedure
       const { db } = await import("~/server/db");
       
       await db.siteContent.deleteMany({
-        where: { imageType: input.imageType },
+        where: { contentType: input.imageType },
       });
       
       console.log(`🗑️ SITE CONTENT: Removed image for ${input.imageType}`);
@@ -282,16 +271,16 @@ export const listSiteContentImages = baseProcedure
       const contentImages = await db.siteContent.findMany({
         select: {
           id: true,
-          imageType: true,
+          contentType: true,
           imageData: true,
           fileName: true,
           updatedAt: true,
         },
-        orderBy: { imageType: 'asc' },
+        orderBy: { contentType: 'asc' },
       });
       
       const imageStatus = SITE_CONTENT_IMAGE_TYPES.map(type => {
-        const content = contentImages.find(c => c.imageType === type);
+        const content = contentImages.find(c => c.contentType === type);
         return {
           imageType: type,
           hasImage: !!content?.imageData,
