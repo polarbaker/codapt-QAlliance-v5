@@ -7,7 +7,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = "postgresql://postgres:postgres@postgres/app" // hardcoded because it's an internal docker connection
+  url      = env("DATABASE_URL")
 }
 
 // Problem submission model
