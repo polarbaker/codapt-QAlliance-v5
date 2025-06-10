@@ -1,7 +1,11 @@
+// Import polyfill first to ensure it runs before any code that might use File API
+import '../../../polyfill';
+
 import { baseProcedure } from "~/server/trpc/main";
 import { requireAdminAuth } from "./auth";
 import * as z from "zod";
 import sharp from "sharp";
+import { safeParseBase64 } from "./safe-base64-parser";
 
 // Extended Simple base64 image storage for Case Studies, Challenges, and News
 // This extends the bulletproof fallback strategy to additional entity types
@@ -196,11 +200,9 @@ export const uploadSimpleCaseStudyImage = baseProcedure
       // Parse base64 content
       let buffer: Buffer;
       try {
-        const base64Data = input.fileContent.includes('base64,') 
-          ? input.fileContent.split('base64,')[1]
-          : input.fileContent;
-        
-        buffer = Buffer.from(base64Data, 'base64');
+        // Use the safe parser to ensure we always have a string
+        const safeBase64 = safeParseBase64(input.fileContent);
+        buffer = Buffer.from(safeBase64, 'base64');
         
         if (buffer.length === 0) {
           throw new Error('Empty file data');
@@ -428,11 +430,9 @@ export const uploadSimpleChallengeImage = baseProcedure
       // Parse base64 content
       let buffer: Buffer;
       try {
-        const base64Data = input.fileContent.includes('base64,') 
-          ? input.fileContent.split('base64,')[1]
-          : input.fileContent;
-        
-        buffer = Buffer.from(base64Data, 'base64');
+        // Use the safe parser to ensure we always have a string
+        const safeBase64 = safeParseBase64(input.fileContent);
+        buffer = Buffer.from(safeBase64, 'base64');
         
         if (buffer.length === 0) {
           throw new Error('Empty file data');
@@ -660,11 +660,9 @@ export const uploadSimpleNewsImage = baseProcedure
       // Parse base64 content
       let buffer: Buffer;
       try {
-        const base64Data = input.fileContent.includes('base64,') 
-          ? input.fileContent.split('base64,')[1]
-          : input.fileContent;
-        
-        buffer = Buffer.from(base64Data, 'base64');
+        // Use the safe parser to ensure we always have a string
+        const safeBase64 = safeParseBase64(input.fileContent);
+        buffer = Buffer.from(safeBase64, 'base64');
         
         if (buffer.length === 0) {
           throw new Error('Empty file data');
