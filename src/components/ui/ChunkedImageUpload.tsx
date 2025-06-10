@@ -314,7 +314,8 @@ export function ChunkedImageUpload({
     if (!isBrowser()) return null;
     
     const arr = dataurl.split(',');
-    const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
+    // Add a check for arr[0] to avoid 'Object is possibly undefined' error
+    const mime = arr[0]?.match(/:(.*?);/)?.[1] || 'image/jpeg';
     // Ensure arr[1] exists before calling atob
     const bstr = arr[1] ? atob(arr[1]) : '';
     let n = bstr.length;
