@@ -1,0 +1,18 @@
+# Production Dockerfile for Quantum Alliance Platform
+# Multi-stage build for optimized production image
+
+# Stage 1: Build
+FROM node:18-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+# Stage 2: Production image
+FROM node:18-alpine
+WORKDIR /app
+COPY --from=builder /app ./
+RUN npm ci --omit=dev
+EXPOSE 10000
+CMD ["npm", "start"]
