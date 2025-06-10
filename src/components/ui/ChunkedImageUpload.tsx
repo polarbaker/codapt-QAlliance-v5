@@ -1,14 +1,14 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useTRPC } from '../../trpc/react';
-import { useMutation } from '@tanstack/react-query';
 import { useUserStore } from '../../stores/userStore';
+import toast from 'react-hot-toast';
+import { isBrowser, SafeFile, isFile } from '../../utils/file-polyfill';
 import { 
   validateImageFile, 
   fileToBase64, 
   formatFileSize,
   getUploadErrorMessage 
 } from '../../constants/validation';
-import { toast } from 'react-hot-toast';
 import {
   Upload,
   X,
@@ -81,7 +81,8 @@ export function ChunkedImageUpload({
   showAdvancedOptions = false,
   autoRetry = true,
 }: ChunkedImageUploadProps) {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  // Use a type that works on both client and server
+  const [selectedFile, setSelectedFile] = useState<any>(null);
   const [previewUrl, setPreviewUrl] = useState<string>("");
   const [dragOver, setDragOver] = useState(false);
   const [uploadState, setUploadState] = useState<UploadState>({
@@ -139,81 +140,9 @@ export function ChunkedImageUpload({
   }, []);
 
   // Progressive upload mutation for chunks
-  const progressiveUploadMutation = useMutation(
-    trpc.bulletproofProgressiveUpload.mutationOptions({
-      onSuccess: async (data: any) => {
-        if (data.complete && data.filePath) {
-          setUploadState(prev => ({
-            ...prev,
-            phase: 'complete',
-            progress: 100,
-            message: 'Upload completed successfully!',
-          }));
-          
-          onSuccess(data.filePath);
-          toast.success('🎉 Large file uploaded successfully with chunked upload!', { duration: 5000 });
-          
-          // Cleanup
-          setSelectedFile(null);
-          setPreviewUrl("");
-          setChunks([]);
-          setSessionId("");
-        } else {
-          // Update progress for chunk completion
-          setUploadState(prev => ({
-            ...prev,
-            chunksUploaded: data.receivedChunks || prev.chunksUploaded,
-            progress: ((data.receivedChunks || 0) / prev.chunksTotal) * 100,
-            message: `Uploaded chunk ${data.receivedChunks}/${prev.chunksTotal}`,
-          }));
-        }
-      },
-      onError: (error: any) => {
-        console.error('Chunk upload error:', error);
-        
-        const errorInfo = getUploadErrorMessage(error.message || 'Chunk upload failed');
-        
-        // Handle 413 errors by reducing chunk size
-        if (error.message?.includes('413') || error.message?.includes('too large')) {
-          const newChunkSize = Math.max(0.5, adaptiveChunkSize / 2); // Minimum 0.5MB chunks
-          setAdaptiveChunkSize(newChunkSize);
-          
-          toast.error(`Server rejected chunk size. Reducing to ${newChunkSize}MB chunks and retrying...`, { 
-            duration: 6000 
-          });
-          
-          // Retry with smaller chunks
-          setTimeout(() => {
-            if (selectedFile) {
-              handleUpload(selectedFile, newChunkSize);
-            }
-          }, 2000);
-          return;
-        }
-        
-        setUploadState(prev => ({
-          ...prev,
-          phase: 'error',
-          error: errorInfo.message,
-          canRetry: errorInfo.canRetry,
-          chunksFailed: prev.chunksFailed + 1,
-        }));
-        
-        if (autoRetry && errorInfo.canRetry && retryState.attempts < retryState.maxAttempts) {
-          // Using default delay as retryDelay property is not guaranteed
-          scheduleRetry(5000);
-        }
-        
-        toast.error(`❌ ${errorInfo.message}`, { duration: 8000 });
-        onError?.(error);
-      },
-    })
-  );
-
-  // Standard upload mutation for smaller files
-  const standardUploadMutation = useMutation(
-    trpc.bulletproofSingleUpload.mutationOptions({
-      onSuccess: async (data: any) => {
+  const progressiveUploadMutation = trpc.bulletproofProgressiveUpload.useMutation({
+    onSuccess: async (data: any) => {
+      if (data.complete && data.filePath) {
         setUploadState(prev => ({
           ...prev,
           phase: 'complete',
@@ -221,51 +150,123 @@ export function ChunkedImageUpload({
           message: 'Upload completed successfully!',
         }));
         
-        if (data.filePath) {
-          onSuccess(data.filePath);
-          toast.success('✅ Image uploaded successfully!', { duration: 3000 });
-          
-          // Cleanup
-          setSelectedFile(null);
-          setPreviewUrl("");
-        }
-      },
-      onError: (error: any) => {
-        console.error('Standard upload error:', error);
+        onSuccess(data.filePath);
+        toast.success(' Large file uploaded successfully with chunked upload!', { duration: 5000 });
         
-        const errorInfo = getUploadErrorMessage(error.message || 'Upload failed');
-        
-        // Handle 413 errors by switching to chunked upload
-        if ((error.message?.includes('413') || error.message?.includes('too large')) && selectedFile) {
-          toast.error('File too large for standard upload. Switching to chunked upload...', { 
-            duration: 4000 
-          });
-          
-          setTimeout(() => {
-            handleUpload(selectedFile, adaptiveChunkSize, true); // Force chunking
-          }, 1000);
-          return;
-        }
-        
+        // Cleanup
+        setSelectedFile(null);
+        setPreviewUrl("");
+        setChunks([]);
+        setSessionId("");
+      } else {
+        // Update progress for chunk completion
         setUploadState(prev => ({
           ...prev,
-          phase: 'error',
-          error: errorInfo.message,
-          canRetry: errorInfo.canRetry,
+          chunksUploaded: data.receivedChunks || prev.chunksUploaded,
+          progress: ((data.receivedChunks || 0) / prev.chunksTotal) * 100,
+          message: `Uploaded chunk ${data.receivedChunks}/${prev.chunksTotal}`,
         }));
+      }
+    },
+    onError: (error: any) => {
+      console.error('Chunk upload error:', error);
+      
+      const errorInfo = getUploadErrorMessage(error.message || 'Chunk upload failed');
+      
+      // Handle 413 errors by reducing chunk size
+      if (error.message?.includes('413') || error.message?.includes('too large')) {
+        const newChunkSize = Math.max(0.5, adaptiveChunkSize / 2); // Minimum 0.5MB chunks
+        setAdaptiveChunkSize(newChunkSize);
         
-        if (autoRetry && errorInfo.canRetry && retryState.attempts < retryState.maxAttempts) {
-          // Using default delay as retryDelay property is not guaranteed
-          scheduleRetry(5000);
-        }
+        toast.error(`Server rejected chunk size. Reducing to ${newChunkSize}MB chunks and retrying...`, { 
+          duration: 6000 
+        });
         
-        toast.error(`❌ ${errorInfo.message}`, { duration: 8000 });
-        onError?.(error);
-      },
-    })
-  );
+        // Retry with smaller chunks
+        setTimeout(() => {
+          if (selectedFile) {
+            handleUpload(selectedFile, newChunkSize);
+          }
+        }, 2000);
+        return;
+      }
+      
+      setUploadState(prev => ({
+        ...prev,
+        phase: 'error',
+        error: errorInfo.message,
+        canRetry: errorInfo.canRetry,
+        chunksFailed: prev.chunksFailed + 1,
+      }));
+      
+      if (autoRetry && errorInfo.canRetry && retryState.attempts < retryState.maxAttempts) {
+        // Using default delay as retryDelay property is not guaranteed
+        scheduleRetry(5000);
+      }
+      
+      toast.error(` ${errorInfo.message}`, { duration: 8000 });
+      onError?.(error);
+    },
+  });
 
-  const createFileChunks = useCallback(async (file: File, chunkSizeMB: number): Promise<ChunkInfo[]> => {
+  // Standard upload mutation for smaller files
+  const standardUploadMutation = trpc.bulletproofSingleUpload.useMutation({
+    onSuccess: async (data: any) => {
+      setUploadState(prev => ({
+        ...prev,
+        phase: 'complete',
+        progress: 100,
+        message: 'Upload completed successfully!',
+      }));
+      
+      if (data.filePath) {
+        onSuccess(data.filePath);
+        toast.success(' Image uploaded successfully!', { duration: 3000 });
+        
+        // Cleanup
+        setSelectedFile(null);
+        setPreviewUrl("");
+      }
+    },
+    onError: (error: any) => {
+      console.error('Standard upload error:', error);
+      
+      const errorInfo = getUploadErrorMessage(error.message || 'Upload failed');
+      
+      // Handle 413 errors by switching to chunked upload
+      if ((error.message?.includes('413') || error.message?.includes('too large')) && selectedFile) {
+        toast.error('File too large for standard upload. Switching to chunked upload...', { 
+          duration: 4000 
+        });
+        
+        setTimeout(() => {
+          handleUpload(selectedFile, adaptiveChunkSize, true); // Force chunking
+        }, 1000);
+        return;
+      }
+      
+      setUploadState(prev => ({
+        ...prev,
+        phase: 'error',
+        error: errorInfo.message,
+        canRetry: errorInfo.canRetry,
+      }));
+      
+      if (autoRetry && errorInfo.canRetry && retryState.attempts < retryState.maxAttempts) {
+        // Using default delay as retryDelay property is not guaranteed
+        scheduleRetry(5000);
+      }
+      
+      toast.error(` ${errorInfo.message}`, { duration: 8000 });
+      onError?.(error);
+    },
+  });
+
+  // Chunk creation function - safe for server
+  const createFileChunks = useCallback(async (file: any, chunkSizeMB: number): Promise<ChunkInfo[]> => {
+    // Only run in browser environment
+    if (!isBrowser() || !file) return [];
+
     const chunkSizeBytes = chunkSizeMB * 1024 * 1024;
     const totalChunks = Math.ceil(file.size / chunkSizeBytes);
     const chunks: ChunkInfo[] = [];
@@ -284,7 +285,7 @@ export function ChunkedImageUpload({
       
       try {
         // Create a File from Blob to satisfy type requirements
-        const chunkFile = new File([chunkBlob], file.name, { type: file.type });
+        const chunkFile = new SafeFile([chunkBlob], file.name, { type: file.type });
         const base64Data = await fileToBase64(chunkFile);
         chunks.push({
           index: i,
@@ -307,9 +308,28 @@ export function ChunkedImageUpload({
     return chunks;
   }, []);
 
+  // Helper function to convert base64 to File - safe for server
+  const dataURLtoFile = useCallback((dataurl: string, filename: string): any => {
+    // Only run in browser environment
+    if (!isBrowser()) return null;
+    
+    const arr = dataurl.split(',');
+    const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
+    // Ensure arr[1] exists before calling atob
+    const bstr = arr[1] ? atob(arr[1]) : '';
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    
+    return new SafeFile([u8arr], filename, { type: mime });
+  }, []);
+
   const uploadChunksSequentially = useCallback(async (
     chunks: ChunkInfo[], 
-    file: File, 
+    file: any, 
     sessionId: string
   ): Promise<void> => {
     setUploadState(prev => ({
@@ -401,7 +421,7 @@ export function ChunkedImageUpload({
         if (chunk && chunk.retries < 3) {
           // Retry chunk with exponential backoff
           const delay = Math.pow(2, chunk.retries) * 1000;
-          toast(`⏰ Retrying chunk ${i + 1} in ${delay / 1000}s...`, {
+          toast(` Retrying chunk ${i + 1} in ${delay / 1000}s...`, {
             duration: delay - 500,
             style: { background: '#dbeafe', color: '#1e40af' }
           });
@@ -451,7 +471,7 @@ export function ChunkedImageUpload({
   }, [selectedFile, adaptiveChunkSize, retryState.nextRetryIn]);
 
   const handleUpload = useCallback(async (
-    file: File, 
+    file: any, 
     chunkSizeMB: number = adaptiveChunkSize, 
     forceChunking: boolean = false
   ) => {
@@ -533,19 +553,22 @@ export function ChunkedImageUpload({
         canRetry: errorInfo.canRetry,
       }));
       
-      toast.error(`❌ ${errorInfo.message}`, { duration: 8000 });
+      toast.error(` ${errorInfo.message}`, { duration: 8000 });
       onError?.(error);
     }
   }, [adminToken, adaptiveChunkSize, maxRetries, createFileChunks, uploadChunksSequentially, standardUploadMutation, onError, uploadState.connectionStatus]);
 
-  const handleFileSelect = useCallback(async (files: FileList | File[]) => {
+  const handleFileSelect = useCallback(async (files: FileList | any[]) => {
+    // Only run in browser environment
+    if (!isBrowser()) return;
     const fileArray = Array.from(files);
     
     if (fileArray.length === 0) return;
     
-    // Only handle single file and ensure it's a File object
-    const file = fileArray[0] as File;
+    // Only handle single file and ensure it exists
+    const file = fileArray[0];
     if (!file) return; // Safety check
+    if (!isFile(file) && isBrowser()) return; // Ensure it's a File in browser
     
     // Validate file
     const validation = validateImageFile(file);
