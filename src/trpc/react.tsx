@@ -3,6 +3,17 @@ import '../polyfill';
 
 import { QueryClientProvider, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createTRPCClient, httpBatchLink, loggerLink, splitLink, httpSubscriptionLink } from "@trpc/client";
+
+// Type definitions for the WebSocket client
+type WebSocketClient = {
+  onConnectionStateChange?: (state: string) => void;
+  addEventListener: (event: string, handler: (error: any) => void) => void;
+};
+
+// Helper type for accessing internals of subscription link
+type InternalSubscriptionLink = {
+  client?: WebSocketClient;
+};
 import SuperJSON from "superjson";
 import { createContext, useContext, useState, useEffect, useRef } from "react";
 
@@ -53,7 +64,7 @@ export function TRPCReactProvider(props: { children: React.ReactNode }) {
     isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true,
   });
   
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const eventQueueRef = useRef<ConnectionState['eventQueue']>([]);
   
   // Update connection state with persistence
@@ -173,21 +184,30 @@ export function TRPCReactProvider(props: { children: React.ReactNode }) {
               }
             },
           }),
-          true: httpSubscriptionLink({
-            transformer: SuperJSON,
-            url: getBaseUrl() + "/trpc",
-            // Enhanced WebSocket connection handling
-            connectionParams: () => ({
-              // Add connection metadata
-              clientId: `client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-              userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
-              timestamp: new Date().toISOString(),
-            }),
-            // Connection event handlers
-            onConnectionStateChange: (state) => {
-              console.log('WebSocket connection state changed:', state);
+          true: (() => {
+            // Create the subscription link with all necessary options
+            const wsLink = httpSubscriptionLink({ 
+              transformer: SuperJSON,
+              url: getBaseUrl() + "/trpc",
+              // Connection parameters for identifying the client
+              connectionParams: () => ({
+                clientId: `client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
+                timestamp: new Date().toISOString(),
+              })
+            });
+            
+            // Safely access internal client object using type assertion
+            const internalLink = wsLink as unknown as InternalSubscriptionLink;
+            if (internalLink && internalLink.client) {
+              // Access the client safely with proper typing
+              const client = internalLink.client;
               
-              switch (state) {
+              // Attach connection state change handler
+              client.onConnectionStateChange = (state: any) => {
+                console.log('WebSocket connection state changed:', state);
+                
+                switch (state) {
                 case 'connecting':
                   setConnectionState({ status: 'connecting' });
                   break;
@@ -222,13 +242,18 @@ export function TRPCReactProvider(props: { children: React.ReactNode }) {
                   }
                   break;
               }
-            },
+            };
+            
             // Enhanced error handling
-            onError: (error) => {
+            client.addEventListener('error', (error: any) => {
               console.error('WebSocket subscription error:', error);
               setConnectionState({ status: 'error' });
-            },
-          }),
+            });
+          }
+          
+          // Return the WebSocket link to be used by TRPC
+          return wsLink;
+        })(),
         }),
       ],
     }),

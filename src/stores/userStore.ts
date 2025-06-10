@@ -302,81 +302,40 @@ export const useUserStore = create<UserStore>()(
       name: 'quantum-alliance-user-store',
       version: 1,
       
-      // Improved serialization with better error handling
-      serialize: (state) => {
-        try {
-          const serializedState = {
-            ...state.state,
-            likedComments: Array.from(state.state.likedComments),
-            recentUploads: {
-              ...state.state.recentUploads,
-              uploads: state.state.recentUploads.uploads || [],
-            },
-          };
-          return JSON.stringify(serializedState);
-        } catch (error) {
-          console.warn('Failed to serialize user store:', error);
-          return JSON.stringify({ 
-            ...defaultState, 
-            likedComments: [],
-            recentUploads: defaultState.recentUploads,
-          });
+      // Standard persist options that are supported by the persist middleware
+      partialize: (state) => ({
+        themePreference: state.themePreference,
+        name: state.name,
+        avatar: state.avatar,
+        likedComments: Array.from(state.likedComments),
+        isSubscribedToNewsletter: state.isSubscribedToNewsletter,
+        recentUploads: {
+          ...state.recentUploads,
+          uploads: state.recentUploads.uploads || [],
         }
-      },
+      }),
       
-      // Improved deserialization with validation
-      deserialize: (str) => {
-        try {
-          const parsed = JSON.parse(str);
-          
-          // Validate and sanitize the parsed data
-          const sanitizedState = {
-            themePreference: ['light', 'dark', 'system'].includes(parsed.themePreference) 
-              ? parsed.themePreference 
-              : defaultState.themePreference,
-            name: typeof parsed.name === 'string' ? parsed.name : defaultState.name,
-            avatar: typeof parsed.avatar === 'string' ? parsed.avatar : defaultState.avatar,
-            likedComments: safeCreateSet(parsed.likedComments),
-            isSubscribedToNewsletter: Boolean(parsed.isSubscribedToNewsletter),
-            isAdminLoggedIn: Boolean(parsed.isAdminLoggedIn),
-            adminToken: typeof parsed.adminToken === 'string' ? parsed.adminToken : null,
-            preferences: {
-              showAnimations: typeof parsed.preferences?.showAnimations === 'boolean' 
-                ? parsed.preferences.showAnimations 
-                : defaultState.preferences.showAnimations,
-              emailNotifications: typeof parsed.preferences?.emailNotifications === 'boolean' 
-                ? parsed.preferences.emailNotifications 
-                : defaultState.preferences.emailNotifications,
-              pushNotifications: typeof parsed.preferences?.pushNotifications === 'boolean' 
-                ? parsed.preferences.pushNotifications 
-                : defaultState.preferences.pushNotifications,
-            },
-            recentUploads: {
-              uploads: Array.isArray(parsed.recentUploads?.uploads) 
-                ? parsed.recentUploads.uploads.filter((upload: any) => 
-                    upload && typeof upload === 'object' && 
-                    typeof upload.id === 'string' &&
-                    typeof upload.fileName === 'string' &&
-                    typeof upload.status === 'string' &&
-                    typeof upload.timestamp === 'number'
-                  )
-                : [],
-              maxUploads: typeof parsed.recentUploads?.maxUploads === 'number' 
-                ? parsed.recentUploads.maxUploads 
-                : defaultState.recentUploads.maxUploads,
-            },
-          };
-          
-          return {
-            state: sanitizedState,
-            version: parsed.version || 1,
-          };
-        } catch (error) {
-          console.warn('Failed to deserialize user store, using default state:', error);
-          return {
-            state: defaultState,
-            version: 1,
-          };
+      // Use onRehydrateStorage for validation
+      onRehydrateStorage: () => (storedState) => {
+        if (!storedState) {
+          console.log('No stored state found, using defaults');
+          return;
+        }
+        
+        console.log('User store rehydrated successfully');
+        
+        // Any custom rehydration logic can go here
+        // For example, we can convert arrays back to Sets
+        if (storedState.likedComments && Array.isArray(storedState.likedComments)) {
+          try {
+            // Convert the array back to a Set
+            const likedCommentsSet = new Set(storedState.likedComments);
+            return {
+              likedComments: likedCommentsSet
+            };
+          } catch (err) {
+            console.error('Failed to rehydrate liked comments:', err);
+          }
         }
       },
       

@@ -84,8 +84,9 @@ export const unsubscribeNewsletter = baseProcedure
         message: 'Successfully unsubscribed from our newsletter.',
         unsubscribed: true,
       };
-    } catch (error) {
-      if (error.code === 'P2025') {
+    } catch (error: unknown) {
+      // Type guard to check if error is a Prisma error with a code property
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'P2025') {
         // Record not found
         return {
           message: 'Email address not found in our subscription list.',

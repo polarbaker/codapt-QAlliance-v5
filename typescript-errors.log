@@ -1,0 +1,969 @@
+
+> typecheck
+> tsc --noEmit
+
+src/components/AboutSection.tsx(255,33): error TS2339: Property 'partners' does not exist on type '{}'.
+src/components/AboutSection.tsx(255,58): error TS2339: Property 'partners' does not exist on type '{}'.
+src/components/AboutSection.tsx(260,33): error TS2339: Property 'partners' does not exist on type '{}'.
+src/components/AboutSection.tsx(260,47): error TS7006: Parameter 'partner' implicitly has an 'any' type.
+src/components/admin/AdminDashboard.tsx(75,41): error TS2339: Property 'totalProblems' does not exist on type '{}'.
+src/components/admin/AdminDashboard.tsx(82,41): error TS2339: Property 'activeChallenges' does not exist on type '{}'.
+src/components/admin/AdminDashboard.tsx(89,41): error TS2339: Property 'newsletterSubscribers' does not exist on type '{}'.
+src/components/admin/AdminDashboard.tsx(96,41): error TS2339: Property 'totalComments' does not exist on type '{}'.
+src/components/admin/AdminLogin.tsx(29,54): error TS2345: Argument of type '{ password: string; }' is not assignable to parameter of type 'void'.
+src/components/admin/AdminLogin.tsx(31,11): error TS18046: 'result' is of type 'unknown'.
+src/components/admin/AdminLogin.tsx(31,29): error TS18046: 'result' is of type 'unknown'.
+src/components/admin/AdminLogin.tsx(32,22): error TS18046: 'result' is of type 'unknown'.
+src/components/admin/ImageBulkActions.tsx(97,15): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/components/admin/ImageBulkActions.tsx(109,15): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/components/admin/ImageBulkActions.tsx(149,90): error TS18048: 'image' is possibly 'undefined'.
+src/components/admin/ImageBulkActions.tsx(152,75): error TS18048: 'image' is possibly 'undefined'.
+src/components/admin/ImageBulkActions.tsx(158,23): error TS18048: 'image' is possibly 'undefined'.
+src/components/admin/ImageBulkActions.tsx(162,62): error TS18048: 'image' is possibly 'undefined'.
+src/components/admin/ImageBulkActions.tsx(168,23): error TS18048: 'image' is possibly 'undefined'.
+src/components/admin/ImageBulkActions.tsx(172,60): error TS18048: 'image' is possibly 'undefined'.
+src/components/admin/ImageBulkActions.tsx(210,41): error TS2532: Object is possibly 'undefined'.
+src/components/admin/ImageBulkActions.tsx(246,11): error TS2339: Property 'info' does not exist on type '{ (message: Message, opts?: Partial<Pick<Toast, "id" | "icon" | "style" | "className" | "duration" | "ariaProps" | "position" | "iconTheme" | "removeDelay">> | undefined): string; ... 6 more ...; promise<T>(promise: Promise<...> | (() => Promise<...>), msgs: { ...; }, opts?: DefaultToastOptions | undefined): Promise...'.
+src/components/admin/ImageBulkActions.tsx(252,11): error TS2339: Property 'info' does not exist on type '{ (message: Message, opts?: Partial<Pick<Toast, "id" | "icon" | "style" | "className" | "duration" | "ariaProps" | "position" | "iconTheme" | "removeDelay">> | undefined): string; ... 6 more ...; promise<T>(promise: Promise<...> | (() => Promise<...>), msgs: { ...; }, opts?: DefaultToastOptions | undefined): Promise...'.
+src/components/admin/ImageBulkActions.tsx(334,19): error TS2339: Property 'info' does not exist on type '{ (message: Message, opts?: Partial<Pick<Toast, "id" | "icon" | "style" | "className" | "duration" | "ariaProps" | "position" | "iconTheme" | "removeDelay">> | undefined): string; ... 6 more ...; promise<T>(promise: Promise<...> | (() => Promise<...>), msgs: { ...; }, opts?: DefaultToastOptions | undefined): Promise...'.
+src/components/admin/ImageFiltersPanel.tsx(348,52): error TS2322: Type 'number | undefined' is not assignable to type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+src/components/admin/ImageSystemDashboard.tsx(47,15): error TS7006: Parameter 'failureCount' implicitly has an 'any' type.
+src/components/admin/ImageSystemDashboard.tsx(47,29): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/components/admin/ImageSystemDashboard.tsx(60,19): error TS7006: Parameter 'attemptIndex' implicitly has an 'any' type.
+src/components/admin/ImageSystemDashboard.tsx(61,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/components/admin/ImageSystemDashboard.tsx(90,17): error TS7006: Parameter 'data' implicitly has an 'any' type.
+src/components/admin/ImageSystemDashboard.tsx(107,15): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/components/admin/ImageSystemDashboard.tsx(410,64): error TS7006: Parameter 'rec' implicitly has an 'any' type.
+src/components/admin/ImageSystemDashboard.tsx(410,69): error TS7006: Parameter 'index' implicitly has an 'any' type.
+src/components/admin/ImageSystemDashboard.tsx(622,56): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/components/admin/ImageSystemDashboard.tsx(622,63): error TS7006: Parameter 'index' implicitly has an 'any' type.
+src/components/admin/ImageSystemDashboard.tsx(635,58): error TS7006: Parameter 'warning' implicitly has an 'any' type.
+src/components/admin/ImageSystemDashboard.tsx(635,67): error TS7006: Parameter 'index' implicitly has an 'any' type.
+src/components/admin/ImageSystemDashboard.tsx(754,55): error TS7006: Parameter 'innovator' implicitly has an 'any' type.
+src/components/admin/InnovatorStats.tsx(39,48): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/components/admin/InnovatorStats.tsx(40,49): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/components/admin/InnovatorStats.tsx(45,46): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/components/admin/InnovatorStats.tsx(48,48): error TS7006: Parameter 'total' implicitly has an 'any' type.
+src/components/admin/InnovatorStats.tsx(48,55): error TS7006: Parameter 'innovator' implicitly has an 'any' type.
+src/components/admin/PartnerBulkActions.tsx(28,15): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/components/admin/PartnerBulkActions.tsx(34,17): error TS7006: Parameter '_' implicitly has an 'any' type.
+src/components/admin/PartnerBulkActions.tsx(34,20): error TS7006: Parameter 'variables' implicitly has an 'any' type.
+src/components/admin/PartnerBulkActions.tsx(40,15): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/components/admin/PartnerStats.tsx(17,43): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/components/admin/PartnerStats.tsx(18,42): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/components/admin/PartnerStats.tsx(23,42): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/components/BoldStatementSection.tsx(24,39): error TS2339: Property 'hasImage' does not exist on type '{}'.
+src/components/BoldStatementSection.tsx(24,81): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/BoldStatementSection.tsx(25,43): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/ChallengeCTASection.tsx(30,38): error TS2339: Property 'hasImage' does not exist on type '{}'.
+src/components/ChallengeCTASection.tsx(30,79): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/ChallengeCTASection.tsx(31,42): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/CommunityEngagementSection.tsx(77,32): error TS2339: Property 'info' does not exist on type '{ (message: Message, opts?: Partial<Pick<Toast, "id" | "icon" | "style" | "className" | "duration" | "ariaProps" | "position" | "iconTheme" | "removeDelay">> | undefined): string; ... 6 more ...; promise<T>(promise: Promise<...> | (() => Promise<...>), msgs: { ...; }, opts?: DefaultToastOptions | undefined): Promise...'.
+src/components/CommunityEngagementSection.tsx(84,32): error TS2339: Property 'info' does not exist on type '{ (message: Message, opts?: Partial<Pick<Toast, "id" | "icon" | "style" | "className" | "duration" | "ariaProps" | "position" | "iconTheme" | "removeDelay">> | undefined): string; ... 6 more ...; promise<T>(promise: Promise<...> | (() => Promise<...>), msgs: { ...; }, opts?: DefaultToastOptions | undefined): Promise...'.
+src/components/CommunityEngagementSection.tsx(210,35): error TS2339: Property 'hasImage' does not exist on type '{}'.
+src/components/CommunityEngagementSection.tsx(210,73): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/CommunityEngagementSection.tsx(211,39): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/CommunityEngagementSection.tsx(253,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/components/CommunityEngagementSection.tsx(262,19): error TS7006: Parameter 'data' implicitly has an 'any' type.
+src/components/CommunityEngagementSection.tsx(262,25): error TS7006: Parameter 'variables' implicitly has an 'any' type.
+src/components/CommunityEngagementSection.tsx(267,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/components/CommunityEngagementSection.tsx(315,32): error TS2345: Argument of type '{ content: string; author: string; avatar: string; }' is not assignable to parameter of type 'void'.
+src/components/CommunityEngagementSection.tsx(332,32): error TS2345: Argument of type '{ commentId: number; }' is not assignable to parameter of type 'void'.
+src/components/CommunityEngagementSection.tsx(433,25): error TS2339: Property 'info' does not exist on type '{ (message: Message, opts?: Partial<Pick<Toast, "id" | "icon" | "style" | "className" | "duration" | "ariaProps" | "position" | "iconTheme" | "removeDelay">> | undefined): string; ... 6 more ...; promise<T>(promise: Promise<...> | (() => Promise<...>), msgs: { ...; }, opts?: DefaultToastOptions | undefined): Promise...'.
+src/components/CommunityEngagementSection.tsx(470,39): error TS2339: Property 'comments' does not exist on type '{}'.
+src/components/CommunityEngagementSection.tsx(476,40): error TS2339: Property 'comments' does not exist on type '{}'.
+src/components/CommunityEngagementSection.tsx(476,54): error TS7006: Parameter 'comment' implicitly has an 'any' type.
+src/components/CommunityEngagementSection.tsx(508,67): error TS2339: Property 'isLoading' does not exist on type 'UseMutationResult<unknown, Error, void, unknown>'.
+  Property 'isLoading' does not exist on type 'Override<MutationObserverIdleResult<unknown, Error, void, unknown>, { mutate: UseMutateFunction<unknown, Error, void, unknown>; }> & { ...; }'.
+src/components/CommunityEngagementSection.tsx(511,58): error TS2339: Property 'isLoading' does not exist on type 'UseMutationResult<unknown, Error, void, unknown>'.
+  Property 'isLoading' does not exist on type 'Override<MutationObserverIdleResult<unknown, Error, void, unknown>, { mutate: UseMutateFunction<unknown, Error, void, unknown>; }> & { ...; }'.
+src/components/DataInsightsSection.tsx(305,56): error TS2339: Property 'data' does not exist on type '{}'.
+src/components/DataInsightsSection.tsx(335,68): error TS2339: Property 'data' does not exist on type '{}'.
+src/components/FooterSection.tsx(43,25): error TS2339: Property 'info' does not exist on type '{ (message: Message, opts?: Partial<Pick<Toast, "id" | "icon" | "style" | "className" | "duration" | "ariaProps" | "position" | "iconTheme" | "removeDelay">> | undefined): string; ... 6 more ...; promise<T>(promise: Promise<...> | (() => Promise<...>), msgs: { ...; }, opts?: DefaultToastOptions | undefined): Promise...'.
+src/components/FooterSection.tsx(54,25): error TS2339: Property 'info' does not exist on type '{ (message: Message, opts?: Partial<Pick<Toast, "id" | "icon" | "style" | "className" | "duration" | "ariaProps" | "position" | "iconTheme" | "removeDelay">> | undefined): string; ... 6 more ...; promise<T>(promise: Promise<...> | (() => Promise<...>), msgs: { ...; }, opts?: DefaultToastOptions | undefined): Promise...'.
+src/components/FooterSection.tsx(65,25): error TS2339: Property 'info' does not exist on type '{ (message: Message, opts?: Partial<Pick<Toast, "id" | "icon" | "style" | "className" | "duration" | "ariaProps" | "position" | "iconTheme" | "removeDelay">> | undefined): string; ... 6 more ...; promise<T>(promise: Promise<...> | (() => Promise<...>), msgs: { ...; }, opts?: DefaultToastOptions | undefined): Promise...'.
+src/components/FooterSection.tsx(76,25): error TS2339: Property 'info' does not exist on type '{ (message: Message, opts?: Partial<Pick<Toast, "id" | "icon" | "style" | "className" | "duration" | "ariaProps" | "position" | "iconTheme" | "removeDelay">> | undefined): string; ... 6 more ...; promise<T>(promise: Promise<...> | (() => Promise<...>), msgs: { ...; }, opts?: DefaultToastOptions | undefined): Promise...'.
+src/components/FooterSection.tsx(221,35): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'Message'.
+  Type 'undefined' is not assignable to type 'Message'.
+src/components/FooterSection.tsx(223,33): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'Message'.
+  Type 'undefined' is not assignable to type 'Message'.
+src/components/FooterSection.tsx(245,25): error TS2339: Property 'info' does not exist on type '{ (message: Message, opts?: Partial<Pick<Toast, "id" | "icon" | "style" | "className" | "duration" | "ariaProps" | "position" | "iconTheme" | "removeDelay">> | undefined): string; ... 6 more ...; promise<T>(promise: Promise<...> | (() => Promise<...>), msgs: { ...; }, opts?: DefaultToastOptions | undefined): Promise...'.
+src/components/FooterSection.tsx(256,25): error TS2339: Property 'info' does not exist on type '{ (message: Message, opts?: Partial<Pick<Toast, "id" | "icon" | "style" | "className" | "duration" | "ariaProps" | "position" | "iconTheme" | "removeDelay">> | undefined): string; ... 6 more ...; promise<T>(promise: Promise<...> | (() => Promise<...>), msgs: { ...; }, opts?: DefaultToastOptions | undefined): Promise...'.
+src/components/FooterSection.tsx(267,25): error TS2339: Property 'info' does not exist on type '{ (message: Message, opts?: Partial<Pick<Toast, "id" | "icon" | "style" | "className" | "duration" | "ariaProps" | "position" | "iconTheme" | "removeDelay">> | undefined): string; ... 6 more ...; promise<T>(promise: Promise<...> | (() => Promise<...>), msgs: { ...; }, opts?: DefaultToastOptions | undefined): Promise...'.
+src/components/HallOfInnovatorsSection.tsx(429,50): error TS2339: Property 'innovators' does not exist on type '{}'.
+src/components/HallOfInnovatorsSection.tsx(429,75): error TS7006: Parameter 'a' implicitly has an 'any' type.
+src/components/HallOfInnovatorsSection.tsx(429,78): error TS7006: Parameter 'b' implicitly has an 'any' type.
+src/components/HallOfInnovatorsSection.tsx(470,36): error TS7006: Parameter 'innovator' implicitly has an 'any' type.
+src/components/HeroSection.tsx(40,30): error TS2339: Property 'hasImage' does not exist on type '{}'.
+src/components/HeroSection.tsx(40,63): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/HeroSection.tsx(41,34): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/ImpactMetricsSection.tsx(32,13): error TS2532: Object is possibly 'undefined'.
+src/components/ImpactMetricsSection.tsx(103,32): error TS2339: Property 'hasImage' does not exist on type '{}'.
+src/components/ImpactMetricsSection.tsx(103,67): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/ImpactMetricsSection.tsx(104,36): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/ImpactMetricsSection.tsx(131,13): error TS2322: Type 'string | undefined' is not assignable to type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/components/ImpactMetricsSection.tsx(135,13): error TS2322: Type 'string | undefined' is not assignable to type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/components/ImpactMetricsSection.tsx(140,13): error TS2322: Type 'string | undefined' is not assignable to type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/components/ImpactMetricsSection.tsx(145,13): error TS2322: Type 'string | undefined' is not assignable to type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/components/InnovationPipelineSection.tsx(72,34): error TS2339: Property 'hasImage' does not exist on type '{}'.
+src/components/InnovationPipelineSection.tsx(72,71): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/InnovationPipelineSection.tsx(73,38): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/InnovationPipelineSection.tsx(138,19): error TS2322: Type 'string | undefined' is not assignable to type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/components/InnovationPipelineSection.tsx(139,19): error TS2322: Type 'string | undefined' is not assignable to type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/components/JoinUsSection.tsx(41,19): error TS7006: Parameter 'data' implicitly has an 'any' type.
+src/components/JoinUsSection.tsx(45,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/components/JoinUsSection.tsx(52,40): error TS2345: Argument of type '{ email: string; }' is not assignable to parameter of type 'void'.
+src/components/JoinUsSection.tsx(131,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/components/JoinUsSection.tsx(138,34): error TS2345: Argument of type '{ name: string; message: string; email: string; subject: string; }' is not assignable to parameter of type 'void'.
+src/components/Navigation.tsx(11,32): error TS2353: Object literal may only specify known properties, and 'to' does not exist in type 'UseMatchOptions<RouterCore<Route<any, "/", "/", string, "__root__", undefined, {}, {}, AnyContext, AnyContext, {}, undefined, RootRouteChildren, FileRouteTypes>, "never", false, RouterHistory, Record<...>>, ... 4 more ..., boolean>'.
+src/components/Navigation.tsx(12,33): error TS2353: Object literal may only specify known properties, and 'to' does not exist in type 'UseMatchOptions<RouterCore<Route<any, "/", "/", string, "__root__", undefined, {}, {}, AnyContext, AnyContext, {}, undefined, RootRouteChildren, FileRouteTypes>, "never", false, RouterHistory, Record<...>>, ... 4 more ..., boolean>'.
+src/components/Navigation.tsx(13,38): error TS2353: Object literal may only specify known properties, and 'to' does not exist in type 'UseMatchOptions<RouterCore<Route<any, "/", "/", string, "__root__", undefined, {}, {}, AnyContext, AnyContext, {}, undefined, RootRouteChildren, FileRouteTypes>, "never", false, RouterHistory, Record<...>>, ... 4 more ..., boolean>'.
+src/components/Navigation.tsx(14,34): error TS2353: Object literal may only specify known properties, and 'to' does not exist in type 'UseMatchOptions<RouterCore<Route<any, "/", "/", string, "__root__", undefined, {}, {}, AnyContext, AnyContext, {}, undefined, RootRouteChildren, FileRouteTypes>, "never", false, RouterHistory, Record<...>>, ... 4 more ..., boolean>'.
+src/components/Navigation.tsx(15,39): error TS2353: Object literal may only specify known properties, and 'to' does not exist in type 'UseMatchOptions<RouterCore<Route<any, "/", "/", string, "__root__", undefined, {}, {}, AnyContext, AnyContext, {}, undefined, RootRouteChildren, FileRouteTypes>, "never", false, RouterHistory, Record<...>>, ... 4 more ..., boolean>'.
+src/components/Navigation.tsx(16,38): error TS2353: Object literal may only specify known properties, and 'to' does not exist in type 'UseMatchOptions<RouterCore<Route<any, "/", "/", string, "__root__", undefined, {}, {}, AnyContext, AnyContext, {}, undefined, RootRouteChildren, FileRouteTypes>, "never", false, RouterHistory, Record<...>>, ... 4 more ..., boolean>'.
+src/components/Navigation.tsx(17,32): error TS2353: Object literal may only specify known properties, and 'to' does not exist in type 'UseMatchOptions<RouterCore<Route<any, "/", "/", string, "__root__", undefined, {}, {}, AnyContext, AnyContext, {}, undefined, RootRouteChildren, FileRouteTypes>, "never", false, RouterHistory, Record<...>>, ... 4 more ..., boolean>'.
+src/components/Navigation.tsx(18,37): error TS2353: Object literal may only specify known properties, and 'to' does not exist in type 'UseMatchOptions<RouterCore<Route<any, "/", "/", string, "__root__", undefined, {}, {}, AnyContext, AnyContext, {}, undefined, RootRouteChildren, FileRouteTypes>, "never", false, RouterHistory, Record<...>>, ... 4 more ..., boolean>'.
+src/components/Navigation.tsx(19,33): error TS2353: Object literal may only specify known properties, and 'to' does not exist in type 'UseMatchOptions<RouterCore<Route<any, "/", "/", string, "__root__", undefined, {}, {}, AnyContext, AnyContext, {}, undefined, RootRouteChildren, FileRouteTypes>, "never", false, RouterHistory, Record<...>>, ... 4 more ..., boolean>'.
+src/components/Navigation.tsx(20,36): error TS2353: Object literal may only specify known properties, and 'to' does not exist in type 'UseMatchOptions<RouterCore<Route<any, "/", "/", string, "__root__", undefined, {}, {}, AnyContext, AnyContext, {}, undefined, RootRouteChildren, FileRouteTypes>, "never", false, RouterHistory, Record<...>>, ... 4 more ..., boolean>'.
+src/components/Navigation.tsx(83,53): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/components/Navigation.tsx(109,41): error TS2339: Property 'success' does not exist on type 'MakeRouteMatch<Route<any, "/", "/", string, "__root__", undefined, {}, {}, AnyContext, AnyContext, {}, undefined, RootRouteChildren, FileRouteTypes>, undefined, true>'.
+src/components/Navigation.tsx(110,47): error TS2339: Property 'success' does not exist on type 'MakeRouteMatch<Route<any, "/", "/", string, "__root__", undefined, {}, {}, AnyContext, AnyContext, {}, undefined, RootRouteChildren, FileRouteTypes>, undefined, true>'.
+src/components/Navigation.tsx(111,57): error TS2339: Property 'success' does not exist on type 'MakeRouteMatch<Route<any, "/", "/", string, "__root__", undefined, {}, {}, AnyContext, AnyContext, {}, undefined, RootRouteChildren, FileRouteTypes>, undefined, true>'.
+src/components/Navigation.tsx(112,61): error TS2339: Property 'success' does not exist on type 'MakeRouteMatch<Route<any, "/", "/", string, "__root__", undefined, {}, {}, AnyContext, AnyContext, {}, undefined, RootRouteChildren, FileRouteTypes>, undefined, true>'.
+src/components/Navigation.tsx(113,60): error TS2339: Property 'success' does not exist on type 'MakeRouteMatch<Route<any, "/", "/", string, "__root__", undefined, {}, {}, AnyContext, AnyContext, {}, undefined, RootRouteChildren, FileRouteTypes>, undefined, true>'.
+src/components/Navigation.tsx(114,57): error TS2339: Property 'success' does not exist on type 'MakeRouteMatch<Route<any, "/", "/", string, "__root__", undefined, {}, {}, AnyContext, AnyContext, {}, undefined, RootRouteChildren, FileRouteTypes>, undefined, true>'.
+src/components/Navigation.tsx(115,45): error TS2339: Property 'success' does not exist on type 'MakeRouteMatch<Route<any, "/", "/", string, "__root__", undefined, {}, {}, AnyContext, AnyContext, {}, undefined, RootRouteChildren, FileRouteTypes>, undefined, true>'.
+src/components/Navigation.tsx(116,55): error TS2339: Property 'success' does not exist on type 'MakeRouteMatch<Route<any, "/", "/", string, "__root__", undefined, {}, {}, AnyContext, AnyContext, {}, undefined, RootRouteChildren, FileRouteTypes>, undefined, true>'.
+src/components/Navigation.tsx(117,47): error TS2339: Property 'success' does not exist on type 'MakeRouteMatch<Route<any, "/", "/", string, "__root__", undefined, {}, {}, AnyContext, AnyContext, {}, undefined, RootRouteChildren, FileRouteTypes>, undefined, true>'.
+src/components/Navigation.tsx(118,53): error TS2339: Property 'success' does not exist on type 'MakeRouteMatch<Route<any, "/", "/", string, "__root__", undefined, {}, {}, AnyContext, AnyContext, {}, undefined, RootRouteChildren, FileRouteTypes>, undefined, true>'.
+src/components/ProblemSubmissionSection.tsx(138,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/components/ProblemSubmissionSection.tsx(172,31): error TS2532: Object is possibly 'undefined'.
+src/components/ProblemSubmissionSection.tsx(223,34): error TS2345: Argument of type '{ name: string; title: string; category: string; description: string; technicalRequirements: string; constraints: string; successCriteria: string; timeline: string; budget: string; organization: string; email: string; phone: string; consentToContact: boolean; }' is not assignable to parameter of type 'void'.
+src/components/ProblemSubmissionSection.tsx(624,33): error TS2339: Property 'info' does not exist on type '{ (message: Message, opts?: Partial<Pick<Toast, "id" | "icon" | "style" | "className" | "duration" | "ariaProps" | "position" | "iconTheme" | "removeDelay">> | undefined): string; ... 6 more ...; promise<T>(promise: Promise<...> | (() => Promise<...>), msgs: { ...; }, opts?: DefaultToastOptions | undefined): Promise...'.
+src/components/ProblemSubmissionSection.tsx(627,33): error TS2339: Property 'info' does not exist on type '{ (message: Message, opts?: Partial<Pick<Toast, "id" | "icon" | "style" | "className" | "duration" | "ariaProps" | "position" | "iconTheme" | "removeDelay">> | undefined): string; ... 6 more ...; promise<T>(promise: Promise<...> | (() => Promise<...>), msgs: { ...; }, opts?: DefaultToastOptions | undefined): Promise...'.
+src/components/ui/BulletproofImageUpload.tsx(310,33): error TS2554: Expected 1 arguments, but got 0.
+src/components/ui/BulletproofImageUpload.tsx(311,37): error TS2554: Expected 1 arguments, but got 0.
+src/components/ui/BulletproofImageUpload.tsx(312,24): error TS2554: Expected 1 arguments, but got 0.
+src/components/ui/BulletproofImageUpload.tsx(331,7): error TS2322: Type 'string | string[] | undefined' is not assignable to type 'string | string[]'.
+  Type 'undefined' is not assignable to type 'string | string[]'.
+src/components/ui/BulletproofImageUpload.tsx(360,29): error TS2339: Property 'retryDelay' does not exist on type '{ message: string; suggestions: string[]; canRetry: boolean; severity: "error" | "info" | "warning"; category: string; httpStatus?: number | undefined; adaptiveAction?: "compress_image" | "wait_retry" | "contact_support" | undefined; }'.
+src/components/ui/BulletproofImageUpload.tsx(360,52): error TS2339: Property 'retryDelay' does not exist on type '{ message: string; suggestions: string[]; canRetry: boolean; severity: "error" | "info" | "warning"; category: string; httpStatus?: number | undefined; adaptiveAction?: "compress_image" | "wait_retry" | "contact_support" | undefined; }'.
+src/components/ui/BulletproofImageUpload.tsx(850,25): error TS7006: Parameter 'data' implicitly has an 'any' type.
+src/components/ui/BulletproofImageUpload.tsx(1025,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/components/ui/BulletproofImageUpload.tsx(1056,25): error TS7006: Parameter 'data' implicitly has an 'any' type.
+src/components/ui/BulletproofImageUpload.tsx(1171,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/components/ui/BulletproofImageUpload.tsx(1194,25): error TS7006: Parameter 'data' implicitly has an 'any' type.
+src/components/ui/BulletproofImageUpload.tsx(1369,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/components/ui/BulletproofImageUpload.tsx(1394,33): error TS2304: Cannot find name 'fileToBase64'.
+src/components/ui/BulletproofImageUpload.tsx(1403,38): error TS2345: Argument of type '{ adminToken: string; fileName: string; fileContent: any; fileType: string; title: string | undefined; description: string | undefined; altText: string | undefined; }' is not assignable to parameter of type 'void'.
+src/components/ui/BulletproofImageUpload.tsx(1454,44): error TS2345: Argument of type '{ adminToken: string; chunkId: string; chunkIndex: number; totalChunks: number; data: string | undefined; fileName: string; fileType: string; sessionId: string | undefined; }' is not assignable to parameter of type 'void'.
+src/components/ui/BulletproofImageUpload.tsx(1488,37): error TS2304: Cannot find name 'fileToBase64'.
+src/components/ui/BulletproofImageUpload.tsx(1508,42): error TS2345: Argument of type '{ adminToken: string; images: { fileName: string; fileContent: any; fileType: string; title: string | undefined; description: string | undefined; altText: string | undefined; }[]; }' is not assignable to parameter of type 'void'.
+src/components/ui/BulletproofImageUpload.tsx(1534,39): error TS2345: Argument of type 'File | undefined' is not assignable to parameter of type 'File'.
+  Type 'undefined' is not assignable to type 'File'.
+src/components/ui/BulletproofImageUpload.tsx(1540,34): error TS2345: Argument of type 'File | undefined' is not assignable to parameter of type 'File'.
+  Type 'undefined' is not assignable to type 'File'.
+src/components/ui/BulletproofImageUpload.tsx(1687,46): error TS2345: Argument of type 'File | undefined' is not assignable to parameter of type 'File'.
+  Type 'undefined' is not assignable to type 'File'.
+src/components/ui/BulletproofImageUpload.tsx(1690,11): error TS2322: Type 'File | undefined' is not assignable to type 'File'.
+  Type 'undefined' is not assignable to type 'File'.
+src/components/ui/BulletproofImageUpload.tsx(1697,21): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/BulletproofImageUpload.tsx(1698,21): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/BulletproofImageUpload.tsx(1710,84): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/BulletproofImageUpload.tsx(1721,23): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/BulletproofImageUpload.tsx(1726,28): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/BulletproofImageUpload.tsx(2182,55): error TS2345: Argument of type 'RefObject<HTMLInputElement | null>' is not assignable to parameter of type 'RefObject<HTMLInputElement>'.
+  Type 'HTMLInputElement | null' is not assignable to type 'HTMLInputElement'.
+    Type 'null' is not assignable to type 'HTMLInputElement'.
+src/components/ui/BulletproofImageUpload.tsx(2236,17): error TS2448: Block-scoped variable 'isUploading' used before its declaration.
+src/components/ui/BulletproofImageUpload.tsx(2236,17): error TS2454: Variable 'isUploading' is used before being assigned.
+src/components/ui/BulletproofImageUpload.tsx(2319,38): error TS2339: Property 'retryDelay' does not exist on type '{ message: string; suggestions: string[]; canRetry: boolean; severity: "error" | "info" | "warning"; category: string; httpStatus?: number | undefined; adaptiveAction?: "compress_image" | "wait_retry" | "contact_support" | undefined; }'.
+src/components/ui/BulletproofImageUpload.tsx(2700,86): error TS2345: Argument of type 'RefObject<HTMLInputElement | null>' is not assignable to parameter of type 'RefObject<HTMLInputElement>'.
+  Type 'HTMLInputElement | null' is not assignable to type 'HTMLInputElement'.
+    Type 'null' is not assignable to type 'HTMLInputElement'.
+src/components/ui/BulletproofImageUpload.tsx(2777,65): error TS2345: Argument of type 'RefObject<HTMLInputElement | null>' is not assignable to parameter of type 'RefObject<HTMLInputElement>'.
+  Type 'HTMLInputElement | null' is not assignable to type 'HTMLInputElement'.
+    Type 'null' is not assignable to type 'HTMLInputElement'.
+src/components/ui/EmergencyImageUpload.tsx(125,17): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/EmergencyImageUpload.tsx(126,17): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/EmergencyImageUpload.tsx(127,17): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/EmergencyImageUpload.tsx(128,21): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/EmergencyImageUpload.tsx(139,46): error TS2345: Argument of type 'File | undefined' is not assignable to parameter of type 'File'.
+  Type 'undefined' is not assignable to type 'File'.
+src/components/ui/EmergencyImageUpload.tsx(143,19): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/EmergencyImageUpload.tsx(158,21): error TS2345: Argument of type 'File | undefined' is not assignable to parameter of type 'SetStateAction<File | null>'.
+  Type 'undefined' is not assignable to type 'SetStateAction<File | null>'.
+src/components/ui/EmergencyImageUpload.tsx(168,23): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/EmergencyImageUpload.tsx(176,21): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/EmergencyImageUpload.tsx(181,28): error TS2345: Argument of type 'File | undefined' is not assignable to parameter of type 'Blob'.
+  Type 'undefined' is not assignable to type 'Blob'.
+src/components/ui/EmergencyImageUpload.tsx(186,19): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/OptimizedImagePreview.tsx(48,27): error TS2554: Expected 1 arguments, but got 0.
+src/components/ui/SimpleCaseStudyImageUpload.tsx(369,49): error TS2339: Property 'hasImage' does not exist on type '{}'.
+src/components/ui/SimpleCaseStudyImageUpload.tsx(370,20): error TS2339: Property 'isBase64' does not exist on type '{}'.
+src/components/ui/SimpleCaseStudyImageUpload.tsx(370,46): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/ui/SimpleCaseStudyImageUpload.tsx(371,21): error TS2339: Property 'isBase64' does not exist on type '{}'.
+src/components/ui/SimpleCaseStudyImageUpload.tsx(371,47): error TS2339: Property 'imageUrl' does not exist on type '{}'.
+src/components/ui/SimpleCaseStudyImageUpload.tsx(376,42): error TS2339: Property 'hasImage' does not exist on type '{}'.
+src/components/ui/SimpleCaseStudyImageUpload.tsx(380,24): error TS2339: Property 'isBase64' does not exist on type '{}'.
+src/components/ui/SimpleCaseStudyImageUpload.tsx(380,49): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/ui/SimpleCaseStudyImageUpload.tsx(381,29): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/ui/SimpleCaseStudyImageUpload.tsx(384,25): error TS2339: Property 'isBase64' does not exist on type '{}'.
+src/components/ui/SimpleCaseStudyImageUpload.tsx(384,50): error TS2339: Property 'imageUrl' does not exist on type '{}'.
+src/components/ui/SimpleCaseStudyImageUpload.tsx(385,29): error TS2339: Property 'imageUrl' does not exist on type '{}'.
+src/components/ui/SimpleCaseStudyImageUpload.tsx(797,25): error TS7006: Parameter 'data' implicitly has an 'any' type.
+src/components/ui/SimpleCaseStudyImageUpload.tsx(855,37): error TS2339: Property 'isBase64' does not exist on type '{}'.
+src/components/ui/SimpleCaseStudyImageUpload.tsx(855,71): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/ui/SimpleCaseStudyImageUpload.tsx(856,53): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/ui/SimpleCaseStudyImageUpload.tsx(857,45): error TS2339: Property 'isBase64' does not exist on type '{}'.
+src/components/ui/SimpleCaseStudyImageUpload.tsx(857,79): error TS2339: Property 'imageUrl' does not exist on type '{}'.
+src/components/ui/SimpleCaseStudyImageUpload.tsx(858,53): error TS2339: Property 'imageUrl' does not exist on type '{}'.
+src/components/ui/SimpleCaseStudyImageUpload.tsx(890,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/components/ui/SimpleCaseStudyImageUpload.tsx(935,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/components/ui/SimpleCaseStudyImageUpload.tsx(998,31): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleCaseStudyImageUpload.tsx(1002,19): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleCaseStudyImageUpload.tsx(1003,19): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleCaseStudyImageUpload.tsx(1004,19): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleCaseStudyImageUpload.tsx(1005,23): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleCaseStudyImageUpload.tsx(1020,39): error TS2345: Argument of type 'File | undefined' is not assignable to parameter of type 'File'.
+  Type 'undefined' is not assignable to type 'File'.
+src/components/ui/SimpleCaseStudyImageUpload.tsx(1025,17): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleCaseStudyImageUpload.tsx(1048,23): error TS2345: Argument of type 'File | undefined' is not assignable to parameter of type 'SetStateAction<File | null>'.
+  Type 'undefined' is not assignable to type 'SetStateAction<File | null>'.
+src/components/ui/SimpleCaseStudyImageUpload.tsx(1059,47): error TS2345: Argument of type 'File | undefined' is not assignable to parameter of type 'File'.
+  Type 'undefined' is not assignable to type 'File'.
+src/components/ui/SimpleCaseStudyImageUpload.tsx(1066,23): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleCaseStudyImageUpload.tsx(1070,21): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleCaseStudyImageUpload.tsx(1141,29): error TS2345: Argument of type '{ adminToken: string; caseStudyId: number; fileName: string; fileContent: string; fileType: string; }' is not assignable to parameter of type 'void'.
+src/components/ui/SimpleCaseStudyImageUpload.tsx(1164,27): error TS2345: Argument of type '{ adminToken: string; caseStudyId: number; }' is not assignable to parameter of type 'void'.
+src/components/ui/SimpleCaseStudyImageUpload.tsx(1337,26): error TS2339: Property 'isBase64' does not exist on type '{}'.
+src/components/ui/SimpleCaseStudyImageUpload.tsx(1337,52): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/ui/SimpleCaseStudyImageUpload.tsx(1339,58): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/ui/SimpleCaseStudyImageUpload.tsx(1343,26): error TS2339: Property 'imageUrl' does not exist on type '{}'.
+src/components/ui/SimpleCaseStudyImageUpload.tsx(1343,53): error TS2339: Property 'isBase64' does not exist on type '{}'.
+src/components/ui/SimpleChallengeImageUpload.tsx(387,49): error TS2339: Property 'hasImage' does not exist on type '{}'.
+src/components/ui/SimpleChallengeImageUpload.tsx(388,20): error TS2339: Property 'isBase64' does not exist on type '{}'.
+src/components/ui/SimpleChallengeImageUpload.tsx(388,46): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/ui/SimpleChallengeImageUpload.tsx(389,21): error TS2339: Property 'isBase64' does not exist on type '{}'.
+src/components/ui/SimpleChallengeImageUpload.tsx(389,47): error TS2339: Property 'imageUrl' does not exist on type '{}'.
+src/components/ui/SimpleChallengeImageUpload.tsx(394,42): error TS2339: Property 'hasImage' does not exist on type '{}'.
+src/components/ui/SimpleChallengeImageUpload.tsx(398,24): error TS2339: Property 'isBase64' does not exist on type '{}'.
+src/components/ui/SimpleChallengeImageUpload.tsx(398,49): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/ui/SimpleChallengeImageUpload.tsx(399,29): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/ui/SimpleChallengeImageUpload.tsx(402,25): error TS2339: Property 'isBase64' does not exist on type '{}'.
+src/components/ui/SimpleChallengeImageUpload.tsx(402,50): error TS2339: Property 'imageUrl' does not exist on type '{}'.
+src/components/ui/SimpleChallengeImageUpload.tsx(403,29): error TS2339: Property 'imageUrl' does not exist on type '{}'.
+src/components/ui/SimpleChallengeImageUpload.tsx(815,25): error TS7006: Parameter 'data' implicitly has an 'any' type.
+src/components/ui/SimpleChallengeImageUpload.tsx(873,37): error TS2339: Property 'isBase64' does not exist on type '{}'.
+src/components/ui/SimpleChallengeImageUpload.tsx(873,71): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/ui/SimpleChallengeImageUpload.tsx(874,53): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/ui/SimpleChallengeImageUpload.tsx(875,45): error TS2339: Property 'isBase64' does not exist on type '{}'.
+src/components/ui/SimpleChallengeImageUpload.tsx(875,79): error TS2339: Property 'imageUrl' does not exist on type '{}'.
+src/components/ui/SimpleChallengeImageUpload.tsx(876,53): error TS2339: Property 'imageUrl' does not exist on type '{}'.
+src/components/ui/SimpleChallengeImageUpload.tsx(908,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/components/ui/SimpleChallengeImageUpload.tsx(953,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/components/ui/SimpleChallengeImageUpload.tsx(1016,31): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleChallengeImageUpload.tsx(1020,19): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleChallengeImageUpload.tsx(1021,19): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleChallengeImageUpload.tsx(1022,19): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleChallengeImageUpload.tsx(1023,23): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleChallengeImageUpload.tsx(1038,39): error TS2345: Argument of type 'File | undefined' is not assignable to parameter of type 'File'.
+  Type 'undefined' is not assignable to type 'File'.
+src/components/ui/SimpleChallengeImageUpload.tsx(1043,17): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleChallengeImageUpload.tsx(1066,23): error TS2345: Argument of type 'File | undefined' is not assignable to parameter of type 'SetStateAction<File | null>'.
+  Type 'undefined' is not assignable to type 'SetStateAction<File | null>'.
+src/components/ui/SimpleChallengeImageUpload.tsx(1077,47): error TS2345: Argument of type 'File | undefined' is not assignable to parameter of type 'File'.
+  Type 'undefined' is not assignable to type 'File'.
+src/components/ui/SimpleChallengeImageUpload.tsx(1084,23): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleChallengeImageUpload.tsx(1088,21): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleChallengeImageUpload.tsx(1159,29): error TS2345: Argument of type '{ adminToken: string; challengeId: number; fileName: string; fileContent: string; fileType: string; }' is not assignable to parameter of type 'void'.
+src/components/ui/SimpleChallengeImageUpload.tsx(1182,27): error TS2345: Argument of type '{ adminToken: string; challengeId: number; }' is not assignable to parameter of type 'void'.
+src/components/ui/SimpleChallengeImageUpload.tsx(1355,26): error TS2339: Property 'isBase64' does not exist on type '{}'.
+src/components/ui/SimpleChallengeImageUpload.tsx(1355,52): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/ui/SimpleChallengeImageUpload.tsx(1357,58): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/ui/SimpleChallengeImageUpload.tsx(1361,26): error TS2339: Property 'imageUrl' does not exist on type '{}'.
+src/components/ui/SimpleChallengeImageUpload.tsx(1361,53): error TS2339: Property 'isBase64' does not exist on type '{}'.
+src/components/ui/SimpleImageUpload.tsx(201,25): error TS7006: Parameter 'data' implicitly has an 'any' type.
+src/components/ui/SimpleImageUpload.tsx(294,23): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/components/ui/SimpleImageUpload.tsx(315,33): error TS2339: Property 'retryDelay' does not exist on type '{ message: string; suggestions: string[]; canRetry: boolean; severity: "error" | "info" | "warning"; category: string; httpStatus?: number | undefined; adaptiveAction?: "compress_image" | "wait_retry" | "contact_support" | undefined; }'.
+src/components/ui/SimpleImageUpload.tsx(423,25): error TS2339: Property 'useChunking' does not exist on type '{ message: string; suggestions: string[]; canRetry: boolean; severity: "error" | "info" | "warning"; category: string; httpStatus?: number | undefined; adaptiveAction?: "compress_image" | "wait_retry" | "contact_support" | undefined; }'.
+src/components/ui/SimpleImageUpload.tsx(466,19): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleImageUpload.tsx(467,19): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleImageUpload.tsx(468,19): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleImageUpload.tsx(469,43): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleImageUpload.tsx(474,44): error TS2345: Argument of type 'File | undefined' is not assignable to parameter of type 'File'.
+  Type 'undefined' is not assignable to type 'File'.
+src/components/ui/SimpleImageUpload.tsx(481,19): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleImageUpload.tsx(493,26): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleImageUpload.tsx(519,69): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleImageUpload.tsx(529,53): error TS2345: Argument of type 'File | undefined' is not assignable to parameter of type 'File'.
+  Type 'undefined' is not assignable to type 'File'.
+src/components/ui/SimpleImageUpload.tsx(533,23): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleImageUpload.tsx(534,26): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleImageUpload.tsx(535,19): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleImageUpload.tsx(548,54): error TS2345: Argument of type 'File | undefined' is not assignable to parameter of type 'File'.
+  Type 'undefined' is not assignable to type 'File'.
+src/components/ui/SimpleImageUpload.tsx(550,31): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleImageUpload.tsx(552,37): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleImageUpload.tsx(555,27): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleImageUpload.tsx(560,62): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleImageUpload.tsx(574,23): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleImageUpload.tsx(586,19): error TS18048: 'fileToUpload' is possibly 'undefined'.
+src/components/ui/SimpleImageUpload.tsx(587,19): error TS18048: 'fileToUpload' is possibly 'undefined'.
+src/components/ui/SimpleImageUpload.tsx(590,23): error TS2345: Argument of type 'File | undefined' is not assignable to parameter of type 'SetStateAction<File | null>'.
+  Type 'undefined' is not assignable to type 'SetStateAction<File | null>'.
+src/components/ui/SimpleImageUpload.tsx(593,48): error TS2345: Argument of type 'File | undefined' is not assignable to parameter of type 'Blob | MediaSource'.
+  Type 'undefined' is not assignable to type 'Blob | MediaSource'.
+src/components/ui/SimpleImageUpload.tsx(597,21): error TS18048: 'fileToUpload' is possibly 'undefined'.
+src/components/ui/SimpleImageUpload.tsx(605,21): error TS18048: 'fileToUpload' is possibly 'undefined'.
+src/components/ui/SimpleImageUpload.tsx(615,24): error TS18048: 'fileToUpload' is possibly 'undefined'.
+src/components/ui/SimpleImageUpload.tsx(616,24): error TS18048: 'fileToUpload' is possibly 'undefined'.
+src/components/ui/SimpleImageUpload.tsx(625,19): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleImageUpload.tsx(750,29): error TS2345: Argument of type '{ adminToken: string; fileName: string; fileContent: string; fileType: string; }' is not assignable to parameter of type 'void'.
+src/components/ui/SimpleImageUpload.tsx(844,57): error TS2345: Argument of type 'RefObject<HTMLInputElement | null>' is not assignable to parameter of type 'RefObject<HTMLInputElement>'.
+  Type 'HTMLInputElement | null' is not assignable to type 'HTMLInputElement'.
+    Type 'null' is not assignable to type 'HTMLInputElement'.
+src/components/ui/SimpleImageUpload.tsx(1261,88): error TS2345: Argument of type 'RefObject<HTMLInputElement | null>' is not assignable to parameter of type 'RefObject<HTMLInputElement>'.
+  Type 'HTMLInputElement | null' is not assignable to type 'HTMLInputElement'.
+    Type 'null' is not assignable to type 'HTMLInputElement'.
+src/components/ui/SimpleImageUpload.tsx(1315,67): error TS2345: Argument of type 'RefObject<HTMLInputElement | null>' is not assignable to parameter of type 'RefObject<HTMLInputElement>'.
+  Type 'HTMLInputElement | null' is not assignable to type 'HTMLInputElement'.
+    Type 'null' is not assignable to type 'HTMLInputElement'.
+src/components/ui/SimpleInnovatorImageUpload.tsx(319,49): error TS2339: Property 'hasImage' does not exist on type '{}'.
+src/components/ui/SimpleInnovatorImageUpload.tsx(320,20): error TS2339: Property 'isBase64' does not exist on type '{}'.
+src/components/ui/SimpleInnovatorImageUpload.tsx(320,46): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/ui/SimpleInnovatorImageUpload.tsx(321,21): error TS2339: Property 'isBase64' does not exist on type '{}'.
+src/components/ui/SimpleInnovatorImageUpload.tsx(321,47): error TS2339: Property 'imageUrl' does not exist on type '{}'.
+src/components/ui/SimpleInnovatorImageUpload.tsx(326,42): error TS2339: Property 'hasImage' does not exist on type '{}'.
+src/components/ui/SimpleInnovatorImageUpload.tsx(330,24): error TS2339: Property 'isBase64' does not exist on type '{}'.
+src/components/ui/SimpleInnovatorImageUpload.tsx(330,49): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/ui/SimpleInnovatorImageUpload.tsx(331,29): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/ui/SimpleInnovatorImageUpload.tsx(334,25): error TS2339: Property 'isBase64' does not exist on type '{}'.
+src/components/ui/SimpleInnovatorImageUpload.tsx(334,50): error TS2339: Property 'imageUrl' does not exist on type '{}'.
+src/components/ui/SimpleInnovatorImageUpload.tsx(335,29): error TS2339: Property 'imageUrl' does not exist on type '{}'.
+src/components/ui/SimpleInnovatorImageUpload.tsx(747,25): error TS7006: Parameter 'data' implicitly has an 'any' type.
+src/components/ui/SimpleInnovatorImageUpload.tsx(824,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/components/ui/SimpleInnovatorImageUpload.tsx(869,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/components/ui/SimpleInnovatorImageUpload.tsx(932,31): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleInnovatorImageUpload.tsx(936,19): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleInnovatorImageUpload.tsx(937,19): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleInnovatorImageUpload.tsx(938,19): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleInnovatorImageUpload.tsx(939,23): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleInnovatorImageUpload.tsx(954,39): error TS2345: Argument of type 'File | undefined' is not assignable to parameter of type 'File'.
+  Type 'undefined' is not assignable to type 'File'.
+src/components/ui/SimpleInnovatorImageUpload.tsx(959,17): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleInnovatorImageUpload.tsx(982,23): error TS2345: Argument of type 'File | undefined' is not assignable to parameter of type 'SetStateAction<File | null>'.
+  Type 'undefined' is not assignable to type 'SetStateAction<File | null>'.
+src/components/ui/SimpleInnovatorImageUpload.tsx(993,47): error TS2345: Argument of type 'File | undefined' is not assignable to parameter of type 'File'.
+  Type 'undefined' is not assignable to type 'File'.
+src/components/ui/SimpleInnovatorImageUpload.tsx(1000,23): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleInnovatorImageUpload.tsx(1004,21): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleInnovatorImageUpload.tsx(1075,29): error TS2345: Argument of type '{ adminToken: string; innovatorId: number; fileName: string; fileContent: string; fileType: string; }' is not assignable to parameter of type 'void'.
+src/components/ui/SimpleInnovatorImageUpload.tsx(1098,27): error TS2345: Argument of type '{ adminToken: string; innovatorId: number; }' is not assignable to parameter of type 'void'.
+src/components/ui/SimpleInnovatorImageUpload.tsx(1270,26): error TS2339: Property 'isBase64' does not exist on type '{}'.
+src/components/ui/SimpleInnovatorImageUpload.tsx(1270,52): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/ui/SimpleInnovatorImageUpload.tsx(1272,58): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/ui/SimpleInnovatorImageUpload.tsx(1276,26): error TS2339: Property 'imageUrl' does not exist on type '{}'.
+src/components/ui/SimpleInnovatorImageUpload.tsx(1276,53): error TS2339: Property 'isBase64' does not exist on type '{}'.
+src/components/ui/SimpleNewsImageUpload.tsx(369,49): error TS2339: Property 'hasImage' does not exist on type '{}'.
+src/components/ui/SimpleNewsImageUpload.tsx(370,20): error TS2339: Property 'isBase64' does not exist on type '{}'.
+src/components/ui/SimpleNewsImageUpload.tsx(370,46): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/ui/SimpleNewsImageUpload.tsx(371,21): error TS2339: Property 'isBase64' does not exist on type '{}'.
+src/components/ui/SimpleNewsImageUpload.tsx(371,47): error TS2339: Property 'imageUrl' does not exist on type '{}'.
+src/components/ui/SimpleNewsImageUpload.tsx(376,42): error TS2339: Property 'hasImage' does not exist on type '{}'.
+src/components/ui/SimpleNewsImageUpload.tsx(380,24): error TS2339: Property 'isBase64' does not exist on type '{}'.
+src/components/ui/SimpleNewsImageUpload.tsx(380,49): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/ui/SimpleNewsImageUpload.tsx(381,29): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/ui/SimpleNewsImageUpload.tsx(384,25): error TS2339: Property 'isBase64' does not exist on type '{}'.
+src/components/ui/SimpleNewsImageUpload.tsx(384,50): error TS2339: Property 'imageUrl' does not exist on type '{}'.
+src/components/ui/SimpleNewsImageUpload.tsx(385,29): error TS2339: Property 'imageUrl' does not exist on type '{}'.
+src/components/ui/SimpleNewsImageUpload.tsx(797,25): error TS7006: Parameter 'data' implicitly has an 'any' type.
+src/components/ui/SimpleNewsImageUpload.tsx(855,37): error TS2339: Property 'isBase64' does not exist on type '{}'.
+src/components/ui/SimpleNewsImageUpload.tsx(855,71): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/ui/SimpleNewsImageUpload.tsx(856,53): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/ui/SimpleNewsImageUpload.tsx(857,45): error TS2339: Property 'isBase64' does not exist on type '{}'.
+src/components/ui/SimpleNewsImageUpload.tsx(857,79): error TS2339: Property 'imageUrl' does not exist on type '{}'.
+src/components/ui/SimpleNewsImageUpload.tsx(858,53): error TS2339: Property 'imageUrl' does not exist on type '{}'.
+src/components/ui/SimpleNewsImageUpload.tsx(890,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/components/ui/SimpleNewsImageUpload.tsx(935,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/components/ui/SimpleNewsImageUpload.tsx(998,31): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleNewsImageUpload.tsx(1002,19): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleNewsImageUpload.tsx(1003,19): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleNewsImageUpload.tsx(1004,19): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleNewsImageUpload.tsx(1005,23): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleNewsImageUpload.tsx(1020,39): error TS2345: Argument of type 'File | undefined' is not assignable to parameter of type 'File'.
+  Type 'undefined' is not assignable to type 'File'.
+src/components/ui/SimpleNewsImageUpload.tsx(1025,17): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleNewsImageUpload.tsx(1048,23): error TS2345: Argument of type 'File | undefined' is not assignable to parameter of type 'SetStateAction<File | null>'.
+  Type 'undefined' is not assignable to type 'SetStateAction<File | null>'.
+src/components/ui/SimpleNewsImageUpload.tsx(1059,47): error TS2345: Argument of type 'File | undefined' is not assignable to parameter of type 'File'.
+  Type 'undefined' is not assignable to type 'File'.
+src/components/ui/SimpleNewsImageUpload.tsx(1066,23): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleNewsImageUpload.tsx(1070,21): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimpleNewsImageUpload.tsx(1141,29): error TS2345: Argument of type '{ adminToken: string; newsId: number; fileName: string; fileContent: string; fileType: string; }' is not assignable to parameter of type 'void'.
+src/components/ui/SimpleNewsImageUpload.tsx(1164,27): error TS2345: Argument of type '{ adminToken: string; newsId: number; }' is not assignable to parameter of type 'void'.
+src/components/ui/SimpleNewsImageUpload.tsx(1337,26): error TS2339: Property 'isBase64' does not exist on type '{}'.
+src/components/ui/SimpleNewsImageUpload.tsx(1337,52): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/ui/SimpleNewsImageUpload.tsx(1339,58): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/ui/SimpleNewsImageUpload.tsx(1343,26): error TS2339: Property 'imageUrl' does not exist on type '{}'.
+src/components/ui/SimpleNewsImageUpload.tsx(1343,53): error TS2339: Property 'isBase64' does not exist on type '{}'.
+src/components/ui/SimplePartnerImageUpload.tsx(369,49): error TS2339: Property 'hasImage' does not exist on type '{}'.
+src/components/ui/SimplePartnerImageUpload.tsx(370,20): error TS2339: Property 'isBase64' does not exist on type '{}'.
+src/components/ui/SimplePartnerImageUpload.tsx(370,46): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/ui/SimplePartnerImageUpload.tsx(371,21): error TS2339: Property 'isBase64' does not exist on type '{}'.
+src/components/ui/SimplePartnerImageUpload.tsx(371,47): error TS2339: Property 'imageUrl' does not exist on type '{}'.
+src/components/ui/SimplePartnerImageUpload.tsx(376,42): error TS2339: Property 'hasImage' does not exist on type '{}'.
+src/components/ui/SimplePartnerImageUpload.tsx(380,24): error TS2339: Property 'isBase64' does not exist on type '{}'.
+src/components/ui/SimplePartnerImageUpload.tsx(380,49): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/ui/SimplePartnerImageUpload.tsx(381,29): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/ui/SimplePartnerImageUpload.tsx(384,25): error TS2339: Property 'isBase64' does not exist on type '{}'.
+src/components/ui/SimplePartnerImageUpload.tsx(384,50): error TS2339: Property 'imageUrl' does not exist on type '{}'.
+src/components/ui/SimplePartnerImageUpload.tsx(385,29): error TS2339: Property 'imageUrl' does not exist on type '{}'.
+src/components/ui/SimplePartnerImageUpload.tsx(797,25): error TS7006: Parameter 'data' implicitly has an 'any' type.
+src/components/ui/SimplePartnerImageUpload.tsx(855,37): error TS2339: Property 'isBase64' does not exist on type '{}'.
+src/components/ui/SimplePartnerImageUpload.tsx(855,71): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/ui/SimplePartnerImageUpload.tsx(856,53): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/ui/SimplePartnerImageUpload.tsx(857,45): error TS2339: Property 'isBase64' does not exist on type '{}'.
+src/components/ui/SimplePartnerImageUpload.tsx(857,79): error TS2339: Property 'imageUrl' does not exist on type '{}'.
+src/components/ui/SimplePartnerImageUpload.tsx(858,53): error TS2339: Property 'imageUrl' does not exist on type '{}'.
+src/components/ui/SimplePartnerImageUpload.tsx(890,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/components/ui/SimplePartnerImageUpload.tsx(935,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/components/ui/SimplePartnerImageUpload.tsx(998,31): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimplePartnerImageUpload.tsx(1002,19): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimplePartnerImageUpload.tsx(1003,19): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimplePartnerImageUpload.tsx(1004,19): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimplePartnerImageUpload.tsx(1005,23): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimplePartnerImageUpload.tsx(1020,39): error TS2345: Argument of type 'File | undefined' is not assignable to parameter of type 'File'.
+  Type 'undefined' is not assignable to type 'File'.
+src/components/ui/SimplePartnerImageUpload.tsx(1025,17): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimplePartnerImageUpload.tsx(1048,23): error TS2345: Argument of type 'File | undefined' is not assignable to parameter of type 'SetStateAction<File | null>'.
+  Type 'undefined' is not assignable to type 'SetStateAction<File | null>'.
+src/components/ui/SimplePartnerImageUpload.tsx(1059,47): error TS2345: Argument of type 'File | undefined' is not assignable to parameter of type 'File'.
+  Type 'undefined' is not assignable to type 'File'.
+src/components/ui/SimplePartnerImageUpload.tsx(1066,23): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimplePartnerImageUpload.tsx(1070,21): error TS18048: 'file' is possibly 'undefined'.
+src/components/ui/SimplePartnerImageUpload.tsx(1141,29): error TS2345: Argument of type '{ adminToken: string; partnerId: number; fileName: string; fileContent: string; fileType: string; }' is not assignable to parameter of type 'void'.
+src/components/ui/SimplePartnerImageUpload.tsx(1164,27): error TS2345: Argument of type '{ adminToken: string; partnerId: number; }' is not assignable to parameter of type 'void'.
+src/components/ui/SimplePartnerImageUpload.tsx(1337,26): error TS2339: Property 'isBase64' does not exist on type '{}'.
+src/components/ui/SimplePartnerImageUpload.tsx(1337,52): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/ui/SimplePartnerImageUpload.tsx(1339,58): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/ui/SimplePartnerImageUpload.tsx(1343,26): error TS2339: Property 'imageUrl' does not exist on type '{}'.
+src/components/ui/SimplePartnerImageUpload.tsx(1343,53): error TS2339: Property 'isBase64' does not exist on type '{}'.
+src/components/ui/SiteContentImageUpload.tsx(104,49): error TS2339: Property 'hasImage' does not exist on type '{}'.
+src/components/ui/SiteContentImageUpload.tsx(104,75): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/ui/SiteContentImageUpload.tsx(132,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/components/ui/SiteContentImageUpload.tsx(146,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/components/ui/SiteContentImageUpload.tsx(160,37): error TS2345: Argument of type 'File | undefined' is not assignable to parameter of type 'File'.
+  Type 'undefined' is not assignable to type 'File'.
+src/components/ui/SiteContentImageUpload.tsx(173,47): error TS2345: Argument of type 'File | undefined' is not assignable to parameter of type 'File'.
+  Type 'undefined' is not assignable to type 'File'.
+src/components/ui/SiteContentImageUpload.tsx(174,23): error TS2345: Argument of type 'File | undefined' is not assignable to parameter of type 'SetStateAction<File | null>'.
+  Type 'undefined' is not assignable to type 'SetStateAction<File | null>'.
+src/components/ui/SiteContentImageUpload.tsx(190,29): error TS2345: Argument of type '{ adminToken: string; imageType: "hero_background" | "bold_statement_background" | "innovation_pipeline_image" | "impact_metrics_featured_image" | "challenge_cta_background" | "community_engagement_featured_image"; fileName: string; fileContent: string; fileType: string; }' is not assignable to parameter of type 'void'.
+src/components/ui/SiteContentImageUpload.tsx(206,27): error TS2345: Argument of type '{ adminToken: string; imageType: "hero_background" | "bold_statement_background" | "innovation_pipeline_image" | "impact_metrics_featured_image" | "challenge_cta_background" | "community_engagement_featured_image"; }' is not assignable to parameter of type 'void'.
+src/components/ui/SiteContentImageUpload.tsx(329,34): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/ui/SiteContentImageUpload.tsx(340,26): error TS2339: Property 'fileName' does not exist on type '{}'.
+src/components/ui/SiteContentImageUpload.tsx(343,31): error TS2339: Property 'fileName' does not exist on type '{}'.
+src/components/ui/SiteContentImageUpload.tsx(346,43): error TS2339: Property 'imageData' does not exist on type '{}'.
+src/components/ui/SiteContentTextEditor.tsx(47,19): error TS7006: Parameter 'data' implicitly has an 'any' type.
+src/components/ui/SiteContentTextEditor.tsx(53,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/components/ui/SiteContentTextEditor.tsx(67,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/components/ui/SiteContentTextEditor.tsx(85,43): error TS2339: Property 'textData' does not exist on type '{}'.
+src/components/ui/SiteContentTextEditor.tsx(86,46): error TS2339: Property 'description' does not exist on type '{}'.
+src/components/ui/SiteContentTextEditor.tsx(106,31): error TS2345: Argument of type '{ adminToken: string; contentType: "hero_title_part1" | "hero_title_part2" | "hero_description" | "hero_button1_text" | "hero_button2_text" | "hero_stat_number" | "hero_stat_label" | ... 146 more ... | "footer_cookie_link"; textData: string; description?: string | undefined; }' is not assignable to parameter of type 'void'.
+src/components/ui/SiteContentTextEditor.tsx(119,33): error TS2345: Argument of type '{ adminToken: string; contentType: "hero_title_part1" | "hero_title_part2" | "hero_description" | "hero_button1_text" | "hero_button2_text" | "hero_stat_number" | "hero_stat_label" | ... 146 more ... | "footer_cookie_link"; }' is not assignable to parameter of type 'void'.
+src/components/ui/SiteContentTextEditor.tsx(138,41): error TS2339: Property 'hasCustomText' does not exist on type '{}'.
+src/components/ui/UnifiedImageUploadInterface.tsx(118,33): error TS2554: Expected 1 arguments, but got 0.
+src/components/ui/UnifiedImageUploadInterface.tsx(119,29): error TS2554: Expected 1 arguments, but got 0.
+src/components/ui/UnifiedImageUploadInterface.tsx(120,24): error TS2554: Expected 1 arguments, but got 0.
+src/components/ui/UnifiedImageUploadInterface.tsx(223,7): error TS2322: Type 'string | undefined' is not assignable to type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/constants/validation.ts(1530,45): error TS2345: Argument of type 'number | undefined' is not assignable to parameter of type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+src/hooks/useImageUpload.ts(69,19): error TS7006: Parameter 'data' implicitly has an 'any' type.
+src/hooks/useImageUpload.ts(90,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/hooks/useImageUpload.ts(113,19): error TS7006: Parameter 'data' implicitly has an 'any' type.
+src/hooks/useImageUpload.ts(137,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/hooks/useImageUpload.ts(197,44): error TS2345: Argument of type 'File | undefined' is not assignable to parameter of type 'File'.
+  Type 'undefined' is not assignable to type 'File'.
+src/hooks/useImageUpload.ts(209,26): error TS2532: Object is possibly 'undefined'.
+src/hooks/useImageUpload.ts(316,35): error TS2345: Argument of type '{ adminToken: string; images: { fileName: string; fileContent: string; fileType: string; title: string | undefined; description: string | undefined; altText: string | undefined; }[]; }' is not assignable to parameter of type 'void'.
+src/hooks/useImageUpload.ts(322,37): error TS2345: Argument of type '{ fileName?: string | undefined; fileContent?: string | undefined; fileType?: string | undefined; title?: string | undefined; description?: string | undefined; altText?: string | undefined; adminToken: string; }' is not assignable to parameter of type 'void'.
+src/hooks/useImageUploadRecovery.tsx(126,34): error TS2554: Expected 1 arguments, but got 0.
+src/hooks/useImageUploadRecovery.tsx(129,32): error TS2554: Expected 1 arguments, but got 0.
+src/hooks/useImageUploadRecoverySafetyWrapper.ts(2,39): error TS2724: '"./useImageUploadRecovery"' has no exported member named 'UseImageUploadRecoveryOptions'. Did you mean 'useImageUploadRecovery'?
+src/hooks/useImageUploadRecoverySafetyWrapper.ts(296,23): error TS2339: Property 'warning' does not exist on type '{ (message: Message, opts?: Partial<Pick<Toast, "id" | "icon" | "style" | "className" | "duration" | "ariaProps" | "position" | "iconTheme" | "removeDelay">> | undefined): string; ... 6 more ...; promise<T>(promise: Promise<...> | (() => Promise<...>), msgs: { ...; }, opts?: DefaultToastOptions | undefined): Promise...'.
+src/hooks/useSiteContentText.ts(21,28): error TS2339: Property 'textData' does not exist on type '{}'.
+src/hooks/useSiteContentText.ts(27,32): error TS2339: Property 'hasCustomText' does not exist on type '{}'.
+src/hooks/useSiteContentText.ts(44,29): error TS2339: Property 'texts' does not exist on type '{}'.
+src/routes/admin/case-studies/$caseStudyId/edit/index.tsx(68,26): error TS2339: Property 'title' does not exist on type '{}'.
+src/routes/admin/case-studies/$caseStudyId/edit/index.tsx(69,28): error TS2339: Property 'summary' does not exist on type '{}'.
+src/routes/admin/case-studies/$caseStudyId/edit/index.tsx(70,28): error TS2339: Property 'content' does not exist on type '{}'.
+src/routes/admin/case-studies/$caseStudyId/edit/index.tsx(71,26): error TS2339: Property 'image' does not exist on type '{}'.
+src/routes/admin/case-studies/$caseStudyId/edit/index.tsx(72,26): error TS2339: Property 'video' does not exist on type '{}'.
+src/routes/admin/case-studies/$caseStudyId/edit/index.tsx(73,27): error TS2339: Property 'pdfUrl' does not exist on type '{}'.
+src/routes/admin/case-studies/$caseStudyId/edit/index.tsx(74,25): error TS2339: Property 'tags' does not exist on type '{}'.
+src/routes/admin/case-studies/$caseStudyId/edit/index.tsx(75,34): error TS2339: Property 'impactMetrics' does not exist on type '{}'.
+src/routes/admin/case-studies/$caseStudyId/edit/index.tsx(76,29): error TS2339: Property 'featured' does not exist on type '{}'.
+src/routes/admin/case-studies/$caseStudyId/edit/index.tsx(77,9): error TS2353: Object literal may only specify known properties, and 'order' does not exist in type '{ title: string; summary: string; content: string; tags: string; featured: boolean; image?: string | undefined; video?: string | undefined; pdfUrl?: string | undefined; impactMetrics?: string | undefined; } | { ...; }'.
+src/routes/admin/case-studies/$caseStudyId/edit/index.tsx(77,26): error TS2339: Property 'order' does not exist on type '{}'.
+src/routes/admin/case-studies/$caseStudyId/edit/index.tsx(79,21): error TS2339: Property 'tags' does not exist on type '{}'.
+src/routes/admin/case-studies/$caseStudyId/edit/index.tsx(81,40): error TS2339: Property 'tags' does not exist on type '{}'.
+src/routes/admin/case-studies/$caseStudyId/edit/index.tsx(87,45): error TS2339: Property 'updatedAt' does not exist on type '{}'.
+src/routes/admin/case-studies/$caseStudyId/edit/index.tsx(151,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/routes/admin/case-studies/$caseStudyId/edit/index.tsx(158,27): error TS2345: Argument of type '{ adminToken: string; id: number; data: { tags: string; title: string; summary: string; content: string; featured: boolean; image?: string | undefined; video?: string | undefined; pdfUrl?: string | undefined; impactMetrics?: string | undefined; }; }' is not assignable to parameter of type 'void'.
+src/routes/admin/case-studies/$caseStudyId/edit/index.tsx(231,39): error TS2339: Property 'title' does not exist on type '{}'.
+src/routes/admin/case-studies/$caseStudyId/edit/index.tsx(310,57): error TS2345: Argument of type '"order"' is not assignable to parameter of type '"title" | "summary" | "content" | "image" | "video" | "pdfUrl" | "tags" | "impactMetrics" | "featured"'.
+src/routes/admin/case-studies/$caseStudyId/edit/index.tsx(311,31): error TS2339: Property 'order' does not exist on type 'FieldErrors<{ title: string; summary: string; content: string; tags: string; featured: boolean; image?: string | undefined; video?: string | undefined; pdfUrl?: string | undefined; impactMetrics?: string | undefined; }>'.
+src/routes/admin/case-studies/$caseStudyId/edit/index.tsx(311,89): error TS2339: Property 'order' does not exist on type 'FieldErrors<{ title: string; summary: string; content: string; tags: string; featured: boolean; image?: string | undefined; video?: string | undefined; pdfUrl?: string | undefined; impactMetrics?: string | undefined; }>'.
+src/routes/admin/case-studies/index.tsx(48,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/routes/admin/case-studies/index.tsx(56,29): error TS2345: Argument of type '{ adminToken: string; id: number; }' is not assignable to parameter of type 'void'.
+src/routes/admin/case-studies/index.tsx(117,18): error TS2741: Property 'onSearch' is missing in type '{ value: string; onChange: Dispatch<SetStateAction<string>>; placeholder: string; className: string; }' but required in type 'DebouncedSearchInputProps'.
+src/routes/admin/case-studies/index.tsx(147,38): error TS2339: Property 'caseStudies' does not exist on type '{}'.
+src/routes/admin/case-studies/index.tsx(161,39): error TS2339: Property 'caseStudies' does not exist on type '{}'.
+src/routes/admin/case-studies/index.tsx(161,56): error TS7006: Parameter 'caseStudy' implicitly has an 'any' type.
+src/routes/admin/case-studies/index.tsx(177,34): error TS2322: Type '{ children: Element[]; variant: string; className: string; }' is not assignable to type 'IntrinsicAttributes & BadgeProps'.
+  Property 'variant' does not exist on type 'IntrinsicAttributes & BadgeProps'.
+src/routes/admin/case-studies/index.tsx(185,34): error TS2322: Type '{ children: Element[]; variant: string; className: string; }' is not assignable to type 'IntrinsicAttributes & BadgeProps'.
+  Property 'variant' does not exist on type 'IntrinsicAttributes & BadgeProps'.
+src/routes/admin/case-studies/index.tsx(191,34): error TS2322: Type '{ children: Element[]; variant: string; className: string; }' is not assignable to type 'IntrinsicAttributes & BadgeProps'.
+  Property 'variant' does not exist on type 'IntrinsicAttributes & BadgeProps'.
+src/routes/admin/case-studies/index.tsx(213,48): error TS2322: Type '{ children: string; key: number; variant: string; size: "sm"; }' is not assignable to type 'IntrinsicAttributes & BadgeProps'.
+  Property 'variant' does not exist on type 'IntrinsicAttributes & BadgeProps'.
+src/routes/admin/case-studies/index.tsx(218,36): error TS2322: Type '{ children: (string | number)[]; variant: string; size: "sm"; }' is not assignable to type 'IntrinsicAttributes & BadgeProps'.
+  Property 'variant' does not exist on type 'IntrinsicAttributes & BadgeProps'.
+src/routes/admin/case-studies/new/index.tsx(231,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/routes/admin/case-studies/new/index.tsx(238,27): error TS2345: Argument of type '{ adminToken: string; data: { tags: string; title: string; summary: string; content: string; featured: boolean; image?: string | undefined; video?: string | undefined; pdfUrl?: string | undefined; impactMetrics?: string | undefined; }; }' is not assignable to parameter of type 'void'.
+src/routes/admin/case-studies/new/index.tsx(520,21): error TS2322: Type 'Date | null' is not assignable to type 'string | Date | undefined'.
+  Type 'null' is not assignable to type 'string | Date | undefined'.
+src/routes/admin/challenges/$challengeId/edit/index.tsx(76,26): error TS2339: Property 'image' does not exist on type '{}'.
+src/routes/admin/challenges/$challengeId/edit/index.tsx(77,48): error TS2339: Property 'openDate' does not exist on type '{}'.
+src/routes/admin/challenges/$challengeId/edit/index.tsx(78,49): error TS2339: Property 'closeDate' does not exist on type '{}'.
+src/routes/admin/challenges/$challengeId/edit/index.tsx(79,54): error TS2339: Property 'pilotStartDate' does not exist on type '{}'.
+src/routes/admin/challenges/$challengeId/edit/index.tsx(81,45): error TS2339: Property 'updatedAt' does not exist on type '{}'.
+src/routes/admin/challenges/$challengeId/edit/index.tsx(145,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/routes/admin/challenges/$challengeId/edit/index.tsx(152,27): error TS2345: Argument of type '{ adminToken: string; id: number; data: { status: string; title: string; featured: boolean; tagline: string; category: string; region: string; description: string; prize: string; image?: string | undefined; ... 4 more ...; eligibility?: string | undefined; }; }' is not assignable to parameter of type 'void'.
+src/routes/admin/challenges/$challengeId/edit/index.tsx(180,72): error TS2339: Property 'title' does not exist on type '{}'.
+src/routes/admin/challenges/$challengeId/edit/index.tsx(295,57): error TS2345: Argument of type '"order"' is not assignable to parameter of type '"status" | "title" | "image" | "featured" | "tagline" | "category" | "region" | "description" | "prize" | "openDate" | "closeDate" | "pilotStartDate" | "partners" | "eligibility"'.
+src/routes/admin/challenges/$challengeId/edit/index.tsx(296,31): error TS2339: Property 'order' does not exist on type 'FieldErrors<{ status: string; title: string; featured: boolean; tagline: string; category: string; region: string; description: string; prize: string; image?: string | undefined; openDate?: string | undefined; closeDate?: string | undefined; pilotStartDate?: string | undefined; partners?: string | undefined; eligibi...'.
+src/routes/admin/challenges/$challengeId/edit/index.tsx(296,89): error TS2339: Property 'order' does not exist on type 'FieldErrors<{ status: string; title: string; featured: boolean; tagline: string; category: string; region: string; description: string; prize: string; image?: string | undefined; openDate?: string | undefined; closeDate?: string | undefined; pilotStartDate?: string | undefined; partners?: string | undefined; eligibi...'.
+src/routes/admin/challenges/index.tsx(51,15): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/routes/admin/challenges/index.tsx(60,29): error TS2345: Argument of type '{ adminToken: string; id: number; }' is not assignable to parameter of type 'void'.
+src/routes/admin/challenges/index.tsx(70,23): error TS2322: Type '{ children: string; variant: string; }' is not assignable to type 'IntrinsicAttributes & BadgeProps'.
+  Property 'variant' does not exist on type 'IntrinsicAttributes & BadgeProps'.
+src/routes/admin/challenges/index.tsx(72,23): error TS2322: Type '{ children: string; variant: string; }' is not assignable to type 'IntrinsicAttributes & BadgeProps'.
+  Property 'variant' does not exist on type 'IntrinsicAttributes & BadgeProps'.
+src/routes/admin/challenges/index.tsx(74,23): error TS2322: Type '{ children: string; variant: string; }' is not assignable to type 'IntrinsicAttributes & BadgeProps'.
+  Property 'variant' does not exist on type 'IntrinsicAttributes & BadgeProps'.
+src/routes/admin/challenges/index.tsx(76,23): error TS2322: Type '{ children: string; variant: string; }' is not assignable to type 'IntrinsicAttributes & BadgeProps'.
+  Property 'variant' does not exist on type 'IntrinsicAttributes & BadgeProps'.
+src/routes/admin/challenges/index.tsx(78,23): error TS2322: Type '{ children: string; variant: string; }' is not assignable to type 'IntrinsicAttributes & BadgeProps'.
+  Property 'variant' does not exist on type 'IntrinsicAttributes & BadgeProps'.
+src/routes/admin/challenges/index.tsx(127,18): error TS2741: Property 'onSearch' is missing in type '{ value: string; onChange: Dispatch<SetStateAction<string>>; placeholder: string; className: string; }' but required in type 'DebouncedSearchInputProps'.
+src/routes/admin/challenges/index.tsx(177,37): error TS2339: Property 'challenges' does not exist on type '{}'.
+src/routes/admin/challenges/index.tsx(191,38): error TS2339: Property 'challenges' does not exist on type '{}'.
+src/routes/admin/challenges/index.tsx(191,54): error TS7006: Parameter 'challenge' implicitly has an 'any' type.
+src/routes/admin/challenges/index.tsx(204,32): error TS2322: Type '{ children: Element[]; variant: string; className: string; }' is not assignable to type 'IntrinsicAttributes & BadgeProps'.
+  Property 'variant' does not exist on type 'IntrinsicAttributes & BadgeProps'.
+src/routes/admin/challenges/index.tsx(228,32): error TS2322: Type '{ children: any; variant: string; size: "sm"; }' is not assignable to type 'IntrinsicAttributes & BadgeProps'.
+  Property 'variant' does not exist on type 'IntrinsicAttributes & BadgeProps'.
+src/routes/admin/challenges/new/index.tsx(230,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/routes/admin/challenges/new/index.tsx(237,27): error TS2345: Argument of type '{ adminToken: string; data: { status: string; title: string; featured: boolean; tagline: string; category: string; region: string; description: string; prize: string; image?: string | undefined; openDate?: string | undefined; closeDate?: string | undefined; pilotStartDate?: string | undefined; partners?: string | un...' is not assignable to parameter of type 'void'.
+src/routes/admin/challenges/new/index.tsx(558,21): error TS2322: Type 'Date | null' is not assignable to type 'string | Date | undefined'.
+  Type 'null' is not assignable to type 'string | Date | undefined'.
+src/routes/admin/comments/index.tsx(54,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/routes/admin/comments/index.tsx(62,29): error TS2345: Argument of type '{ adminToken: string; id: number; }' is not assignable to parameter of type 'void'.
+src/routes/admin/comments/index.tsx(128,18): error TS2741: Property 'onSearch' is missing in type '{ value: string; onChange: Dispatch<SetStateAction<string>>; placeholder: string; className: string; }' but required in type 'DebouncedSearchInputProps'.
+src/routes/admin/comments/index.tsx(144,35): error TS2339: Property 'comments' does not exist on type '{}'.
+src/routes/admin/comments/index.tsx(151,36): error TS2339: Property 'comments' does not exist on type '{}'.
+src/routes/admin/comments/index.tsx(151,50): error TS7006: Parameter 'comment' implicitly has an 'any' type.
+src/routes/admin/contact-messages/index.tsx(48,15): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/routes/admin/contact-messages/index.tsx(56,33): error TS2345: Argument of type '{ adminToken: string; id: number; status: "unread" | "read" | "replied"; }' is not assignable to parameter of type 'void'.
+src/routes/admin/contact-messages/index.tsx(66,23): error TS2322: Type '{ children: string; variant: string; }' is not assignable to type 'IntrinsicAttributes & BadgeProps'.
+  Property 'variant' does not exist on type 'IntrinsicAttributes & BadgeProps'.
+src/routes/admin/contact-messages/index.tsx(68,23): error TS2322: Type '{ children: string; variant: string; }' is not assignable to type 'IntrinsicAttributes & BadgeProps'.
+  Property 'variant' does not exist on type 'IntrinsicAttributes & BadgeProps'.
+src/routes/admin/contact-messages/index.tsx(70,23): error TS2322: Type '{ children: string; variant: string; }' is not assignable to type 'IntrinsicAttributes & BadgeProps'.
+  Property 'variant' does not exist on type 'IntrinsicAttributes & BadgeProps'.
+src/routes/admin/contact-messages/index.tsx(72,23): error TS2322: Type '{ children: string; variant: string; }' is not assignable to type 'IntrinsicAttributes & BadgeProps'.
+  Property 'variant' does not exist on type 'IntrinsicAttributes & BadgeProps'.
+src/routes/admin/contact-messages/index.tsx(119,18): error TS2741: Property 'onSearch' is missing in type '{ value: string; onChange: Dispatch<SetStateAction<string>>; placeholder: string; className: string; }' but required in type 'DebouncedSearchInputProps'.
+src/routes/admin/contact-messages/index.tsx(153,41): error TS2339: Property 'messages' does not exist on type '{}'.
+src/routes/admin/contact-messages/index.tsx(160,42): error TS2339: Property 'messages' does not exist on type '{}'.
+src/routes/admin/contact-messages/index.tsx(160,56): error TS7006: Parameter 'message' implicitly has an 'any' type.
+src/routes/admin/images/index.tsx(400,13): error TS7006: Parameter 'failureCount' implicitly has an 'any' type.
+src/routes/admin/images/index.tsx(400,27): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/routes/admin/images/index.tsx(406,15): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/routes/admin/images/index.tsx(423,13): error TS7006: Parameter 'failureCount' implicitly has an 'any' type.
+src/routes/admin/images/index.tsx(423,27): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/routes/admin/images/index.tsx(441,15): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/routes/admin/images/index.tsx(463,15): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/routes/admin/images/index.tsx(477,42): error TS7006: Parameter 'img' implicitly has an 'any' type.
+src/routes/admin/images/index.tsx(484,37): error TS7006: Parameter 'variant' implicitly has an 'any' type.
+src/routes/admin/images/index.tsx(527,33): error TS7006: Parameter 'warning' implicitly has an 'any' type.
+src/routes/admin/images/index.tsx(528,17): error TS2339: Property 'warning' does not exist on type '{ (message: Message, opts?: Partial<Pick<Toast, "id" | "icon" | "style" | "className" | "duration" | "ariaProps" | "position" | "iconTheme" | "removeDelay">> | undefined): string; ... 6 more ...; promise<T>(promise: Promise<...> | (() => Promise<...>), msgs: { ...; }, opts?: DefaultToastOptions | undefined): Promise...'.
+src/routes/admin/images/index.tsx(552,19): error TS2339: Property 'info' does not exist on type '{ (message: Message, opts?: Partial<Pick<Toast, "id" | "icon" | "style" | "className" | "duration" | "ariaProps" | "position" | "iconTheme" | "removeDelay">> | undefined): string; ... 6 more ...; promise<T>(promise: Promise<...> | (() => Promise<...>), msgs: { ...; }, opts?: DefaultToastOptions | undefined): Promise...'.
+src/routes/admin/images/index.tsx(567,35): error TS7006: Parameter 'img' implicitly has an 'any' type.
+src/routes/admin/images/index.tsx(597,69): error TS7006: Parameter 'img' implicitly has an 'any' type.
+src/routes/admin/images/index.tsx(1223,53): error TS7006: Parameter 'img' implicitly has an 'any' type.
+src/routes/admin/index.tsx(31,49): error TS2339: Property 'valid' does not exist on type '{}'.
+src/routes/admin/index.tsx(51,81): error TS2339: Property 'valid' does not exist on type '{}'.
+src/routes/admin/innovators/$innovatorId/edit/index.tsx(23,40): error TS2307: Cannot find module '~/utils' or its corresponding type declarations.
+src/routes/admin/innovators/$innovatorId/edit/index.tsx(101,13): error TS7006: Parameter 'failureCount' implicitly has an 'any' type.
+src/routes/admin/innovators/$innovatorId/edit/index.tsx(101,27): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/routes/admin/innovators/$innovatorId/edit/index.tsx(108,17): error TS7006: Parameter 'attemptIndex' implicitly has an 'any' type.
+src/routes/admin/innovators/$innovatorId/edit/index.tsx(236,15): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/routes/admin/innovators/$innovatorId/edit/index.tsx(286,28): error TS18048: 'data.image' is possibly 'undefined'.
+src/routes/admin/innovators/$innovatorId/index.tsx(46,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/routes/admin/innovators/$innovatorId/index.tsx(58,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/routes/admin/innovators/$innovatorId/index.tsx(67,84): error TS2339: Property 'name' does not exist on type '{}'.
+src/routes/admin/innovators/$innovatorId/index.tsx(69,29): error TS2345: Argument of type '{ adminToken: string; id: number; }' is not assignable to parameter of type 'void'.
+src/routes/admin/innovators/$innovatorId/index.tsx(79,35): error TS2345: Argument of type '{ adminToken: string; id: number; data: { featured: boolean; }; }' is not assignable to parameter of type 'void'.
+src/routes/admin/innovators/$innovatorId/index.tsx(82,46): error TS2339: Property 'featured' does not exist on type '{}'.
+src/routes/admin/innovators/$innovatorId/index.tsx(123,52): error TS2339: Property 'achievements' does not exist on type '{}'.
+src/routes/admin/innovators/$innovatorId/index.tsx(144,27): error TS2339: Property 'featured' does not exist on type '{}'.
+src/routes/admin/innovators/$innovatorId/index.tsx(149,26): error TS2339: Property 'featured' does not exist on type '{}'.
+src/routes/admin/innovators/$innovatorId/index.tsx(150,32): error TS2339: Property 'featured' does not exist on type '{}'.
+src/routes/admin/innovators/$innovatorId/index.tsx(179,36): error TS2339: Property 'avatar' does not exist on type '{}'.
+src/routes/admin/innovators/$innovatorId/index.tsx(180,36): error TS2339: Property 'name' does not exist on type '{}'.
+src/routes/admin/innovators/$innovatorId/index.tsx(186,36): error TS2339: Property 'name' does not exist on type '{}'.
+src/routes/admin/innovators/$innovatorId/index.tsx(189,36): error TS2339: Property 'featured' does not exist on type '{}'.
+src/routes/admin/innovators/$innovatorId/index.tsx(190,34): error TS2322: Type '{ children: Element[]; variant: string; className: string; }' is not assignable to type 'IntrinsicAttributes & BadgeProps'.
+  Property 'variant' does not exist on type 'IntrinsicAttributes & BadgeProps'.
+src/routes/admin/innovators/$innovatorId/index.tsx(195,36): error TS2339: Property 'hasVideo' does not exist on type '{}'.
+src/routes/admin/innovators/$innovatorId/index.tsx(196,34): error TS2322: Type '{ children: Element[]; variant: string; className: string; }' is not assignable to type 'IntrinsicAttributes & BadgeProps'.
+  Property 'variant' does not exist on type 'IntrinsicAttributes & BadgeProps'.
+src/routes/admin/innovators/$innovatorId/index.tsx(204,34): error TS2339: Property 'role' does not exist on type '{}'.
+src/routes/admin/innovators/$innovatorId/index.tsx(207,34): error TS2339: Property 'impact' does not exist on type '{}'.
+src/routes/admin/innovators/$innovatorId/index.tsx(209,32): error TS2339: Property 'hasVideo' does not exist on type '{}'.
+src/routes/admin/innovators/$innovatorId/index.tsx(209,54): error TS2339: Property 'videoUrl' does not exist on type '{}'.
+src/routes/admin/innovators/$innovatorId/index.tsx(211,41): error TS2339: Property 'videoUrl' does not exist on type '{}'.
+src/routes/admin/innovators/$innovatorId/index.tsx(226,26): error TS2339: Property 'bio' does not exist on type '{}'.
+src/routes/admin/innovators/$innovatorId/index.tsx(226,43): error TS2339: Property 'bio' does not exist on type '{}'.
+src/routes/admin/innovators/$innovatorId/index.tsx(226,61): error TS2339: Property 'impact' does not exist on type '{}'.
+src/routes/admin/innovators/$innovatorId/index.tsx(232,32): error TS2339: Property 'bio' does not exist on type '{}'.
+src/routes/admin/innovators/$innovatorId/index.tsx(265,28): error TS2322: Type '{ children: string; variant: string; }' is not assignable to type 'IntrinsicAttributes & BadgeProps'.
+  Property 'variant' does not exist on type 'IntrinsicAttributes & BadgeProps'.
+src/routes/admin/innovators/$innovatorId/index.tsx(265,47): error TS2339: Property 'featured' does not exist on type '{}'.
+src/routes/admin/innovators/$innovatorId/index.tsx(266,34): error TS2339: Property 'featured' does not exist on type '{}'.
+src/routes/admin/innovators/$innovatorId/index.tsx(272,34): error TS2339: Property 'order' does not exist on type '{}'.
+src/routes/admin/innovators/$innovatorId/index.tsx(277,28): error TS2322: Type '{ children: string; variant: string; }' is not assignable to type 'IntrinsicAttributes & BadgeProps'.
+  Property 'variant' does not exist on type 'IntrinsicAttributes & BadgeProps'.
+src/routes/admin/innovators/$innovatorId/index.tsx(277,47): error TS2339: Property 'hasVideo' does not exist on type '{}'.
+src/routes/admin/innovators/$innovatorId/index.tsx(278,34): error TS2339: Property 'hasVideo' does not exist on type '{}'.
+src/routes/admin/innovators/$innovatorId/index.tsx(301,45): error TS2339: Property 'createdAt' does not exist on type '{}'.
+src/routes/admin/innovators/$innovatorId/index.tsx(314,45): error TS2339: Property 'updatedAt' does not exist on type '{}'.
+src/routes/admin/innovators/$innovatorId/index.tsx(325,34): error TS2339: Property 'id' does not exist on type '{}'.
+src/routes/admin/innovators/$innovatorId/index.tsx(357,32): error TS2339: Property 'featured' does not exist on type '{}'.
+src/routes/admin/innovators/$innovatorId/index.tsx(358,38): error TS2339: Property 'featured' does not exist on type '{}'.
+src/routes/admin/innovators/index.tsx(60,15): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/routes/admin/innovators/index.tsx(75,15): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/routes/admin/innovators/index.tsx(90,15): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/routes/admin/innovators/index.tsx(99,66): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/routes/admin/innovators/index.tsx(150,57): error TS7006: Parameter 'innovator' implicitly has an 'any' type.
+src/routes/admin/innovators/index.tsx(163,22): error TS7006: Parameter 'row' implicitly has an 'any' type.
+src/routes/admin/innovators/index.tsx(293,18): error TS2741: Property 'onSearch' is missing in type '{ value: string; onChange: Dispatch<SetStateAction<string>>; placeholder: string; className: string; }' but required in type 'DebouncedSearchInputProps'.
+src/routes/admin/innovators/index.tsx(353,54): error TS7006: Parameter 'innovator' implicitly has an 'any' type.
+src/routes/admin/innovators/index.tsx(353,65): error TS7006: Parameter 'index' implicitly has an 'any' type.
+src/routes/admin/innovators/index.tsx(386,34): error TS2322: Type '{ children: Element[]; variant: string; className: string; }' is not assignable to type 'IntrinsicAttributes & BadgeProps'.
+  Property 'variant' does not exist on type 'IntrinsicAttributes & BadgeProps'.
+src/routes/admin/innovators/index.tsx(392,34): error TS2322: Type '{ children: Element[]; variant: string; className: string; }' is not assignable to type 'IntrinsicAttributes & BadgeProps'.
+  Property 'variant' does not exist on type 'IntrinsicAttributes & BadgeProps'.
+src/routes/admin/innovators/new/index.tsx(65,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/routes/admin/innovators/new/index.tsx(75,27): error TS2345: Argument of type '{ adminToken: string; data: { name: string; title: string; bio: string; achievements: string[]; linkedinUrl: string | undefined; twitterUrl: string | undefined; websiteUrl: string | undefined; featured: boolean; hasVideo: boolean; videoUrl: string | undefined; }; }' is not assignable to parameter of type 'void'.
+src/routes/admin/news/$newsId/edit/index.tsx(80,28): error TS2339: Property 'imageUrl' does not exist on type '{}'.
+src/routes/admin/news/$newsId/edit/index.tsx(81,50): error TS2339: Property 'publishedAt' does not exist on type '{}'.
+src/routes/admin/news/$newsId/edit/index.tsx(83,20): error TS2339: Property 'tags' does not exist on type '{}'.
+src/routes/admin/news/$newsId/edit/index.tsx(85,39): error TS2339: Property 'tags' does not exist on type '{}'.
+src/routes/admin/news/$newsId/edit/index.tsx(91,44): error TS2339: Property 'updatedAt' does not exist on type '{}'.
+src/routes/admin/news/$newsId/edit/index.tsx(155,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/routes/admin/news/$newsId/edit/index.tsx(162,27): error TS2345: Argument of type '{ adminToken: string; id: number; data: { tags: string; title: string; content: string; featured: boolean; category: string; excerpt: string; publishedAt: string; imageUrl?: string | undefined; author?: string | undefined; order?: number | undefined; }; }' is not assignable to parameter of type 'void'.
+src/routes/admin/news/$newsId/edit/index.tsx(215,62): error TS2339: Property 'title' does not exist on type '{}'.
+src/routes/admin/news/index.tsx(51,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/routes/admin/news/index.tsx(59,29): error TS2345: Argument of type '{ adminToken: string; id: number; }' is not assignable to parameter of type 'void'.
+src/routes/admin/news/index.tsx(138,18): error TS2741: Property 'onSearch' is missing in type '{ value: string; onChange: Dispatch<SetStateAction<string>>; placeholder: string; className: string; }' but required in type 'DebouncedSearchInputProps'.
+src/routes/admin/news/index.tsx(185,31): error TS2339: Property 'news' does not exist on type '{}'.
+src/routes/admin/news/index.tsx(199,32): error TS2339: Property 'news' does not exist on type '{}'.
+src/routes/admin/news/index.tsx(199,42): error TS7006: Parameter 'article' implicitly has an 'any' type.
+src/routes/admin/news/index.tsx(221,34): error TS2322: Type '{ children: Element[]; variant: string; className: string; }' is not assignable to type 'IntrinsicAttributes & BadgeProps'.
+  Property 'variant' does not exist on type 'IntrinsicAttributes & BadgeProps'.
+src/routes/admin/news/index.tsx(246,48): error TS2322: Type '{ children: string; key: number; variant: string; size: "sm"; }' is not assignable to type 'IntrinsicAttributes & BadgeProps'.
+  Property 'variant' does not exist on type 'IntrinsicAttributes & BadgeProps'.
+src/routes/admin/news/index.tsx(251,36): error TS2322: Type '{ children: (string | number)[]; variant: string; size: "sm"; }' is not assignable to type 'IntrinsicAttributes & BadgeProps'.
+  Property 'variant' does not exist on type 'IntrinsicAttributes & BadgeProps'.
+src/routes/admin/news/new/index.tsx(235,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/routes/admin/news/new/index.tsx(242,27): error TS2345: Argument of type '{ adminToken: string; data: { tags: string; title: string; content: string; featured: boolean; category: string; excerpt: string; publishedAt: string; imageUrl?: string | undefined; author?: string | undefined; order?: number | undefined; }; }' is not assignable to parameter of type 'void'.
+src/routes/admin/news/new/index.tsx(546,21): error TS2322: Type 'Date | null' is not assignable to type 'string | Date | undefined'.
+  Type 'null' is not assignable to type 'string | Date | undefined'.
+src/routes/admin/newsletter/index.tsx(38,33): error TS2339: Property 'subscribers' does not exist on type '{}'.
+src/routes/admin/newsletter/index.tsx(42,32): error TS2339: Property 'subscribers' does not exist on type '{}'.
+src/routes/admin/newsletter/index.tsx(42,48): error TS7006: Parameter 'sub' implicitly has an 'any' type.
+src/routes/admin/newsletter/index.tsx(61,33): error TS2339: Property 'subscribers' does not exist on type '{}'.
+src/routes/admin/newsletter/index.tsx(63,47): error TS2339: Property 'subscribers' does not exist on type '{}'.
+src/routes/admin/newsletter/index.tsx(70,50): error TS7006: Parameter 'sub' implicitly has an 'any' type.
+src/routes/admin/newsletter/index.tsx(100,47): error TS2339: Property 'subscribers' does not exist on type '{}'.
+src/routes/admin/newsletter/index.tsx(181,16): error TS2741: Property 'onSearch' is missing in type '{ value: string; onChange: Dispatch<SetStateAction<string>>; placeholder: string; className: string; }' but required in type 'DebouncedSearchInputProps'.
+src/routes/admin/newsletter/index.tsx(197,40): error TS2339: Property 'subscribers' does not exist on type '{}'.
+src/routes/admin/newsletter/index.tsx(221,45): error TS2339: Property 'subscribers' does not exist on type '{}'.
+src/routes/admin/newsletter/index.tsx(221,62): error TS7006: Parameter 'subscriber' implicitly has an 'any' type.
+src/routes/admin/partners/$partnerId/edit/index.tsx(77,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/routes/admin/partners/$partnerId/edit/index.tsx(87,33): error TS2339: Property 'name' does not exist on type '{}'.
+src/routes/admin/partners/$partnerId/edit/index.tsx(88,36): error TS2339: Property 'logoUrl' does not exist on type '{}'.
+src/routes/admin/partners/$partnerId/edit/index.tsx(89,39): error TS2339: Property 'websiteUrl' does not exist on type '{}'.
+src/routes/admin/partners/$partnerId/edit/index.tsx(90,36): error TS2339: Property 'altText' does not exist on type '{}'.
+src/routes/admin/partners/$partnerId/edit/index.tsx(91,36): error TS2339: Property 'visible' does not exist on type '{}'.
+src/routes/admin/partners/$partnerId/edit/index.tsx(92,34): error TS2339: Property 'order' does not exist on type '{}'.
+src/routes/admin/partners/$partnerId/edit/index.tsx(98,27): error TS2345: Argument of type '{ adminToken: string; id: number; data: { websiteUrl: string | undefined; name: string; order: number; altText: string; visible: boolean; logoUrl?: string | undefined; }; }' is not assignable to parameter of type 'void'.
+src/routes/admin/partners/$partnerId/edit/index.tsx(324,57): error TS2339: Property 'name' does not exist on type '{}'.
+src/routes/admin/partners/$partnerId/edit/index.tsx(447,68): error TS2339: Property 'updatedAt' does not exist on type '{}'.
+src/routes/admin/partners/$partnerId/index.tsx(45,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/routes/admin/partners/$partnerId/index.tsx(57,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/routes/admin/partners/$partnerId/index.tsx(66,71): error TS2339: Property 'name' does not exist on type '{}'.
+src/routes/admin/partners/$partnerId/index.tsx(67,29): error TS2345: Argument of type '{ adminToken: string; id: number; }' is not assignable to parameter of type 'void'.
+src/routes/admin/partners/$partnerId/index.tsx(77,37): error TS2345: Argument of type '{ adminToken: string; id: number; visible: boolean; }' is not assignable to parameter of type 'void'.
+src/routes/admin/partners/$partnerId/index.tsx(80,35): error TS2339: Property 'visible' does not exist on type '{}'.
+src/routes/admin/partners/$partnerId/index.tsx(144,25): error TS2339: Property 'visible' does not exist on type '{}'.
+src/routes/admin/partners/$partnerId/index.tsx(149,24): error TS2339: Property 'visible' does not exist on type '{}'.
+src/routes/admin/partners/$partnerId/index.tsx(150,30): error TS2339: Property 'visible' does not exist on type '{}'.
+src/routes/admin/partners/$partnerId/index.tsx(182,28): error TS2339: Property 'name' does not exist on type '{}'.
+src/routes/admin/partners/$partnerId/index.tsx(185,27): error TS2339: Property 'visible' does not exist on type '{}'.
+src/routes/admin/partners/$partnerId/index.tsx(189,28): error TS2339: Property 'visible' does not exist on type '{}'.
+src/routes/admin/partners/$partnerId/index.tsx(213,32): error TS2339: Property 'name' does not exist on type '{}'.
+src/routes/admin/partners/$partnerId/index.tsx(221,30): error TS2339: Property 'websiteUrl' does not exist on type '{}'.
+src/routes/admin/partners/$partnerId/index.tsx(223,39): error TS2339: Property 'websiteUrl' does not exist on type '{}'.
+src/routes/admin/partners/$partnerId/index.tsx(228,40): error TS2339: Property 'websiteUrl' does not exist on type '{}'.
+src/routes/admin/partners/$partnerId/index.tsx(241,32): error TS2339: Property 'altText' does not exist on type '{}'.
+src/routes/admin/partners/$partnerId/index.tsx(252,34): error TS2339: Property 'order' does not exist on type '{}'.
+src/routes/admin/partners/$partnerId/index.tsx(262,32): error TS2339: Property 'visible' does not exist on type '{}'.
+src/routes/admin/partners/$partnerId/index.tsx(268,34): error TS2339: Property 'visible' does not exist on type '{}'.
+src/routes/admin/partners/$partnerId/index.tsx(289,43): error TS2339: Property 'createdAt' does not exist on type '{}'.
+src/routes/admin/partners/$partnerId/index.tsx(307,43): error TS2339: Property 'updatedAt' does not exist on type '{}'.
+src/routes/admin/partners/$partnerId/index.tsx(325,34): error TS2339: Property 'id' does not exist on type '{}'.
+src/routes/admin/partners/$partnerId/index.tsx(342,34): error TS2339: Property 'logoUrl' does not exist on type '{}'.
+src/routes/admin/partners/$partnerId/index.tsx(343,34): error TS2339: Property 'altText' does not exist on type '{}'.
+src/routes/admin/partners/$partnerId/index.tsx(360,35): error TS2339: Property 'logoUrl' does not exist on type '{}'.
+src/routes/admin/partners/$partnerId/index.tsx(365,30): error TS2339: Property 'logoUrl' does not exist on type '{}'.
+src/routes/admin/partners/$partnerId/index.tsx(389,31): error TS2339: Property 'visible' does not exist on type '{}'.
+src/routes/admin/partners/$partnerId/index.tsx(394,30): error TS2339: Property 'visible' does not exist on type '{}'.
+src/routes/admin/partners/$partnerId/index.tsx(395,36): error TS2339: Property 'visible' does not exist on type '{}'.
+src/routes/admin/partners/index.tsx(59,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/routes/admin/partners/index.tsx(71,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/routes/admin/partners/index.tsx(84,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/routes/admin/partners/index.tsx(104,29): error TS2345: Argument of type '{ adminToken: string; id: number; }' is not assignable to parameter of type 'void'.
+src/routes/admin/partners/index.tsx(112,37): error TS2345: Argument of type '{ adminToken: string; id: number; visible: boolean; }' is not assignable to parameter of type 'void'.
+src/routes/admin/partners/index.tsx(128,47): error TS2339: Property 'partners' does not exist on type '{}'.
+src/routes/admin/partners/index.tsx(128,60): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/routes/admin/partners/index.tsx(135,45): error TS2339: Property 'partners' does not exist on type '{}'.
+src/routes/admin/partners/index.tsx(137,45): error TS2339: Property 'partners' does not exist on type '{}'.
+src/routes/admin/partners/index.tsx(144,28): error TS2345: Argument of type '{ adminToken: string; partnerIds: any[]; }' is not assignable to parameter of type 'void'.
+src/routes/admin/partners/index.tsx(151,30): error TS2339: Property 'partners' does not exist on type '{}'.
+src/routes/admin/partners/index.tsx(151,71): error TS2339: Property 'partners' does not exist on type '{}'.
+src/routes/admin/partners/index.tsx(153,45): error TS2339: Property 'partners' does not exist on type '{}'.
+src/routes/admin/partners/index.tsx(160,28): error TS2345: Argument of type '{ adminToken: string; partnerIds: any[]; }' is not assignable to parameter of type 'void'.
+src/routes/admin/partners/index.tsx(214,18): error TS2741: Property 'onSearch' is missing in type '{ value: string; onChange: Dispatch<SetStateAction<string>>; placeholder: string; className: string; }' but required in type 'DebouncedSearchInputProps'.
+src/routes/admin/partners/index.tsx(244,35): error TS2339: Property 'partners' does not exist on type '{}'.
+src/routes/admin/partners/index.tsx(245,25): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/routes/admin/partners/index.tsx(246,22): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/routes/admin/partners/index.tsx(257,66): error TS2339: Property 'partners' does not exist on type '{}'.
+src/routes/admin/partners/index.tsx(284,35): error TS2339: Property 'partners' does not exist on type '{}'.
+src/routes/admin/partners/index.tsx(298,36): error TS2339: Property 'partners' does not exist on type '{}'.
+src/routes/admin/partners/index.tsx(298,50): error TS7006: Parameter 'partner' implicitly has an 'any' type.
+src/routes/admin/partners/index.tsx(298,59): error TS7006: Parameter 'index' implicitly has an 'any' type.
+src/routes/admin/partners/index.tsx(394,70): error TS2339: Property 'partners' does not exist on type '{}'.
+src/routes/admin/partners/new/index.tsx(68,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/routes/admin/partners/new/index.tsx(75,27): error TS2345: Argument of type '{ adminToken: string; data: { logoUrl: string | undefined; websiteUrl: string | undefined; name: string; order: number; altText: string; visible: boolean; }; }' is not assignable to parameter of type 'void'.
+src/routes/admin/partners/new/index.tsx(439,19): error TS2322: Type 'Date | null' is not assignable to type 'string | Date | undefined'.
+  Type 'null' is not assignable to type 'string | Date | undefined'.
+src/routes/admin/problems/$problemId/edit/index.tsx(64,17): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/routes/admin/problems/$problemId/edit/index.tsx(85,24): error TS2339: Property 'title' does not exist on type '{}'.
+src/routes/admin/problems/$problemId/edit/index.tsx(86,30): error TS2339: Property 'description' does not exist on type '{}'.
+src/routes/admin/problems/$problemId/edit/index.tsx(87,27): error TS2339: Property 'category' does not exist on type '{}'.
+src/routes/admin/problems/$problemId/edit/index.tsx(88,40): error TS2339: Property 'technicalRequirements' does not exist on type '{}'.
+src/routes/admin/problems/$problemId/edit/index.tsx(89,30): error TS2339: Property 'constraints' does not exist on type '{}'.
+src/routes/admin/problems/$problemId/edit/index.tsx(90,34): error TS2339: Property 'successCriteria' does not exist on type '{}'.
+src/routes/admin/problems/$problemId/edit/index.tsx(91,27): error TS2339: Property 'timeline' does not exist on type '{}'.
+src/routes/admin/problems/$problemId/edit/index.tsx(92,25): error TS2339: Property 'budget' does not exist on type '{}'.
+src/routes/admin/problems/$problemId/edit/index.tsx(93,23): error TS2339: Property 'name' does not exist on type '{}'.
+src/routes/admin/problems/$problemId/edit/index.tsx(94,31): error TS2339: Property 'organization' does not exist on type '{}'.
+src/routes/admin/problems/$problemId/edit/index.tsx(95,24): error TS2339: Property 'email' does not exist on type '{}'.
+src/routes/admin/problems/$problemId/edit/index.tsx(96,24): error TS2339: Property 'phone' does not exist on type '{}'.
+src/routes/admin/problems/$problemId/edit/index.tsx(97,35): error TS2339: Property 'consentToContact' does not exist on type '{}'.
+src/routes/admin/problems/$problemId/edit/index.tsx(98,25): error TS2339: Property 'status' does not exist on type '{}'.
+src/routes/admin/problems/$problemId/edit/index.tsx(105,27): error TS2345: Argument of type '{ adminToken: string; id: number; data: { name: string; status: "pending" | "approved" | "rejected"; title: string; category: string; description: string; technicalRequirements: string; constraints: string; ... 6 more ...; phone?: string | undefined; }; }' is not assignable to parameter of type 'void'.
+src/routes/admin/problems/$problemId/index.tsx(44,23): error TS2322: Type '{ children: string; variant: string; }' is not assignable to type 'IntrinsicAttributes & BadgeProps'.
+  Property 'variant' does not exist on type 'IntrinsicAttributes & BadgeProps'.
+src/routes/admin/problems/$problemId/index.tsx(46,23): error TS2322: Type '{ children: string; variant: string; }' is not assignable to type 'IntrinsicAttributes & BadgeProps'.
+  Property 'variant' does not exist on type 'IntrinsicAttributes & BadgeProps'.
+src/routes/admin/problems/$problemId/index.tsx(48,23): error TS2322: Type '{ children: string; variant: string; }' is not assignable to type 'IntrinsicAttributes & BadgeProps'.
+  Property 'variant' does not exist on type 'IntrinsicAttributes & BadgeProps'.
+src/routes/admin/problems/$problemId/index.tsx(50,23): error TS2322: Type '{ children: string; variant: string; }' is not assignable to type 'IntrinsicAttributes & BadgeProps'.
+  Property 'variant' does not exist on type 'IntrinsicAttributes & BadgeProps'.
+src/routes/admin/problems/$problemId/index.tsx(106,44): error TS2339: Property 'id' does not exist on type '{}'.
+src/routes/admin/problems/$problemId/index.tsx(110,45): error TS2339: Property '_count' does not exist on type '{}'.
+src/routes/admin/problems/$problemId/index.tsx(130,26): error TS2339: Property 'title' does not exist on type '{}'.
+src/routes/admin/problems/$problemId/index.tsx(133,24): error TS2322: Type '{ children: any; variant: string; }' is not assignable to type 'IntrinsicAttributes & BadgeProps'.
+  Property 'variant' does not exist on type 'IntrinsicAttributes & BadgeProps'.
+src/routes/admin/problems/$problemId/index.tsx(133,51): error TS2339: Property 'category' does not exist on type '{}'.
+src/routes/admin/problems/$problemId/index.tsx(134,41): error TS2339: Property 'status' does not exist on type '{}'.
+src/routes/admin/problems/$problemId/index.tsx(137,54): error TS2339: Property 'createdAt' does not exist on type '{}'.
+src/routes/admin/problems/$problemId/index.tsx(152,28): error TS2339: Property 'description' does not exist on type '{}'.
+src/routes/admin/problems/$problemId/index.tsx(163,28): error TS2339: Property 'technicalRequirements' does not exist on type '{}'.
+src/routes/admin/problems/$problemId/index.tsx(174,28): error TS2339: Property 'constraints' does not exist on type '{}'.
+src/routes/admin/problems/$problemId/index.tsx(185,28): error TS2339: Property 'successCriteria' does not exist on type '{}'.
+src/routes/admin/problems/$problemId/index.tsx(190,24): error TS2339: Property 'comments' does not exist on type '{}'.
+src/routes/admin/problems/$problemId/index.tsx(199,52): error TS2339: Property 'id' does not exist on type '{}'.
+src/routes/admin/problems/$problemId/index.tsx(202,41): error TS2339: Property '_count' does not exist on type '{}'.
+src/routes/admin/problems/$problemId/index.tsx(206,30): error TS2339: Property 'comments' does not exist on type '{}'.
+src/routes/admin/problems/$problemId/index.tsx(206,56): error TS7006: Parameter 'comment' implicitly has an 'any' type.
+src/routes/admin/problems/$problemId/index.tsx(241,84): error TS2339: Property 'name' does not exist on type '{}'.
+src/routes/admin/problems/$problemId/index.tsx(245,84): error TS2339: Property 'organization' does not exist on type '{}'.
+src/routes/admin/problems/$problemId/index.tsx(250,47): error TS2339: Property 'email' does not exist on type '{}'.
+src/routes/admin/problems/$problemId/index.tsx(253,32): error TS2339: Property 'email' does not exist on type '{}'.
+src/routes/admin/problems/$problemId/index.tsx(256,28): error TS2339: Property 'phone' does not exist on type '{}'.
+src/routes/admin/problems/$problemId/index.tsx(260,46): error TS2339: Property 'phone' does not exist on type '{}'.
+src/routes/admin/problems/$problemId/index.tsx(263,34): error TS2339: Property 'phone' does not exist on type '{}'.
+src/routes/admin/problems/$problemId/index.tsx(271,34): error TS2339: Property 'consentToContact' does not exist on type '{}'.
+src/routes/admin/problems/$problemId/index.tsx(290,32): error TS2339: Property 'timeline' does not exist on type '{}'.
+src/routes/admin/problems/$problemId/index.tsx(299,32): error TS2339: Property 'budget' does not exist on type '{}'.
+src/routes/admin/problems/index.tsx(59,15): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/routes/admin/problems/index.tsx(72,15): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/routes/admin/problems/index.tsx(80,33): error TS2345: Argument of type '{ adminToken: string; id: number; status: "pending" | "approved" | "rejected"; }' is not assignable to parameter of type 'void'.
+src/routes/admin/problems/index.tsx(89,29): error TS2345: Argument of type '{ adminToken: string; id: number; }' is not assignable to parameter of type 'void'.
+src/routes/admin/problems/index.tsx(99,23): error TS2322: Type '{ children: string; variant: string; }' is not assignable to type 'IntrinsicAttributes & BadgeProps'.
+  Property 'variant' does not exist on type 'IntrinsicAttributes & BadgeProps'.
+src/routes/admin/problems/index.tsx(101,23): error TS2322: Type '{ children: string; variant: string; }' is not assignable to type 'IntrinsicAttributes & BadgeProps'.
+  Property 'variant' does not exist on type 'IntrinsicAttributes & BadgeProps'.
+src/routes/admin/problems/index.tsx(103,23): error TS2322: Type '{ children: string; variant: string; }' is not assignable to type 'IntrinsicAttributes & BadgeProps'.
+  Property 'variant' does not exist on type 'IntrinsicAttributes & BadgeProps'.
+src/routes/admin/problems/index.tsx(105,23): error TS2322: Type '{ children: string; variant: string; }' is not assignable to type 'IntrinsicAttributes & BadgeProps'.
+  Property 'variant' does not exist on type 'IntrinsicAttributes & BadgeProps'.
+src/routes/admin/problems/index.tsx(140,11): error TS2322: Type 'unknown' is not assignable to type 'ReactNode'.
+src/routes/admin/problems/index.tsx(147,82): error TS2339: Property 'total' does not exist on type '{}'.
+src/routes/admin/problems/index.tsx(153,84): error TS2339: Property 'pending' does not exist on type '{}'.
+src/routes/admin/problems/index.tsx(159,83): error TS2339: Property 'approved' does not exist on type '{}'.
+src/routes/admin/problems/index.tsx(165,81): error TS2339: Property 'rejected' does not exist on type '{}'.
+src/routes/admin/problems/index.tsx(177,18): error TS2741: Property 'onSearch' is missing in type '{ value: string; onChange: Dispatch<SetStateAction<string>>; placeholder: string; className: string; }' but required in type 'DebouncedSearchInputProps'.
+src/routes/admin/problems/index.tsx(209,37): error TS2339: Property 'byCategory' does not exist on type '{}'.
+src/routes/admin/problems/index.tsx(209,53): error TS7006: Parameter 'categoryData' implicitly has an 'any' type.
+src/routes/admin/problems/index.tsx(226,37): error TS2339: Property 'submissions' does not exist on type '{}'.
+src/routes/admin/problems/index.tsx(257,42): error TS2339: Property 'submissions' does not exist on type '{}'.
+src/routes/admin/problems/index.tsx(257,59): error TS7006: Parameter 'submission' implicitly has an 'any' type.
+src/routes/admin/problems/index.tsx(274,34): error TS2322: Type '{ children: any; variant: string; }' is not assignable to type 'IntrinsicAttributes & BadgeProps'.
+  Property 'variant' does not exist on type 'IntrinsicAttributes & BadgeProps'.
+src/routes/admin/site-content/index.tsx(178,9): error TS2322: Type 'unknown' is not assignable to type 'ReactNode'.
+src/routes/admin/site-content/index.tsx(252,45): error TS2339: Property 'summary' does not exist on type '{}'.
+src/routes/admin/site-content/index.tsx(268,45): error TS2339: Property 'summary' does not exist on type '{}'.
+src/routes/admin/site-content/index.tsx(284,50): error TS2339: Property 'summary' does not exist on type '{}'.
+src/routes/admin/site-content/index.tsx(300,50): error TS2339: Property 'summary' does not exist on type '{}'.
+src/routes/admin/site-content/index.tsx(334,11): error TS2322: Type 'unknown' is not assignable to type 'ReactNode'.
+src/routes/admin/site-content/index.tsx(447,11): error TS2322: Type 'unknown' is not assignable to type 'ReactNode'.
+src/routes/admin/site-content/index.tsx(459,42): error TS2339: Property 'images' does not exist on type '{}'.
+src/routes/admin/site-content/index.tsx(460,29): error TS7006: Parameter 'image' implicitly has an 'any' type.
+src/routes/admin/site-content/index.tsx(461,27): error TS7006: Parameter 'image' implicitly has an 'any' type.
+src/routes/admin/site-content/index.tsx(528,42): error TS2339: Property 'images' does not exist on type '{}'.
+src/routes/admin/site-content/index.tsx(529,29): error TS7006: Parameter 'image' implicitly has an 'any' type.
+src/routes/admin/site-content/index.tsx(530,27): error TS7006: Parameter 'image' implicitly has an 'any' type.
+src/routes/admin/site-content/index.tsx(597,42): error TS2339: Property 'images' does not exist on type '{}'.
+src/routes/admin/site-content/index.tsx(598,29): error TS7006: Parameter 'image' implicitly has an 'any' type.
+src/routes/admin/site-content/index.tsx(599,27): error TS7006: Parameter 'image' implicitly has an 'any' type.
+src/routes/challenges/index.tsx(65,45): error TS2339: Property 'challenges' does not exist on type '{}'.
+src/routes/challenges/index.tsx(66,42): error TS2339: Property 'nextCursor' does not exist on type '{}'.
+src/routes/challenges/index.tsx(144,31): error TS2339: Property 'length' does not exist on type '{}'.
+src/routes/challenges/index.tsx(151,37): error TS2339: Property 'map' does not exist on type '{}'.
+src/routes/challenges/index.tsx(151,42): error TS7006: Parameter 'challenge' implicitly has an 'any' type.
+src/routes/partners/index.tsx(85,31): error TS2339: Property 'partners' does not exist on type '{}'.
+src/routes/partners/index.tsx(85,56): error TS2339: Property 'partners' does not exist on type '{}'.
+src/routes/partners/index.tsx(89,101): error TS2339: Property 'count' does not exist on type '{}'.
+src/routes/partners/index.tsx(93,33): error TS2339: Property 'partners' does not exist on type '{}'.
+src/routes/partners/index.tsx(93,47): error TS7006: Parameter 'partner' implicitly has an 'any' type.
+src/routes/partners/index.tsx(171,26): error TS2339: Property 'partners' does not exist on type '{}'.
+src/routes/partners/index.tsx(171,51): error TS2339: Property 'partners' does not exist on type '{}'.
+src/server/scripts/optimize-memory.ts(46,13): error TS2722: Cannot invoke an object which is possibly 'undefined'.
+src/server/scripts/optimize-memory.ts(55,11): error TS2722: Cannot invoke an object which is possibly 'undefined'.
+src/server/scripts/optimize-memory.ts(58,11): error TS2722: Cannot invoke an object which is possibly 'undefined'.
+src/server/scripts/optimize-memory.ts(263,47): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/server/trpc/main.ts(27,15): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/server/trpc/main.ts(39,31): error TS7006: Parameter 'state' implicitly has an 'any' type.
+src/server/trpc/procedures/admin-general.ts(96,7): error TS2322: Type '{ title: string; summary: string; content: string; tags: string; featured: boolean; image?: string | undefined; video?: string | undefined; pdfUrl?: string | undefined; impactMetrics?: string | undefined; }' is not assignable to type '(Without<CaseStudyCreateInput, CaseStudyUncheckedCreateInput> & CaseStudyUncheckedCreateInput) | (Without<...> & CaseStudyCreateInput)'.
+  Type '{ title: string; summary: string; content: string; tags: string; featured: boolean; image?: string | undefined; video?: string | undefined; pdfUrl?: string | undefined; impactMetrics?: string | undefined; }' is not assignable to type 'Without<CaseStudyUncheckedCreateInput, CaseStudyCreateInput> & CaseStudyCreateInput'.
+    Type '{ title: string; summary: string; content: string; tags: string; featured: boolean; image?: string | undefined; video?: string | undefined; pdfUrl?: string | undefined; impactMetrics?: string | undefined; }' is not assignable to type 'CaseStudyCreateInput'.
+      Types of property 'image' are incompatible.
+        Type 'string | undefined' is not assignable to type 'string'.
+          Type 'undefined' is not assignable to type 'string'.
+src/server/trpc/procedures/admin-general.ts(395,7): error TS2322: Type '{ name: string; order: number; altText: string; visible: boolean; websiteUrl?: string | undefined; logoUrl?: string | undefined; }' is not assignable to type '(Without<PartnerCreateInput, PartnerUncheckedCreateInput> & PartnerUncheckedCreateInput) | (Without<...> & PartnerCreateInput)'.
+  Type '{ name: string; order: number; altText: string; visible: boolean; websiteUrl?: string | undefined; logoUrl?: string | undefined; }' is not assignable to type 'Without<PartnerUncheckedCreateInput, PartnerCreateInput> & PartnerCreateInput'.
+    Type '{ name: string; order: number; altText: string; visible: boolean; websiteUrl?: string | undefined; logoUrl?: string | undefined; }' is not assignable to type 'PartnerCreateInput'.
+      Types of property 'logoUrl' are incompatible.
+        Type 'string | undefined' is not assignable to type 'string'.
+          Type 'undefined' is not assignable to type 'string'.
+src/server/trpc/procedures/bulletproof-image-upload.ts(171,37): error TS2769: No overload matches this call.
+  Overload 1 of 4, '(arrayBuffer: WithImplicitCoercion<ArrayBufferLike>, byteOffset?: number | undefined, length?: number | undefined): Buffer<ArrayBufferLike>', gave the following error.
+    Argument of type 'string | undefined' is not assignable to parameter of type 'WithImplicitCoercion<ArrayBufferLike>'.
+      Type 'undefined' is not assignable to type 'WithImplicitCoercion<ArrayBufferLike>'.
+  Overload 2 of 4, '(string: WithImplicitCoercion<string>, encoding?: BufferEncoding | undefined): Buffer<ArrayBuffer>', gave the following error.
+    Argument of type 'string | undefined' is not assignable to parameter of type 'WithImplicitCoercion<string>'.
+      Type 'undefined' is not assignable to type 'WithImplicitCoercion<string>'.
+src/server/trpc/procedures/bulletproof-image-upload.ts(549,5): error TS2322: Type 'ProcessingStrategy | undefined' is not assignable to type 'ProcessingStrategy'.
+  Type 'undefined' is not assignable to type 'ProcessingStrategy'.
+src/server/trpc/procedures/bulletproof-image-upload.ts(556,48): error TS18048: 'selectedStrategy' is possibly 'undefined'.
+src/server/trpc/procedures/bulletproof-image-upload.ts(558,3): error TS2322: Type 'ProcessingStrategy | undefined' is not assignable to type 'ProcessingStrategy'.
+  Type 'undefined' is not assignable to type 'ProcessingStrategy'.
+src/server/trpc/procedures/bulletproof-image-upload.ts(1244,39): error TS2769: No overload matches this call.
+  Overload 1 of 4, '(arrayBuffer: WithImplicitCoercion<ArrayBufferLike>, byteOffset?: number | undefined, length?: number | undefined): Buffer<ArrayBufferLike>', gave the following error.
+    Argument of type 'string | undefined' is not assignable to parameter of type 'WithImplicitCoercion<ArrayBufferLike>'.
+      Type 'undefined' is not assignable to type 'WithImplicitCoercion<ArrayBufferLike>'.
+  Overload 2 of 4, '(string: WithImplicitCoercion<string>, encoding?: BufferEncoding | undefined): Buffer<ArrayBuffer>', gave the following error.
+    Argument of type 'string | undefined' is not assignable to parameter of type 'WithImplicitCoercion<string>'.
+      Type 'undefined' is not assignable to type 'WithImplicitCoercion<string>'.
+src/server/trpc/procedures/bulletproof-image-upload.ts(1332,56): error TS2339: Property 'resolver' does not exist on type 'MutationProcedure<{ input: { fileName: string; fileType: string; fileContent: string; adminToken: string; title?: string | undefined; description?: string | undefined; altText?: string | undefined; forceStrategy?: string | undefined; }; output: { ...; }; meta: object; }>'.
+src/server/trpc/procedures/bulletproof-image-upload.ts(1870,30): error TS2769: No overload matches this call.
+  Overload 1 of 4, '(arrayBuffer: WithImplicitCoercion<ArrayBufferLike>, byteOffset?: number | undefined, length?: number | undefined): Buffer<ArrayBufferLike>', gave the following error.
+    Argument of type 'string | undefined' is not assignable to parameter of type 'WithImplicitCoercion<ArrayBufferLike>'.
+      Type 'undefined' is not assignable to type 'WithImplicitCoercion<ArrayBufferLike>'.
+  Overload 2 of 4, '(string: WithImplicitCoercion<string>, encoding?: BufferEncoding | undefined): Buffer<ArrayBuffer>', gave the following error.
+    Argument of type 'string | undefined' is not assignable to parameter of type 'WithImplicitCoercion<string>'.
+      Type 'undefined' is not assignable to type 'WithImplicitCoercion<string>'.
+src/server/trpc/procedures/bulletproof-image-upload.ts(2146,81): error TS18048: 'image' is possibly 'undefined'.
+src/server/trpc/procedures/bulletproof-image-upload.ts(2156,56): error TS2339: Property 'resolver' does not exist on type 'MutationProcedure<{ input: { fileName: string; fileType: string; fileContent: string; adminToken: string; title?: string | undefined; description?: string | undefined; altText?: string | undefined; forceStrategy?: string | undefined; }; output: { ...; }; meta: object; }>'.
+src/server/trpc/procedures/bulletproof-image-upload.ts(2165,23): error TS18048: 'image' is possibly 'undefined'.
+src/server/trpc/procedures/bulletproof-image-upload.ts(2173,51): error TS18048: 'image' is possibly 'undefined'.
+src/server/trpc/procedures/bulletproof-image-upload.ts(2183,23): error TS18048: 'image' is possibly 'undefined'.
+src/server/trpc/procedures/image-upload.ts(1202,34): error TS2769: No overload matches this call.
+  Overload 1 of 4, '(arrayBuffer: WithImplicitCoercion<ArrayBufferLike>, byteOffset?: number | undefined, length?: number | undefined): Buffer<ArrayBufferLike>', gave the following error.
+    Argument of type 'string | undefined' is not assignable to parameter of type 'WithImplicitCoercion<ArrayBufferLike>'.
+      Type 'undefined' is not assignable to type 'WithImplicitCoercion<ArrayBufferLike>'.
+  Overload 2 of 4, '(string: WithImplicitCoercion<string>, encoding?: BufferEncoding | undefined): Buffer<ArrayBuffer>', gave the following error.
+    Argument of type 'string | undefined' is not assignable to parameter of type 'WithImplicitCoercion<string>'.
+      Type 'undefined' is not assignable to type 'WithImplicitCoercion<string>'.
+src/server/trpc/procedures/image-upload.ts(1328,81): error TS18048: 'image' is possibly 'undefined'.
+src/server/trpc/procedures/image-upload.ts(1331,49): error TS2339: Property 'resolver' does not exist on type 'MutationProcedure<{ input: { fileName: string; fileType: string; fileContent: string; adminToken: string; title?: string | undefined; description?: string | undefined; altText?: string | undefined; }; output: { ...; }; meta: object; }>'.
+src/server/trpc/procedures/image-upload.ts(1340,23): error TS18048: 'image' is possibly 'undefined'.
+src/server/trpc/procedures/image-upload.ts(1346,51): error TS18048: 'image' is possibly 'undefined'.
+src/server/trpc/procedures/image-upload.ts(1349,23): error TS18048: 'image' is possibly 'undefined'.
+src/server/trpc/procedures/image-upload.ts(1593,25): error TS2339: Property 'resolver' does not exist on type 'QueryProcedure<{ input: { filePath: string; }; output: Response; meta: object; }>'.
+src/server/trpc/procedures/image-upload.ts(1612,25): error TS2339: Property 'resolver' does not exist on type 'QueryProcedure<{ input: { filePath: string; }; output: Response; meta: object; }>'.
+src/server/trpc/procedures/image-upload.ts(1618,53): error TS18048: 'variant' is possibly 'undefined'.
+src/server/trpc/procedures/image-upload.ts(1619,25): error TS2339: Property 'resolver' does not exist on type 'QueryProcedure<{ input: { filePath: string; }; output: Response; meta: object; }>'.
+src/server/trpc/procedures/image-upload.ts(1619,55): error TS18048: 'variant' is possibly 'undefined'.
+src/server/trpc/procedures/image-upload.ts(1624,23): error TS2339: Property 'resolver' does not exist on type 'QueryProcedure<{ input: { filePath: string; }; output: Response; meta: object; }>'.
+src/server/trpc/procedures/image-upload.ts(2885,71): error TS2339: Property 'resolver' does not exist on type 'QueryProcedure<{ input: { adminToken: string; bucketName?: string | undefined; maxFiles?: number | undefined; dryRun?: boolean | undefined; }; output: { scanId: string; scanTime: number; dryRun: boolean; ... 5 more ...; success: boolean; }; meta: object; }>'.
+src/server/trpc/procedures/image-upload.ts(2913,75): error TS2339: Property 'resolver' does not exist on type 'QueryProcedure<{ input: { adminToken: string; bucketName?: string | undefined; dryRun?: boolean | undefined; maxRecords?: number | undefined; }; output: { scanId: string; scanTime: number; dryRun: boolean; ... 5 more ...; success: boolean; }; meta: object; }>'.
+src/server/trpc/procedures/image-upload.ts(2946,72): error TS2339: Property 'resolver' does not exist on type 'MutationProcedure<{ input: { adminToken: string; fileNames: string[]; bucketName?: string | undefined; dryRun?: boolean | undefined; force?: boolean | undefined; }; output: { processingTime: number; summary: string; ... 9 more ...; success: boolean; }; meta: object; }>'.
+src/server/trpc/procedures/image-upload.ts(2977,75): error TS2339: Property 'resolver' does not exist on type 'MutationProcedure<{ input: { adminToken: string; recordIds: number[]; dryRun?: boolean | undefined; force?: boolean | undefined; }; output: { processingTime: number; summary: string; cleanupId: string; dryRun: boolean; ... 6 more ...; success: boolean; }; meta: object; }>'.
+src/server/trpc/procedures/newsletter.ts(88,11): error TS18046: 'error' is of type 'unknown'.
+src/stores/userStore.ts(306,7): error TS2353: Object literal may only specify known properties, and 'serialize' does not exist in type 'PersistOptions<UserStore, any>'.
+src/stores/userStore.ts(306,19): error TS7006: Parameter 'state' implicitly has an 'any' type.
+src/stores/userStore.ts(328,21): error TS7006: Parameter 'str' implicitly has an 'any' type.
+src/trpc/react.tsx(56,31): error TS2554: Expected 1 arguments, but got 0.
+src/trpc/react.tsx(187,13): error TS2353: Object literal may only specify known properties, and 'onConnectionStateChange' does not exist in type 'HTTPSubscriptionLinkOptions<PickTypes<{ ctx: object; meta: object; errorShape: { data: { zodError: typeToFlattenedError<any, string> | null; timestamp: string; errorType: string; connectionState: string; code: "PARSE_ERROR" | ... 18 more ... | "CLIENT_CLOSED_REQUEST"; httpStatus: number; path?: string | undefined; s...'.
+src/trpc/react.tsx(187,39): error TS7006: Parameter 'state' implicitly has an 'any' type.
+src/trpc/react.tsx(227,23): error TS7006: Parameter 'error' implicitly has an 'any' type.

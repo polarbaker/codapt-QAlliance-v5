@@ -1,6 +1,30 @@
 // Import polyfill first to ensure it runs before any code that might use File API
 import '../../../polyfill';
 
+// Helper for internal TRPC procedure calls
+type ProcedureType = any; // This covers query, mutation, etc
+
+/**
+ * Creates a properly structured call context for internal TRPC procedure calls
+ * This avoids TypeScript errors with the non-existent .resolver property
+ */
+function createInternalCaller<TInput extends Record<string, any>, TOutput>(procedure: ProcedureType) {
+  return async (input: TInput): Promise<TOutput> => {
+    // Create minimal procedure call options that satisfy TRPC
+    const opts = {
+      input,
+      path: '',
+      type: 'query',
+      ctx: {},
+      getRawInput: () => input,
+      signal: undefined
+    };
+    
+    // Call the procedure directly
+    return procedure(opts) as Promise<TOutput>;
+  };
+}
+
 import { baseProcedure } from "~/server/trpc/main";
 import { requireAdminAuth } from "./auth";
 import * as z from "zod";
@@ -1199,6 +1223,11 @@ export const emergencyUploadImage = baseProcedure
         ? input.fileContent.split('base64,')[1]
         : input.fileContent;
       
+      // Validate base64Data exists before creating buffer
+      if (!base64Data) {
+        throw new Error('Invalid base64 data: parsing failed');
+      }
+      
       const buffer = Buffer.from(base64Data, 'base64');
       
       console.log(`🚨 EMERGENCY UPLOAD: Basic processing for ${input.fileName} (${emergencyId}):`, {
@@ -1324,11 +1353,23 @@ export const adminBulkUploadImages = baseProcedure
       for (let i = 0; i < input.images.length; i++) {
         const image = input.images[i];
         
+        // Skip if image is undefined
+        if (!image) {
+          errors.push({
+            fileName: `Image at index ${i}`,
+            error: 'Image object is undefined'
+          });
+          continue;
+        }
+        
+        // Ensure fileName exists to prevent undefined errors
+        const fileName = image.fileName || `unnamed_image_${i}`;
+        
         try {
-          console.log(`Processing bulk image ${i + 1}/${input.images.length}: ${image.fileName}`);
+          console.log(`Processing bulk image ${i + 1}/${input.images.length}: ${fileName}`);
           
           // Use single upload logic
-          const result = await adminUploadImage.resolver({
+          const result = await createInternalCaller<any, any>(adminUploadImage)({
             input: {
               adminToken: input.adminToken,
               ...image,
@@ -1337,16 +1378,16 @@ export const adminBulkUploadImages = baseProcedure
           });
           
           results.push({
-            fileName: image.fileName,
+            fileName: fileName,
             success: true,
             ...result,
           });
           
         } catch (error) {
-          console.error(`Bulk upload failed for ${image.fileName}:`, error);
+          console.error(`Bulk upload failed for ${fileName}:`, error);
           
           errors.push({
-            fileName: image.fileName,
+            fileName: fileName,
             error: error instanceof Error ? error.message : 'Upload failed',
           });
         }
@@ -1590,7 +1631,8 @@ export const getImageVariant = baseProcedure
       
       // If no variant type specified or 'original', serve the original image
       if (!variantType || variantType === 'original') {
-        return getImage.resolver({ input: { filePath }, ctx: {} as any });
+        // Use createInternalCaller to properly call the procedure
+        return createInternalCaller<{filePath: string}, Response>(getImage)({filePath});
       }
       
       // Try to find the variant in the database
@@ -1609,19 +1651,26 @@ export const getImageVariant = baseProcedure
       if (!image) {
         console.warn(`Image not found in database: ${filePath}`);
         // Fallback to original image
-        return getImage.resolver({ input: { filePath }, ctx: {} as any });
+        // Use createInternalCaller to properly call the procedure
+        return createInternalCaller<{filePath: string}, Response>(getImage)({filePath});
       }
       
       // If variant exists, serve it
       if (image.variants.length > 0) {
         const variant = image.variants[0];
+        if (!variant || !variant.filePath) {
+          throw new Error(`Invalid variant for ${filePath}`);
+        }
         console.log(`📷 Serving existing variant: ${variant.filePath} (${variantType})`);
-        return getImage.resolver({ input: { filePath: variant.filePath }, ctx: {} as any });
+        
+        // Use createInternalCaller to properly call the procedure
+        return createInternalCaller<{filePath: string}, Response>(getImage)({filePath: variant.filePath});
       }
       
       // If variant doesn't exist, serve original image as fallback
       console.log(`📷 Variant ${variantType} not found for ${filePath}, serving original`);
-      return getImage.resolver({ input: { filePath }, ctx: {} as any });
+      // Use createInternalCaller to properly call the procedure
+      return createInternalCaller<{filePath: string}, Response>(getImage)({filePath});
       
     } catch (error) {
       console.error(`❌ Image variant serving error for ${filePath} (${variantType}):`, error);
@@ -2882,7 +2931,7 @@ export const adminComprehensiveCleanup = baseProcedure
         results.summary.totalOperations++;
         try {
           console.log(`🔍 COMPREHENSIVE CLEANUP: Scanning for orphaned files...`);
-          results.orphanedFilesResults = await adminScanOrphanedFiles.resolver({
+          results.orphanedFilesResults = await createInternalCaller<any, any>(adminScanOrphanedFiles)({
             input: {
               adminToken: input.adminToken,
               maxFiles: limits.maxFiles,
@@ -2910,7 +2959,7 @@ export const adminComprehensiveCleanup = baseProcedure
         results.summary.totalOperations++;
         try {
           console.log(`🔍 COMPREHENSIVE CLEANUP: Scanning for orphaned records...`);
-          results.orphanedRecordsResults = await adminScanOrphanedRecords.resolver({
+          results.orphanedRecordsResults = await createInternalCaller<any, any>(adminScanOrphanedRecords)({
             input: {
               adminToken: input.adminToken,
               maxRecords: limits.maxRecords,
@@ -2943,7 +2992,7 @@ export const adminComprehensiveCleanup = baseProcedure
           
           if (tempFiles.length > 0) {
             console.log(`🧹 COMPREHENSIVE CLEANUP: Cleaning up ${tempFiles.length} temporary files...`);
-            results.tempFilesCleanup = await adminCleanupOrphanedFiles.resolver({
+            results.tempFilesCleanup = await createInternalCaller<any, any>(adminCleanupOrphanedFiles)({
               input: {
                 adminToken: input.adminToken,
                 fileNames: tempFiles,
@@ -2974,7 +3023,7 @@ export const adminComprehensiveCleanup = baseProcedure
           
           if (oldRecords.length > 0) {
             console.log(`🧹 COMPREHENSIVE CLEANUP: Cleaning up ${oldRecords.length} old orphaned records...`);
-            results.oldOrphansCleanup = await adminCleanupOrphanedRecords.resolver({
+            results.oldOrphansCleanup = await createInternalCaller<any, any>(adminCleanupOrphanedRecords)({
               input: {
                 adminToken: input.adminToken,
                 recordIds: oldRecords,
