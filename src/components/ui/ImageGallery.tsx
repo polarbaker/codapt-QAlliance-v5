@@ -1,5 +1,7 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { getImageUrl, formatImageDimensions, formatFileSize } from '~/utils';
+'use client';
+
+import React, { useState, useEffect, useCallback, useMemo, useRef, MouseEvent } from 'react';
+import { getImageUrl, formatImageDimensions, formatFileSize } from '~/utils/common';
 import {
   Grid3X3,
   List,
@@ -60,8 +62,8 @@ interface ImageGalleryProps {
 }
 
 // Custom hook for intersection observer
-function useIntersectionObserver(
-  elementRef: React.RefObject<Element>,
+function useIntersectionObserver<T extends Element>(
+  elementRef: React.RefObject<T | null>,
   { threshold = 0.1, root = null, rootMargin = '50px' }: IntersectionObserverInit = {}
 ) {
   const [isIntersecting, setIsIntersecting] = useState(false);
@@ -71,8 +73,10 @@ function useIntersectionObserver(
     if (!element) return;
 
     const observer = new IntersectionObserver(
-      ([entry]) => {
-        setIsIntersecting(entry.isIntersecting);
+      (entries) => {
+        if (entries[0]) {
+          setIsIntersecting(entries[0].isIntersecting);
+        }
       },
       { threshold, root, rootMargin }
     );
@@ -87,6 +91,16 @@ function useIntersectionObserver(
   return isIntersecting;
 }
 
+interface LazyImageProps {
+  src: string;
+  alt: string;
+  className?: string;
+  onLoad?: () => void;
+  onError?: () => void;
+  onClick?: (e: React.MouseEvent<HTMLImageElement>) => void;
+  fallbackSrc?: string;
+}
+
 // Optimized image component with lazy loading
 const LazyImage = React.memo(({ 
   src, 
@@ -96,15 +110,7 @@ const LazyImage = React.memo(({
   onError,
   onClick,
   fallbackSrc 
-}: {
-  src: string;
-  alt: string;
-  className?: string;
-  onLoad?: () => void;
-  onError?: () => void;
-  onClick?: () => void;
-  fallbackSrc?: string;
-}) => {
+}: LazyImageProps) => {
   const [imageState, setImageState] = useState<'loading' | 'loaded' | 'error'>('loading');
   const [currentSrc, setCurrentSrc] = useState(src);
   const imageRef = useRef<HTMLImageElement>(null);
@@ -391,7 +397,7 @@ export function ImageGallery({
                       type="checkbox"
                       checked={selectedImages.includes(image.id)}
                       onChange={() => handleImageSelect(image.id)}
-                      onClick={(e) => e.stopPropagation()}
+                      onClick={(e: MouseEvent<HTMLInputElement>) => e.stopPropagation()}
                       className="rounded border-gray-300 text-secondary focus:ring-secondary"
                     />
                   </div>
@@ -509,7 +515,7 @@ export function ImageGallery({
                 src={getImageSrc(lightboxImage.filePath, 'large')}
                 alt={lightboxImage.altText || lightboxImage.title || lightboxImage.fileName}
                 className="max-w-full max-h-full object-contain"
-                onClick={(e) => e.stopPropagation()}
+                onClick={(e: React.MouseEvent<HTMLImageElement>) => e.stopPropagation()}
               />
               <button
                 onClick={() => setLightboxImage(null)}
@@ -695,7 +701,7 @@ export function ImageGallery({
                       type="checkbox"
                       checked={selectedImages.includes(image.id)}
                       onChange={() => handleImageSelect(image.id)}
-                      onClick={(e) => e.stopPropagation()}
+                      onClick={(e: MouseEvent<HTMLInputElement>) => e.stopPropagation()}
                       className="rounded border-gray-300 text-secondary focus:ring-secondary"
                     />
                   </div>
