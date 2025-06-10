@@ -5,6 +5,7 @@ import { baseProcedure } from "~/server/trpc/main";
 import { requireAdminAuth } from "./auth";
 import * as z from "zod";
 import sharp from "sharp";
+import { safeParseBase64 } from "./safe-base64-parser";
 
 // Simple base64 image storage for innovators as a bulletproof fallback
 // This eliminates file system dependencies and potential CORS issues
@@ -201,7 +202,9 @@ export const uploadSimpleInnovatorImage = baseProcedure
           ? input.fileContent.split('base64,')[1]
           : input.fileContent;
         
-        buffer = Buffer.from(base64Data, 'base64');
+        // Use the safe parser to ensure we always have a string
+        const safeBase64 = safeParseBase64(input.fileContent);
+        buffer = Buffer.from(safeBase64, 'base64');
         
         if (buffer.length === 0) {
           throw new Error('Empty file data');
@@ -497,7 +500,9 @@ export const uploadSimplePartnerImage = baseProcedure
           ? input.fileContent.split('base64,')[1]
           : input.fileContent;
         
-        buffer = Buffer.from(base64Data, 'base64');
+        // Use the safe parser to ensure we always have a string
+        const safeBase64 = safeParseBase64(input.fileContent);
+        buffer = Buffer.from(safeBase64, 'base64');
         
         if (buffer.length === 0) {
           throw new Error('Empty file data');
