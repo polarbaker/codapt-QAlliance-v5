@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo, useRef, MouseEvent } from 'react';
-import { getImageUrl, formatImageDimensions, formatFileSize } from '~/utils/common';
+import { getImageUrl, formatImageDimensions, formatFileSize } from '../../utils/common';
 import {
   Grid3X3,
   List,
