@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { useUserStore } from '~/stores/userStore';
-import { formatFileSize } from '~/constants/validation';
+import { useUserStore } from '../../stores/userStore';
+import { formatFileSize } from '../../constants/validation';
 import { toast } from 'react-hot-toast';
 import {
   Upload,

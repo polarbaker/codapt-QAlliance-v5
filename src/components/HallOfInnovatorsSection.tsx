@@ -3,7 +3,7 @@ import { X, Award, User, RefreshCw } from "lucide-react";
 import { useTRPC } from "~/trpc/react";
 import { useQuery } from "@tanstack/react-query";
 import { Dialog, Transition } from "@headlessui/react";
-import { getCacheBustedImageUrl, isValidImagePath } from "~/utils";
+import { getCacheBustedImageUrl, isValidImagePath } from "~/utils/common";
 import { useBulkSiteContentText } from "~/hooks/useSiteContentText";
 
 // Type for innovator data from API

@@ -1,13 +1,13 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { useTRPC } from '~/trpc/react';
+import { useTRPC } from '../../trpc/react';
 import { useMutation } from '@tanstack/react-query';
-import { useUserStore } from '~/stores/userStore';
+import { useUserStore } from '../../stores/userStore';
 import { 
   validateImageFile, 
   fileToBase64, 
   formatFileSize,
   getUploadErrorMessage 
-} from '~/constants/validation';
+} from '../../constants/validation';
 import { toast } from 'react-hot-toast';
 import {
   Upload,

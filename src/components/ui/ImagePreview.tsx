@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
-import { getImageUrl, getCacheBustedImageUrl, getAbsoluteImageUrl, normalizeImageUrl, formatDate, isValidImagePath, getImageUrlWithFallback } from '~/utils';
+import { getImageUrl, getCacheBustedImageUrl, getAbsoluteImageUrl, normalizeImageUrl, formatDate, isValidImagePath, getImageUrlWithFallback } from '../../utils/common';
 import {
   Image as ImageIcon,
   AlertCircle,
@@ -241,7 +241,12 @@ export const ImagePreview = memo(function ImagePreview({
   }, [logWithTimestamp, imagePath, refreshKey, retryCount, showVisualIndicator, onImageLoad, verificationMode, verificationState, onVerificationComplete, reportSuccessToRecovery, componentId]);
 
   // Generate image URL with enhanced error handling and absolute URL support
-  const generateImageUrl = useCallback((path: string, useCache: boolean = true): string => {
+  const generateImageUrl = useCallback((path: string | null | undefined, useCache: boolean = true): string => {
+    // Early return for null/undefined values
+    if (!path) {
+      logWithTimestamp('Null or undefined path provided to generateImageUrl');
+      return '';
+    }
     try {
       let url = '';
       

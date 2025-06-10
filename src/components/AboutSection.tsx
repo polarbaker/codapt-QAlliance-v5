@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { Building } from "lucide-react";
 import { useTRPC } from "~/trpc/react";
 import { useQuery } from "@tanstack/react-query";
-import { getCacheBustedImageUrl, isValidImagePath, normalizeImageUrl, getAbsoluteImageUrl } from "~/utils";
+import { getCacheBustedImageUrl, isValidImagePath, normalizeImageUrl, getAbsoluteImageUrl } from "~/utils/common";
 import { useBulkSiteContentText } from "~/hooks/useSiteContentText";
 
 export default function AboutSection() {

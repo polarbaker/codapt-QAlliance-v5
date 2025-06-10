@@ -1,11 +1,11 @@
 import React, { useState, useCallback, useEffect, memo, useRef, useMemo } from 'react';
 import { SimpleInnovatorImageUpload } from './SimpleInnovatorImageUpload';
 import { EmergencyImageUpload } from './EmergencyImageUpload';
-import ErrorBoundary from '~/components/ErrorBoundary';
-import { useUserStore } from '~/stores/userStore';
-import { getUploadErrorMessage } from '~/constants/validation';
+import ErrorBoundary from '../../components/ErrorBoundary';
+import { useUserStore } from '../../stores/userStore';
+import { getUploadErrorMessage } from '../../constants/validation';
 import { toast } from 'react-hot-toast';
-import { debounce } from '~/utils';
+import { debounce } from '../../utils/common';
 import {
   RefreshCw,
   AlertCircle,

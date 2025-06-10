@@ -1,8 +1,8 @@
 import React, { useState, useRef, useCallback, memo, useMemo, useEffect } from 'react';
-import { useTRPC } from '~/trpc/react';
+import { useTRPC } from '../../trpc/react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useUserStore } from '~/stores/userStore';
-import { validateImageFile } from '~/constants/validation';
+import { useUserStore } from '../../stores/userStore';
+import { validateImageFile } from '../../constants/validation';
 import { toast } from 'react-hot-toast';
 import {
   Upload,

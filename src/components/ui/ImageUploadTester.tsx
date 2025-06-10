@@ -1,15 +1,17 @@
 import React, { useState, useCallback } from 'react';
 import { SimpleInnovatorImageUpload } from './SimpleInnovatorImageUpload';
 import { ImagePreview } from './ImagePreview';
-import { useImageUploadState } from '~/hooks/useImageUploadState';
-import { useConnectionState, useEventQueue } from '~/trpc/react';
-import { useUserStore } from '~/stores/userStore';
+import { useImageUploadState } from '../../hooks/useImageUploadState';
+import { useConnectionState, useEventQueue } from '../../trpc/react';
+import { useUserStore } from '../../stores/userStore';
 import { 
   testImageAccessibility, 
-  isConnectionStable, 
+  isConnectionStable
+} from '../../utils/client';
+import {
   getOptimalTimeout,
   calculateRetryDelay 
-} from '~/utils';
+} from '../../utils/common';
 import {
   Shield,
   Wifi,
@@ -67,11 +69,20 @@ export function ImageUploadTester({ className = '' }: ImageUploadTesterProps) {
     trackPhase('Starting manual verification test');
     
     const maxAttempts = 3;
-    const results = [];
+    // Define explicit type for results array
+    interface VerificationResult {
+      attempt: number;
+      accessible: boolean;
+      timestamp: string;
+      duration?: number;
+      error?: string;
+    }
+    const results: VerificationResult[] = [];
     
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const timeout = getOptimalTimeout();
-      const result = await testImageAccessibility(filePath, attempt, timeout);
+      // Call testImageAccessibility with just the filePath parameter
+      const result = await testImageAccessibility(filePath);
       
       results.push({
         attempt: attempt + 1,

@@ -8,7 +8,7 @@ import { Badge } from "~/components/ui/Badge";
 import { InnovatorBulkActions } from "~/components/admin/InnovatorBulkActions";
 import { InnovatorStats } from "~/components/admin/InnovatorStats";
 import { toast } from "react-hot-toast";
-import { getCacheBustedImageUrl } from "~/utils";
+import { getCacheBustedImageUrl } from "~/utils/common";
 import {
   Users,
   Plus,

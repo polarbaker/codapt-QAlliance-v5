@@ -8,7 +8,7 @@ import { Badge } from "~/components/ui/Badge";
 import { PartnerBulkActions } from "~/components/admin/PartnerBulkActions";
 import { PartnerStats } from "~/components/admin/PartnerStats";
 import { toast } from "react-hot-toast";
-import { getCacheBustedImageUrl } from "~/utils";
+import { getCacheBustedImageUrl } from "~/utils/common";
 import {
   Handshake,
   Plus,

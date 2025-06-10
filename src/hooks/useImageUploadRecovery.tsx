@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useUserStore } from '~/stores/userStore';
 import { getUploadErrorMessage } from '~/constants/validation';
 import { toast } from 'react-hot-toast';
-import { debounce } from '~/utils';
+import { debounce } from '~/utils/common';
 
 interface ComponentHealth {
   status: 'unknown' | 'healthy' | 'degraded' | 'unhealthy';

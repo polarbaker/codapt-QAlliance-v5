@@ -1,7 +1,7 @@
 import { Badge } from "./ui/Badge";
 import { ArrowRight, Image as ImageIcon } from "lucide-react";
 import { REGION_TAGS, YEAR_TAG_PATTERN } from "~/constants";
-import { getImageUrl } from "~/utils";
+import { getImageUrl } from "~/utils/common";
 import { useState } from "react";
 
 export interface CaseStudyData {
@@ -105,11 +105,11 @@ export default function CaseStudyCard({ caseStudy, onClick }: CaseStudyCardProps
         
         <div className="mt-auto flex justify-between items-center">
           {/* Display first impact metric if available */}
-          {Object.entries(caseStudy.parsedImpactMetrics)[0] && (
-            <div className="text-sm font-medium text-secondary">
-              {Object.entries(caseStudy.parsedImpactMetrics)[0][0]}: {Object.entries(caseStudy.parsedImpactMetrics)[0][1]}
+          {Object.entries(caseStudy.parsedImpactMetrics).slice(0, 1).map(([key, value]) => (
+            <div key={key} className="text-sm font-medium text-secondary">
+              {key}: {value}
             </div>
-          )}
+          ))}
           <div className="text-sm text-text-light/50 flex items-center">
             <span className="inline-flex items-center rounded-full bg-secondary/20 px-4 py-1.5 hover:bg-secondary/30 transition-all duration-300 group-hover:bg-secondary group-hover:text-white">
               Read More

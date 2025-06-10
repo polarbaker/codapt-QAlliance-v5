@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { partnerSchema } from '~/constants/validation';
+import { partnerSchema } from '../../constants/validation';
 import * as z from 'zod';
 import { SimplePartnerImageUpload } from './SimplePartnerImageUpload';
 import { ImagePreview } from './ImagePreview';
@@ -22,7 +22,7 @@ export function PartnerImageUploadTest({
 }: PartnerImageUploadTestProps) {
   const [debugMode] = useState(true);
   const [previewKey, setPreviewKey] = useState(0);
-  const [lastImageUpdate, setLastImageUpdate] = useState<Date | null>(null);
+  const [lastImageUpdate, setLastImageUpdate] = useState<Date | undefined>(undefined);
   
   const {
     watch,
@@ -137,7 +137,7 @@ export function PartnerImageUploadTest({
               placeholderText="Logo preview will appear here"
               showFileName={true}
               key={previewKey}
-              updatedAt={lastImageUpdate}
+              updatedAt={lastImageUpdate} // Now properly typed as Date | undefined
               enableEventListening={true}
               debugMode={debugMode}
               componentId={`test-preview-${partnerId}`}

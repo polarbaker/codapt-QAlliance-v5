@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Menu, X } from "lucide-react";
 import { useMatch } from "@tanstack/react-router";
-import { debounce } from "~/utils";
+import { debounce } from "~/utils/common";
 
 export default function Navigation() {
   const [isScrolled, setIsScrolled] = useState(false);

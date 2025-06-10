@@ -1,6 +1,6 @@
 import { Badge } from "./ui/Badge";
 import { ArrowRight, Image as ImageIcon } from "lucide-react";
-import { getImageUrl } from "~/utils";
+import { getImageUrl } from "~/utils/common";
 import { useState } from "react";
 
 export interface ChallengeData {

@@ -1,5 +1,5 @@
 // Enhanced base URL detection that works on both client and server
-function getBaseUrl(): string {
+export function getBaseUrl(): string {
   if (typeof window !== "undefined") {
     // Browser: use current origin
     return window.location.origin;
@@ -277,90 +277,6 @@ export function getVerificationImageUrl(
   }
 }
 
-// Test image accessibility - simplified
-export async function testImageAccessibility(
-  filePath: string
-): Promise<{
-  accessible: boolean;
-  error?: string;
-  loadTime?: number;
-  imageSize?: { width: number; height: number };
-}> {
-  return new Promise((resolve) => {
-    const startTime = Date.now();
-    const img = new Image();
-    let resolved = false;
-    const defaultTimeout = 10000; // Default 10s timeout
-    
-    const cleanup = () => {
-      img.onload = null;
-      img.onerror = null;
-      img.src = '';
-    };
-    
-    const resolveOnce = (result: any) => {
-      if (resolved) return;
-      resolved = true;
-      cleanup();
-      resolve(result);
-    };
-    
-    const timeoutId = setTimeout(() => {
-      resolveOnce({
-        accessible: false,
-        error: `Timeout after ${defaultTimeout}ms`,
-        loadTime: Date.now() - startTime,
-      });
-    }, defaultTimeout);
-    
-    img.onload = () => {
-      clearTimeout(timeoutId);
-      resolveOnce({
-        accessible: true,
-        loadTime: Date.now() - startTime,
-        imageSize: {
-          width: img.naturalWidth,
-          height: img.naturalHeight,
-        },
-      });
-    };
-    
-    img.onerror = (error) => {
-      clearTimeout(timeoutId);
-      resolveOnce({
-        accessible: false,
-        error: `Load error: ${error}`,
-        loadTime: Date.now() - startTime,
-      });
-    };
-    
-    img.crossOrigin = 'anonymous';
-    img.src = getVerificationImageUrl(filePath); // Use simplified verification URL
-  });
-}
-
-// Utility functions for connection state management
-export function isConnectionStable(): boolean {
-  if (typeof navigator === 'undefined') return true;
-  
-  if (!navigator.onLine) return false;
-  
-  if ('connection' in navigator) {
-    const connection = (navigator as any).connection;
-    if (connection) {
-      const slowConnections = ['slow-2g', '2g'];
-      if (slowConnections.includes(connection.effectiveType)) {
-        return false;
-      }
-      if (connection.saveData) {
-        return false;
-      }
-    }
-  }
-  
-  return true;
-}
-
 // Get absolute image URL for debugging purposes with comprehensive null safety
 export function getAbsoluteImageUrl(filePath: string | null | undefined, variantType?: string): string {
   try {
@@ -490,7 +406,13 @@ export function isStoredImagePath(path: string): boolean {
 export function getImageFileExtension(filePath: string): string {
   if (!filePath) return '';
   const parts = filePath.split('.');
-  return parts.length > 1 ? parts[parts.length - 1].toLowerCase() : '';
+  // Use pop() for safety, as it handles empty arrays and returns undefined.
+  const lastPart = parts.pop();
+  // Ensure there was a part after a dot and that lastPart is not undefined.
+  if (parts.length > 0 && lastPart) {
+    return lastPart.toLowerCase();
+  }
+  return '';
 }
 
 // Extract image information from file path
@@ -503,13 +425,14 @@ export function getImageInfo(filePath: string): {
   if (!filePath) return { extension: '', baseName: '', isVariant: false };
   
   const parts = filePath.split('.');
-  const extension = parts.length > 1 ? parts[parts.length - 1].toLowerCase() : '';
+  const lastPart = parts[parts.length - 1];
+  const extension = parts.length > 1 && lastPart ? lastPart.toLowerCase() : '';
   
   // Check if this is a variant (contains variant type before extension)
   const nameWithoutExt = parts.slice(0, -1).join('.');
   const variantMatch = nameWithoutExt.match(/_([a-z_]+)$/);
   
-  if (variantMatch) {
+  if (variantMatch && variantMatch[1]) {
     const variantType = variantMatch[1];
     const baseName = nameWithoutExt.replace(`_${variantType}`, '');
     return {
@@ -550,6 +473,62 @@ export function getAspectRatioDescription(aspectRatio: number): string {
 // Format compression ratio for display
 export function formatCompressionRatio(ratio: number): string {
   return `${Math.round(ratio * 100)}% reduction`;
+}
+
+/**
+ * Calculates an optimal timeout based on network conditions and resource size
+ * @param baseTimeout Base timeout in milliseconds
+ * @param fileSize Optional file size in bytes
+ * @param connectionQuality Optional connection quality (0-1)
+ * @returns Optimized timeout in milliseconds
+ */
+export function getOptimalTimeout(
+  baseTimeout: number = 5000,
+  fileSize?: number,
+  connectionQuality?: number
+): number {
+  // Default timeout
+  let timeout = baseTimeout;
+  
+  // Adjust for file size if provided (larger files need more time)
+  if (fileSize && fileSize > 0) {
+    // Add 1ms per KB with a reasonable upper bound
+    const fileSizeAdjustment = Math.min(fileSize / 1024, 30000);
+    timeout += fileSizeAdjustment;
+  }
+  
+  // Adjust for connection quality if provided
+  if (connectionQuality !== undefined && connectionQuality >= 0 && connectionQuality <= 1) {
+    // Poor connection (close to 0) increases timeout by up to 3x
+    // Good connection (close to 1) keeps timeout as is
+    const qualityMultiplier = 1 + (3 * (1 - connectionQuality));
+    timeout = timeout * qualityMultiplier;
+  }
+  
+  // Ensure timeout is within reasonable bounds
+  return Math.max(1000, Math.min(timeout, 60000));
+}
+
+/**
+ * Calculates retry delay with exponential backoff and jitter
+ * @param attempt Current attempt number (0-based)
+ * @param baseDelay Base delay in milliseconds
+ * @param maxDelay Maximum delay in milliseconds
+ * @returns Delay time in milliseconds
+ */
+export function calculateRetryDelay(
+  attempt: number,
+  baseDelay: number = 1000,
+  maxDelay: number = 30000
+): number {
+  // Exponential backoff: baseDelay * 2^attempt
+  const expBackoff = baseDelay * Math.pow(2, attempt);
+  
+  // Add random jitter (±25% of the calculated delay)
+  const jitter = expBackoff * (0.5 - Math.random()) * 0.5;
+  
+  // Calculate final delay and ensure it's within bounds
+  return Math.min(Math.max(expBackoff + jitter, baseDelay), maxDelay);
 }
 
 // Throttle function to limit function calls to once per interval

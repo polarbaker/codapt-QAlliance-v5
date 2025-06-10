@@ -1,6 +1,6 @@
 import { useState, useEffect, ChangeEvent } from "react";
 import { Search, X, Loader2 } from "lucide-react";
-import { debounce } from "~/utils";
+import { debounce } from "~/utils/common";
 
 interface DebouncedSearchInputProps {
   onSearch: (value: string) => void;

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
-import { getImageUrl, getCacheBustedImageUrl, getAbsoluteImageUrl, normalizeImageUrl, formatDate, isValidImagePath } from '~/utils';
+import { getImageUrl, getCacheBustedImageUrl, getAbsoluteImageUrl, normalizeImageUrl, formatDate, isValidImagePath } from '../../utils/common';
 import {
   Image as ImageIcon,
   AlertCircle,

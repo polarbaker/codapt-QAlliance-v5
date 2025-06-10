@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Building, ExternalLink } from "lucide-react";
 import { useTRPC } from "~/trpc/react";
-import { getCacheBustedImageUrl } from "~/utils";
+import { getCacheBustedImageUrl } from "~/utils/common";
 
 export const Route = createFileRoute("/partners/")({
   component: Partners,

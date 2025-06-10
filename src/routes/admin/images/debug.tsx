@@ -132,7 +132,7 @@ function AdminImagesDebugPage() {
       try {
         // Test with a sample UUID
         const testPath = 'test-image.jpg';
-        const { getImageUrl } = await import('~/utils');
+                const { getImageUrl } = await import('~/utils/common');
         const testUrl = getImageUrl(testPath);
         
         results.urls = { 

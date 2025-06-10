@@ -4,7 +4,7 @@ import { Search, Filter, Play, X, Award, User, MapPin, Briefcase, RefreshCw, Ale
 import { useTRPC } from "~/trpc/react";
 import { useQuery } from "@tanstack/react-query";
 import { Dialog, Transition } from "@headlessui/react";
-import { getCacheBustedImageUrl, isValidImagePath, getImageUrlWithFallback, normalizeImageUrl, getAbsoluteImageUrl } from "~/utils";
+import { getCacheBustedImageUrl, isValidImagePath, getImageUrlWithFallback, normalizeImageUrl, getAbsoluteImageUrl } from "~/utils/common";
 
 export const Route = createFileRoute("/innovators/")({
   component: Innovators,
@@ -511,31 +511,32 @@ function Innovators() {
   }, [imageRetryCount]);
   
   // Fetch innovators using tRPC with debounced search
-  const innovatorsQuery = useQuery(
-    trpc.getInnovators.queryOptions(
-      {
-        limit: 50,
-        featuredOnly,
-        hasVideo: hasVideoOnly || undefined,
-        searchTerm: debouncedSearchTerm || undefined,
-      },
-      {
-        refetchOnWindowFocus: false,
-        staleTime: 1000 * 60 * 5, // 5 minutes
-      }
-    )
+  const innovatorsQuery = trpc.getInnovators.useQuery(
+    {
+      limit: 50,
+      featuredOnly,
+      hasVideo: hasVideoOnly || undefined,
+      searchTerm: debouncedSearchTerm || undefined,
+    },
+    {
+      refetchOnWindowFocus: false,
+      staleTime: 1000 * 60 * 5, // 5 minutes
+    }
   );
 
   // Enhanced sorting and filtering logic
   const sortedAndFilteredInnovators = useMemo(() => {
-    if (!innovatorsQuery.data?.innovators) return [];
-    
-    let filtered = [...innovatorsQuery.data.innovators];
-    
+    const currentInnovators = innovatorsQuery.data?.innovators;
+    if (!currentInnovators) {
+      return [];
+    }
+
+    let filtered = [...currentInnovators];
+
     // Apply sorting
     filtered.sort((a, b) => {
       let comparison = 0;
-      
+
       switch (sortBy) {
         case 'name':
           comparison = a.name.localeCompare(b.name);
@@ -552,12 +553,12 @@ function Innovators() {
         default:
           comparison = a.order - b.order;
       }
-      
+
       return sortOrder === 'desc' ? -comparison : comparison;
     });
-    
+
     return filtered;
-  }, [innovatorsQuery.data?.innovators, sortBy, sortOrder]);
+  }, [innovatorsQuery.data, sortBy, sortOrder]);
 
   // Enhanced filter clearing function
   const clearAllFilters = useCallback(() => {
