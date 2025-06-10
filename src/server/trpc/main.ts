@@ -1,3 +1,6 @@
+// Import polyfill first to ensure it runs before any code that might use File API
+import '../../polyfill';
+
 import { initTRPC } from "@trpc/server";
 import superjson from "superjson";
 import { ZodError } from "zod";

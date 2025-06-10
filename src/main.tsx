@@ -1,5 +1,8 @@
 /// <reference types="vinxi/types/client" />
 
+// Import polyfill first to ensure it runs before any code that might use File API
+import './polyfill';
+
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { RouterProvider } from "@tanstack/react-router";

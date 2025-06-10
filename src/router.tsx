@@ -1,3 +1,6 @@
+// Import polyfill first to ensure it runs before any code that might use File API
+import './polyfill';
+
 import { createRouter as createTanStackRouter } from "@tanstack/react-router";
 import { routeTree } from "~/generated/tanstack-router/routeTree.gen";
 

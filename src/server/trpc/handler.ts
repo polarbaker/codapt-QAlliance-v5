@@ -1,3 +1,6 @@
+// Import polyfill first to ensure it runs before any code that might use File API
+import '../../polyfill';
+
 import { defineEventHandler, toWebRequest } from "@tanstack/react-start/server";
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { appRouter } from "./root";

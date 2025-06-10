@@ -1,3 +1,6 @@
+// Import polyfill first to ensure it runs before any code that might use File API
+import '../polyfill';
+
 import { QueryClientProvider, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createTRPCClient, httpBatchLink, loggerLink, splitLink, httpSubscriptionLink } from "@trpc/client";
 import SuperJSON from "superjson";

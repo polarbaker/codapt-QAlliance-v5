@@ -1,3 +1,6 @@
+// Import polyfill first to ensure it runs before any code that might use File API
+import '../../../polyfill';
+
 import { baseProcedure } from "~/server/trpc/main";
 import { requireAdminAuth } from "./auth";
 import * as z from "zod";
