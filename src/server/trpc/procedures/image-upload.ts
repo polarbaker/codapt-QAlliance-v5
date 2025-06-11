@@ -1328,15 +1328,16 @@ export const emergencyUploadImage = baseProcedure
     }
   });
 
-// Bulk upload (simplified)
+// Bulk upload with enhanced error handling and default values
 export const adminBulkUploadImages = baseProcedure
   .input(bulkImageUploadInputSchema)
   .mutation(async ({ input }) => {
     const startTime = Date.now();
+    const batchId = `batch_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     
     try {
       await requireAdminAuth(input.adminToken);
-      console.log(`Starting bulk upload: ${input.images.length} images`);
+      console.log(`🚀 BULK UPLOAD: Starting batch ${batchId} with ${input.images.length} images`);
       
       // Memory check for bulk operations
       const memoryStats = getMemoryStats();
@@ -1366,16 +1367,22 @@ export const adminBulkUploadImages = baseProcedure
         const fileName = image.fileName || `unnamed_image_${i}`;
         
         try {
-          console.log(`Processing bulk image ${i + 1}/${input.images.length}: ${fileName}`);
+          console.log(`📦 BULK UPLOAD: Processing image ${i + 1}/${input.images.length}: ${fileName} (batch: ${batchId})`);
+          
+          // Ensure all required fields have values and set defaults for optional fields
+          const enhancedImage = {
+            adminToken: input.adminToken,
+            fileName: image.fileName,
+            fileContent: image.fileContent,
+            fileType: image.fileType,
+            // Provide default values for optional fields to prevent Prisma errors
+            title: image.title || "", 
+            description: image.description || "",
+            altText: image.altText || ""
+          };
           
           // Use single upload logic
-          const result = await createInternalCaller<any, any>(adminUploadImage)({
-            input: {
-              adminToken: input.adminToken,
-              ...image,
-            },
-            ctx: {} as any,
-          });
+          const result = await createInternalCaller<any, any>(adminUploadImage)(enhancedImage);
           
           results.push({
             fileName: fileName,
@@ -1384,7 +1391,7 @@ export const adminBulkUploadImages = baseProcedure
           });
           
         } catch (error) {
-          console.error(`Bulk upload failed for ${fileName}:`, error);
+          console.error(`❌ BULK UPLOAD: Failed to upload ${fileName} (batch: ${batchId}):`, error);
           
           errors.push({
             fileName: fileName,
@@ -1400,10 +1407,11 @@ export const adminBulkUploadImages = baseProcedure
       }
       
       const totalTime = Date.now() - startTime;
-      console.log(`Bulk upload completed: ${results.length} successful, ${errors.length} failed in ${totalTime}ms`);
+      console.log(`✅ BULK UPLOAD: Completed batch ${batchId}: ${results.length} successful, ${errors.length} failed in ${totalTime}ms`);
       
       return {
         success: true,
+        batchId,
         results,
         errors,
         totalProcessed: input.images.length,
@@ -1413,7 +1421,7 @@ export const adminBulkUploadImages = baseProcedure
       };
       
     } catch (error) {
-      console.error('Bulk upload error:', error);
+      console.error(`❌ BULK UPLOAD: Batch ${batchId} failed with error:`, error);
       throw error;
     }
   });

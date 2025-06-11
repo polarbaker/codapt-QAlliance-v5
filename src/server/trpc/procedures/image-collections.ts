@@ -172,15 +172,25 @@ export const adminCreateImageCollection = baseProcedure
       await requireAdminAuth(input.adminToken);
       
       const { name, description, isPublic, imageIds } = input;
+      const collectionId = `col_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`;
+      
+      console.log(`🗂️ COLLECTION CREATE: Creating new collection "${name}" (${collectionId})`);
       
       const { db } = await import("~/server/db");
+      
+      // Ensure description is not undefined (handles Prisma validation)
+      const safeDescription = description || "";
       
       // Generate unique slug
       const baseSlug = generateSlug(name);
       const slug = await ensureUniqueSlug(db, baseSlug);
       
+      console.log(`🔤 COLLECTION CREATE: Generated slug "${slug}" for "${name}" (${collectionId})`);
+      
       // Validate that all image IDs exist if provided
       if (imageIds.length > 0) {
+        console.log(`🖼️ COLLECTION CREATE: Validating ${imageIds.length} image IDs (${collectionId})`);
+        
         const existingImages = await db.image.findMany({
           where: { id: { in: imageIds } },
           select: { id: true },
@@ -190,6 +200,7 @@ export const adminCreateImageCollection = baseProcedure
         const missingIds = imageIds.filter(id => !existingIds.includes(id));
         
         if (missingIds.length > 0) {
+          console.error(`❌ COLLECTION CREATE: Some images not found: ${missingIds.join(', ')} (${collectionId})`);
           throw new TRPCError({
             code: 'BAD_REQUEST',
             message: `Images not found: ${missingIds.join(', ')}`,
@@ -203,13 +214,15 @@ export const adminCreateImageCollection = baseProcedure
         const newCollection = await tx.imageCollection.create({
           data: {
             name,
-            description,
+            description: safeDescription,
             slug,
             isPublic,
             imageCount: imageIds.length,
             totalSize: 0, // Will be calculated if needed
           },
         });
+        
+        console.log(`✅ COLLECTION CREATE: Collection created with ID: ${newCollection.id} (${collectionId})`);
         
         // Add images to collection if provided
         if (imageIds.length > 0) {
@@ -281,6 +294,9 @@ export const adminUpdateImageCollection = baseProcedure
       await requireAdminAuth(input.adminToken);
       
       const { collectionId, name, description, isPublic, imageIds } = input;
+      const operationId = `update_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`;
+      
+      console.log(`🔄 COLLECTION UPDATE: Updating collection ${collectionId} (${operationId})`);
       
       const { db } = await import("~/server/db");
       
@@ -290,30 +306,52 @@ export const adminUpdateImageCollection = baseProcedure
       });
       
       if (!existingCollection) {
+        console.error(`❌ COLLECTION UPDATE: Collection ${collectionId} not found (${operationId})`);
         throw new TRPCError({
           code: 'NOT_FOUND',
           message: 'Image collection not found',
         });
       }
       
+      // Generate new slug if name is changed
+      let slug = existingCollection.slug;
+      if (name && name !== existingCollection.name) {
+        const baseSlug = generateSlug(name);
+        slug = await ensureUniqueSlug(db, baseSlug, collectionId);
+        console.log(`🔤 COLLECTION UPDATE: Generated new slug "${slug}" for "${name}" (${operationId})`);
+      }
+      
       // Prepare update data
       const updateData: any = {};
       
-      if (name !== undefined) {
-        updateData.name = name;
-        // Generate new slug if name changed
-        if (name !== existingCollection.name) {
-          const baseSlug = generateSlug(name);
-          updateData.slug = await ensureUniqueSlug(db, baseSlug, collectionId);
-        }
-      }
-      
+      if (name !== undefined) updateData.name = name;
       if (description !== undefined) {
-        updateData.description = description;
+        // Ensure description is not undefined (handles Prisma validation)
+        updateData.description = description || "";
       }
+      if (isPublic !== undefined) updateData.isPublic = isPublic;
+      if (slug !== existingCollection.slug) updateData.slug = slug;
       
-      if (isPublic !== undefined) {
-        updateData.isPublic = isPublic;
+      // Update image relationships if provided
+      if (imageIds !== undefined) {
+        console.log(`🖼️ COLLECTION UPDATE: Processing ${imageIds.length} images for collection ${collectionId} (${operationId})`);
+        
+        // Validate that all image IDs exist
+        const existingImages = await db.image.findMany({
+          where: { id: { in: imageIds } },
+          select: { id: true, fileSize: true },
+        });
+        
+        const existingImageIds = existingImages.map(img => img.id);
+        const missingIds = imageIds.filter(id => !existingImageIds.includes(id));
+        
+        if (missingIds.length > 0) {
+          console.error(`❌ COLLECTION UPDATE: Some images not found: ${missingIds.join(', ')} (${operationId})`);
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: `Images not found: ${missingIds.join(', ')}`,
+          });
+        }
       }
       
       // Update collection in a transaction
@@ -326,24 +364,6 @@ export const adminUpdateImageCollection = baseProcedure
         
         // Update images if provided
         if (imageIds !== undefined) {
-          // Validate that all image IDs exist
-          if (imageIds.length > 0) {
-            const existingImages = await tx.image.findMany({
-              where: { id: { in: imageIds } },
-              select: { id: true },
-            });
-            
-            const existingIds = existingImages.map(img => img.id);
-            const missingIds = imageIds.filter(id => !existingIds.includes(id));
-            
-            if (missingIds.length > 0) {
-              throw new TRPCError({
-                code: 'BAD_REQUEST',
-                message: `Images not found: ${missingIds.join(', ')}`,
-              });
-            }
-          }
-          
           // Remove all existing items
           await tx.imageCollectionItem.deleteMany({
             where: { collectionId },
