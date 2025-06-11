@@ -381,6 +381,9 @@ export const adminGetPartnerById = baseProcedure
     return partner;
   });
 
+// Default partner logo value - required by Prisma schema
+const DEFAULT_PARTNER_LOGO = 'default-partner-placeholder.png';
+
 export const adminCreatePartner = baseProcedure
   .input(z.object({
     adminToken: z.string(),
@@ -391,8 +394,17 @@ export const adminCreatePartner = baseProcedure
     
     const { data } = input;
     
+    // Ensure logoUrl is always set with a value
+    const partnerData = {
+      ...data,
+      // Always provide a default logo if none is specified
+      logoUrl: data.logoUrl && data.logoUrl.trim() !== '' ? data.logoUrl : DEFAULT_PARTNER_LOGO
+    };
+    
+    console.log('Creating partner with logoUrl:', partnerData.logoUrl);
+    
     const partner = await db.partner.create({
-      data,
+      data: partnerData,
     });
     
     return {
