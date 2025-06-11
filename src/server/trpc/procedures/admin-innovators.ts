@@ -260,7 +260,7 @@ export const adminUpdateInnovator = baseProcedure
           
         } else if (data.image.includes('.') && data.image.length > 10) {
           // This looks like a file path from advanced upload (bulletproof system)
-          console.log(`🗃️ ADMIN UPDATE: Advanced upload file path detected:`, {
+          console.log(`📃️ ADMIN UPDATE: Advanced upload file path detected:`, {
             filePath: data.image,
           });
           
@@ -282,16 +282,26 @@ export const adminUpdateInnovator = baseProcedure
             filePath: data.image,
           });
           
+        } else if (data.image.startsWith('data:image/')) {
+          // Base64 encoded image data - accept this format as well
+          console.log(`🖼️ ADMIN UPDATE: Base64 image data detected, length: ${data.image.length}`);
+          
+          // For base64 images, store the data directly
+          updateData.avatar = data.image;
+          
+          console.log(`✅ ADMIN UPDATE: Base64 image data accepted`);
+          
         } else {
           // Invalid image format
           console.error(`❌ ADMIN UPDATE: Invalid image format:`, {
-            imageValue: data.image,
+            imageValue: data.image.substring(0, 30) + '...',
             imageLength: data.image.length,
             startsWithSimple: data.image.startsWith('simple-upload-'),
             containsDot: data.image.includes('.'),
+            startsWithDataImage: data.image.startsWith('data:image/'),
           });
           
-          throw new Error(`Invalid image format. Expected either a file path from advanced upload or a simple upload marker, got: ${data.image.substring(0, 50)}...`);
+          throw new Error(`Invalid image format. Expected either a file path from advanced upload, a simple upload marker, or base64 data, got: ${data.image.substring(0, 50)}...`);
         }
         
       } catch (imageError) {
