@@ -4,6 +4,7 @@ import '../../../polyfill';
 import { baseProcedure } from "~/server/trpc/main";
 import { requireAdminAuth } from "./auth";
 import * as z from "zod";
+import type { TRPCError, AnyMutationProcedure } from "@trpc/server";
 import { randomUUID } from "crypto";
 import { Client } from "minio";
 import sharp from "sharp";
@@ -102,6 +103,33 @@ const minioClient = new Client({
   region: 'us-east-1',
 });
 
+// Helper function to call tRPC procedures internally
+// This replaces the deprecated .resolver pattern
+async function callProcedureInternally<TInput, TOutput>(
+  procedure: any,
+  input: TInput
+): Promise<TOutput> {
+  try {
+    // Extract the resolver function from the procedure
+    const resolver = procedure._def.resolver;
+    if (typeof resolver !== 'function') {
+      throw new Error('Procedure resolver is not a function');
+    }
+    
+    // Call the resolver directly with minimal mock context
+    return await resolver({
+      input,
+      ctx: {} as any,
+      path: procedure._def.path || 'unknown',
+      type: procedure._def.type || 'mutation',
+    }) as TOutput;
+  } catch (error) {
+    // Preserve tRPC error handling behavior
+    console.error('Internal procedure call failed:', error);
+    throw error;
+  }
+};
+
 const BUCKET_NAME = 'images';
 const TEMP_BUCKET_NAME = 'temp-uploads';
 
@@ -167,7 +195,13 @@ const validateChunk = (
 ): { valid: boolean; error?: BulletproofImageError; adaptedChunkSize?: number } => {
   try {
     // Parse chunk data
-    const base64Data = chunkData.includes('base64,') ? chunkData.split('base64,')[1] : chunkData;
+    const base64Data = chunkData?.includes('base64,') ? chunkData.split('base64,')[1] : chunkData;
+    if (!base64Data) {
+      return {
+        valid: false,
+        error: createBulletproofError('Invalid or empty chunk data', 'validation')
+      };
+    }
     const chunkBuffer = Buffer.from(base64Data, 'base64');
     
     // Check chunk size limits
@@ -546,13 +580,25 @@ const selectProcessingStrategy = async (
   if (viableStrategies.length === 0) {
     // If no strategies are viable, force emergency fallback
     console.warn(`No viable strategies for ${fileName}, forcing emergency fallback`);
-    return processingStrategies[processingStrategies.length - 1]; // Emergency fallback
+    // Ensure processingStrategies array is not empty
+    if (processingStrategies.length === 0) {
+      throw new Error('No processing strategies available, including emergency fallback');
+    }
+    // Get the last strategy with type safety
+    const emergencyFallbackStrategy = processingStrategies[processingStrategies.length - 1];
+    if (!emergencyFallbackStrategy) {
+      throw new Error('Emergency fallback strategy is undefined');
+    }
+    return emergencyFallbackStrategy; // Emergency fallback
   }
   
   // Sort by priority and select the best one
   viableStrategies.sort((a, b) => a.priority - b.priority);
   
   const selectedStrategy = viableStrategies[0];
+  if (!selectedStrategy) {
+    throw new Error(`Failed to select processing strategy for ${fileName}`);
+  }
   console.log(`Selected processing strategy: ${selectedStrategy.name} for ${fileName}`);
   
   return selectedStrategy;
@@ -930,7 +976,15 @@ export const storageHealthCheck = baseProcedure
         
         if (!bucketExists) {
           healthResults.errors.push(`Main bucket '${BUCKET_NAME}' does not exist`);
-          return { success: false, health: healthResults };
+          return {
+            success: false,
+            health: healthResults,
+            summary: {
+              status: 'error',
+              score: 0,
+              recommendations: ['Critical error: Bucket not found or inaccessible. Check Minio setup.'],
+            }
+          };
         }
         
         console.log(`✅ STORAGE HEALTH CHECK: Main bucket '${BUCKET_NAME}' exists`);
@@ -938,7 +992,15 @@ export const storageHealthCheck = baseProcedure
         const errorMsg = `Failed to check bucket existence: ${bucketError instanceof Error ? bucketError.message : 'Unknown error'}`;
         healthResults.errors.push(errorMsg);
         console.error(`❌ STORAGE HEALTH CHECK: ${errorMsg}`);
-        return { success: false, health: healthResults };
+        return {
+          success: false,
+          health: healthResults,
+          summary: {
+            status: 'error',
+            score: 0,
+            recommendations: ['Critical error: Failed to verify bucket existence. Check Minio connectivity and permissions.'],
+          }
+        };
       }
       
       // Check bucket accessibility by listing objects (limited)
@@ -1240,7 +1302,10 @@ export const bulletproofProgressiveUpload = baseProcedure
       }
       
       // Parse and store chunk
-      const base64Data = data.includes('base64,') ? data.split('base64,')[1] : data;
+      const base64Data = data?.includes('base64,') ? data.split('base64,')[1] : data;
+      if (!base64Data) {
+        throw createBulletproofError('Invalid or empty chunk data', 'validation');
+      }
       const chunkBuffer = Buffer.from(base64Data, 'base64');
       
       // Check for duplicate chunks
@@ -1329,24 +1394,28 @@ export const bulletproofProgressiveUpload = baseProcedure
           
           // Process the complete file using the bulletproof system
           console.log(`🚀 Processing assembled file: ${fileName}`);
-          const result = await bulletproofSingleUpload.resolver({
-            input: {
+          const result = await callProcedureInternally(
+            bulletproofSingleUpload,
+            {
               adminToken: input.adminToken,
               fileName,
               fileContent: completeBuffer.toString('base64'),
               fileType,
-            },
-            ctx: {} as any,
-          });
+            }
+          );
           
           const totalTime = Date.now() - startTime;
           console.log(`✅ Progressive upload completed: ${fileName} in ${totalTime}ms`);
+          
+          // Ensure result is an object before spreading
+          const safeResult = (result && typeof result === 'object') ? result : {};
           
           return {
             success: true,
             complete: true,
             sessionId,
-            ...result,
+            // Type-safe spreading of properties
+            ...(safeResult as Record<string, unknown>),
             progressiveUploadStats: {
               totalChunks,
               totalSize: completeBuffer.length,
@@ -1863,9 +1932,13 @@ export const bulletproofSingleUpload = baseProcedure
       // Parse and validate buffer
       let buffer: Buffer;
       try {
-        const base64Data = input.fileContent.includes('base64,') 
+        const base64Data = input.fileContent?.includes('base64,') 
           ? input.fileContent.split('base64,')[1]
           : input.fileContent;
+        
+        if (!base64Data) {
+          throw createBulletproofError('Invalid or empty file content', 'validation');
+        }
         
         buffer = Buffer.from(base64Data, 'base64');
         
@@ -2142,6 +2215,19 @@ export const bulletproofBulkUpload = baseProcedure
       for (let i = 0; i < input.images.length; i++) {
         const image = input.images[i];
         
+        // Skip any undefined/invalid images and report error
+        if (!image || typeof image !== 'object') {
+          console.error(`Invalid image object at index ${i}`);
+          errors.push({
+            fileName: `Image #${i+1}`,
+            error: 'Invalid image entry',
+            category: 'validation' as BulletproofImageError['category'],
+            canRetry: false,
+            suggestions: ['Check input data format']
+          });
+          continue;
+        }
+        
         try {
           console.log(`Processing bulk image ${i + 1}/${input.images.length}: ${image.fileName}`);
           
@@ -2153,23 +2239,36 @@ export const bulletproofBulkUpload = baseProcedure
             await new Promise(resolve => setTimeout(resolve, 2000));
           }
           
-          const result = await bulletproofSingleUpload.resolver({
-            input: {
-              adminToken: input.adminToken,
-              ...image,
-            },
-            ctx: {} as any,
-          });
+          // Create a properly typed input object
+          const singleUploadInput = {
+            adminToken: input.adminToken,
+            fileName: image.fileName,
+            fileContent: image.fileContent,
+            fileType: image.fileType,
+            title: image.title,
+            description: image.description,
+            altText: image.altText,
+          };
+          
+          const result = await callProcedureInternally(
+            bulletproofSingleUpload,
+            singleUploadInput
+          );
+          
+          // Ensure result is an object before spreading
+          const safeResultObject = (result && typeof result === 'object') ? result : {};
           
           results.push({
             fileName: image.fileName,
             success: true,
-            ...result,
+            ...(safeResultObject as Record<string, unknown>),
           });
           
           successCount++;
           
         } catch (error) {
+          if (!image) continue; // Defensive check
+          
           console.error(`Bulk upload failed for ${image.fileName}:`, error);
           
           const errorInfo = error instanceof Error && 'category' in error 

@@ -2,6 +2,9 @@ import React, { useState, useCallback } from 'react';
 import { useTRPC } from '~/trpc/react';
 import { useUserStore } from '~/stores/userStore';
 import { toast } from 'react-hot-toast';
+import type { TRPCClientErrorLike } from '@trpc/client';
+import type { AppRouter } from '~/server/trpc/root';
+import type { inferProcedureOutput } from '@trpc/server';
 import {
   Server,
   Database,
@@ -44,7 +47,7 @@ export const ImageSystemDashboard: React.FC<ImageSystemDashboardProps> = ({
     {
       enabled: !!adminToken && !safeMode, // Disable in safe mode
       refetchInterval: safeMode ? false : 5 * 60 * 1000, // Disable auto-refetch in safe mode
-      retry: (failureCount, error) => {
+      retry: (failureCount: number, error: TRPCClientErrorLike<AppRouter>): boolean => {
         if (safeMode) return false; // Don't retry in safe mode
         
         // Don't retry on 404 or auth errors
@@ -57,8 +60,8 @@ export const ImageSystemDashboard: React.FC<ImageSystemDashboardProps> = ({
         
         return failureCount < 2; // Limited retries
       },
-      retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 10000),
-      onError: (error) => {
+      retryDelay: (attemptIndex: number) => Math.min(1000 * 2 ** attemptIndex, 10000),
+      onError: (error: TRPCClientErrorLike<AppRouter>) => {
         console.error('❌ Storage health check failed:', error);
         setHealthCheckError(error.message);
         
@@ -87,16 +90,23 @@ export const ImageSystemDashboard: React.FC<ImageSystemDashboardProps> = ({
 
   // Health check with test upload mutation with enhanced error handling
   const runHealthCheckMutation = trpc.storageHealthCheck.useMutation({
-    onSuccess: (data) => {
+    onSuccess: (data: inferProcedureOutput<AppRouter['storageHealthCheck']>) => {
       setRunningHealthCheck(false);
       setHealthCheckError(null);
       
+      // Use optional chaining and nullish coalescing for safety
+      const status = data.summary?.status || 'unknown';
+      const score = data.summary?.score ?? 'N/A';
+      const firstRecommendation = data.summary?.recommendations?.[0] || '';
+
       if (data.success) {
-        toast.success(`✅ Storage system is ${data.summary.status} (Score: ${data.summary.score}/100)`, { 
+        toast.success(`✅ Storage system is ${status} (Score: ${score}/100)`, { 
           duration: 5000 
         });
       } else {
-        toast.error(`❌ Storage system issues detected (Score: ${data.summary.score}/100)`, { 
+        // Include first recommendation in error toast if available
+        const errorMessage = `❌ Storage system issues detected (Score: ${score}/100). ${firstRecommendation ? firstRecommendation : ''}`.trim();
+        toast.error(errorMessage, { 
           duration: 8000 
         });
       }
@@ -104,7 +114,7 @@ export const ImageSystemDashboard: React.FC<ImageSystemDashboardProps> = ({
       // Refetch the regular health check
       healthCheckQuery.refetch();
     },
-    onError: (error) => {
+    onError: (error: TRPCClientErrorLike<AppRouter>) => {
       setRunningHealthCheck(false);
       setHealthCheckError(error.message);
       
@@ -382,11 +392,11 @@ export const ImageSystemDashboard: React.FC<ImageSystemDashboardProps> = ({
                   </span>
                   <div className="flex items-center space-x-2">
                     <div className={`w-3 h-3 rounded-full ${
-                      healthData.summary.score >= 80 ? 'bg-green-500' :
-                      healthData.summary.score >= 60 ? 'bg-yellow-500' : 'bg-red-500'
+                      (healthData.summary?.score ?? 0) >= 80 ? 'bg-green-500' :
+                      (healthData.summary?.score ?? 0) >= 60 ? 'bg-yellow-500' : 'bg-red-500'
                     }`} />
                     <span className="text-sm font-semibold">
-                      {healthData.summary.score}/100
+                      {healthData.summary?.score ?? 'N/A'}/100
                     </span>
                   </div>
                 </div>
@@ -394,20 +404,20 @@ export const ImageSystemDashboard: React.FC<ImageSystemDashboardProps> = ({
                 <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                   <div 
                     className={`h-2 rounded-full transition-all duration-300 ${
-                      healthData.summary.score >= 80 ? 'bg-green-500' :
-                      healthData.summary.score >= 60 ? 'bg-yellow-500' : 'bg-red-500'
+                      (healthData.summary?.score ?? 0) >= 80 ? 'bg-green-500' :
+                      (healthData.summary?.score ?? 0) >= 60 ? 'bg-yellow-500' : 'bg-red-500'
                     }`}
-                    style={{ width: `${healthData.summary.score}%` }}
+                    style={{ width: `${healthData.summary?.score ?? 0}%` }}
                   />
                 </div>
                 
-                {healthData.summary.recommendations.length > 0 && (
+                {healthData.summary?.recommendations && healthData.summary.recommendations.length > 0 && (
                   <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
                     <h4 className="text-sm font-medium text-yellow-800 dark:text-yellow-200 mb-2">
                       Recommendations:
                     </h4>
                     <ul className="text-sm text-yellow-700 dark:text-yellow-300 space-y-1">
-                      {healthData.summary.recommendations.map((rec, index) => (
+                      {healthData.summary.recommendations.map((rec: string, index: number) => (
                         <li key={index}>• {rec}</li>
                       ))}
                     </ul>
@@ -619,7 +629,7 @@ export const ImageSystemDashboard: React.FC<ImageSystemDashboardProps> = ({
                         Errors ({healthData.health.errors.length})
                       </h4>
                       <ul className="text-sm text-red-700 dark:text-red-300 space-y-1">
-                        {healthData.health.errors.map((error, index) => (
+                        {healthData.health.errors.map((error: string, index: number) => (
                           <li key={index}>• {error}</li>
                         ))}
                       </ul>
@@ -632,7 +642,7 @@ export const ImageSystemDashboard: React.FC<ImageSystemDashboardProps> = ({
                         Warnings ({healthData.health.warnings.length})
                       </h4>
                       <ul className="text-sm text-yellow-700 dark:text-yellow-300 space-y-1">
-                        {healthData.health.warnings.map((warning, index) => (
+                        {healthData.health.warnings.map((warning: string, index: number) => (
                           <li key={index}>• {warning}</li>
                         ))}
                       </ul>
@@ -751,7 +761,7 @@ export const ImageSystemDashboard: React.FC<ImageSystemDashboardProps> = ({
                       </tr>
                     </thead>
                     <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                      {innovatorsData.innovators.map((innovator) => (
+                      {innovatorsData?.innovators?.map((innovator: inferProcedureOutput<AppRouter['listInnovatorsWithImageStatus']>['innovators'][number], index: number) => (
                         <tr key={innovator.id}>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center">
