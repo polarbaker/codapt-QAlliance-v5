@@ -3,6 +3,7 @@ import { db } from "~/server/db";
 import { requireAdminAuth } from "./auth";
 import { caseStudySchema, newsSchema, partnerSchema } from "~/constants/validation";
 import * as z from "zod";
+import { Prisma } from '@prisma/client';
 
 // Case Studies
 export const adminGetCaseStudies = baseProcedure
@@ -383,6 +384,7 @@ export const adminGetPartnerById = baseProcedure
 
 // Default partner logo value - required by Prisma schema
 const DEFAULT_PARTNER_LOGO = 'default-partner-placeholder.png';
+const DEFAULT_ALT_TEXT = 'Partner logo';
 
 export const adminCreatePartner = baseProcedure
   .input(z.object({
@@ -390,28 +392,46 @@ export const adminCreatePartner = baseProcedure
     data: partnerSchema,
   }))
   .mutation(async ({ input }) => {
-    await requireAdminAuth(input.adminToken);
-    
-    const { data } = input;
-    
-    // Ensure logoUrl is always set with a value
-    const partnerData = {
-      ...data,
-      // Always provide a default logo if none is specified
-      logoUrl: data.logoUrl && data.logoUrl.trim() !== '' ? data.logoUrl : DEFAULT_PARTNER_LOGO
-    };
-    
-    console.log('Creating partner with logoUrl:', partnerData.logoUrl);
-    
-    const partner = await db.partner.create({
-      data: partnerData,
-    });
-    
-    return {
-      success: true,
-      partner,
-      message: 'Partner created successfully',
-    };
+    try {
+      await requireAdminAuth(input.adminToken);
+      
+      const { data } = input;
+      
+      // Log the incoming request data for debugging
+      console.log('adminCreatePartner: Incoming data:', JSON.stringify(data, null, 2));
+      
+      // Match exactly what the Prisma Schema requires for Partner
+      const partnerData: Prisma.PartnerCreateInput = {
+        // Required fields with defaults if missing (based on Prisma schema)
+        name: data.name,
+        logoUrl: data.logoUrl && data.logoUrl.trim() !== '' ? data.logoUrl : DEFAULT_PARTNER_LOGO,
+        altText: data.altText && data.altText.trim() !== '' ? data.altText : DEFAULT_ALT_TEXT,
+        
+        // Fields with defaults
+        visible: data.visible !== undefined ? data.visible : true,
+        order: data.order !== undefined ? data.order : 0,
+        
+        // Optional fields
+        websiteUrl: data.websiteUrl && data.websiteUrl.trim() !== '' ? data.websiteUrl : undefined,
+      };
+      
+      console.log('adminCreatePartner: Creating partner with processed data:', JSON.stringify(partnerData, null, 2));
+      
+      const partner = await db.partner.create({
+        data: partnerData,
+      });
+      
+      console.log(`adminCreatePartner: Partner created successfully with ID: ${partner.id}`);
+      
+      return {
+        success: true,
+        partner,
+        message: 'Partner created successfully',
+      };
+    } catch (error) {
+      console.error('adminCreatePartner ERROR:', error);
+      throw error;
+    }
   });
 
 export const adminUpdatePartner = baseProcedure
