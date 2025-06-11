@@ -110,7 +110,10 @@ export const adminCreateInnovator = baseProcedure
       imageValue: data.image,
     });
     
-    // Prepare innovator data
+    // DEFAULT AVATAR VALUE - required by Prisma schema
+    const DEFAULT_AVATAR = 'default-innovator-placeholder.png';
+    
+    // Prepare innovator data - ALWAYS setting avatar since it's required
     const innovatorData: any = {
       name: data.name,
       role: data.title, // Map title to role
@@ -121,19 +124,22 @@ export const adminCreateInnovator = baseProcedure
       videoUrl: data.hasVideo && data.videoUrl ? data.videoUrl : null,
       featured: data.featured,
       order: 0, // Default order
+      // IMPORTANT: Avatar is REQUIRED by Prisma schema - always provide a value
+      avatar: DEFAULT_AVATAR // Set default, will override below if image provided
     };
     
-    // Only set avatar if image is provided
+    // If image is provided, use it instead of default
     if (data.image && data.image.trim() !== '') {
-      console.log(`🖼️ ADMIN CREATE: Image provided for new innovator:`, {
-        imageValue: data.image,
+      console.log(`🖼️ ADMIN CREATE: Custom image provided for new innovator - overriding default:`, {
+        imageValue: data.image.substring(0, 50) + '...',
         imageLength: data.image.length,
       });
       innovatorData.avatar = data.image;
     } else {
-      console.log(`📝 ADMIN CREATE: No image provided - innovator will be created without avatar`);
-      // Don't set avatar field, let it default to null/empty
+      console.log(`🖼️ ADMIN CREATE: No image provided - using default avatar: ${DEFAULT_AVATAR}`);
     }
+    
+    console.log(`🔍 FINAL AVATAR VALUE: ${innovatorData.avatar ? innovatorData.avatar.substring(0, 30) + '...' : 'undefined'}`);
     
     const innovator = await db.innovator.create({
       data: innovatorData,
